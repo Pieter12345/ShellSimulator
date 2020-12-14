@@ -341,18 +341,15 @@ public class Shell : MonoBehaviour {
 
         // Shared edge, clockwise for triangle 1, anti-clockwise for triangle 2.
         Vector3 e1 = vertices[ve2] - vertices[ve1];
-        Vector3 d_e1_d_ve1 = new Vector3(-1f, -1f, -1f);
         Vector3 e1_undeformed = this.originalVertices[ve2] - this.originalVertices[ve1];
 
         // Edge in triangle 1 that does not include ve1.
         Vector3 e2 = (v11 == ve1 ? vertices[v13] - vertices[v12] : (v12 == ve1 ? vertices[v11] - vertices[v13] : vertices[v12] - vertices[v11]));
-        Vector3 d_e2_d_ve1 = new Vector3(0f, 0f, 0f);
         Vector3 e2_undeformed = (v11 == ve1 ? this.originalVertices[v13] - this.originalVertices[v12]
                 : (v12 == ve1 ? this.originalVertices[v11] - this.originalVertices[v13] : this.originalVertices[v12] - this.originalVertices[v11]));
 
         // Edge in triangle 2 that does not include ve1.
         Vector3 e3 = (v21 == ve1 ? vertices[v23] - vertices[v22] : (v22 == ve1 ? vertices[v21] - vertices[v23] : vertices[v22] - vertices[v21]));
-        Vector3 d_e3_d_ve1 = new Vector3(0f, 0f, 0f);
         Vector3 e3_undeformed = (v21 == ve1 ? this.originalVertices[v23] - this.originalVertices[v22]
                 : (v22 == ve1 ? this.originalVertices[v21] - this.originalVertices[v23] : this.originalVertices[v22] - this.originalVertices[v21]));
 
@@ -362,69 +359,14 @@ public class Shell : MonoBehaviour {
         Vector3 n1 = cross_e1_e2.normalized;
         Vector3 n2 = cross_e1_e3.normalized;
 
-        // Triangle normal partial derivatives.
-        float cross_e1_e2_length = cross_e1_e2.magnitude;
-        Vector3 d_cross_e1_e2_length_d_e1 = 1f / cross_e1_e2_length * new Vector3(
-                (e1.x * e2.z - e2.x * e1.z) * e2.z + (e1.x * e2.y - e2.x * e1.y) * e2.y,
-                (e1.y * e2.z - e2.y * e1.z) * e2.z - (e1.x * e2.y - e2.x * e1.y) * e2.x,
-                (e1.y * e2.z - e2.y * e1.z) * -e2.y - (e1.x * e2.z - e2.x * e1.z) * e2.x);
-        Vector3 d_n1_d_e1 = new Vector3(
-                -(e1.y * e2.z - e2.y * e1.z) * d_cross_e1_e2_length_d_e1.x
-                    + cross_e1_e2_length * e2.z - (e1.y * e2.z - e2.y * e1.z) * d_cross_e1_e2_length_d_e1.y
-                    + cross_e1_e2_length * -e2.y - (e1.y * e2.z - e2.y * e1.z) * d_cross_e1_e2_length_d_e1.z,
-                cross_e1_e2_length * e2.z - (e1.x * e2.z - e2.x * e1.z) * d_cross_e1_e2_length_d_e1.x
-                    - (e1.x * e2.z - e2.x * e1.z) * d_cross_e1_e2_length_d_e1.y
-                    + cross_e1_e2_length * -e2.x - (e1.x * e2.z - e2.x * e1.z) * d_cross_e1_e2_length_d_e1.z,
-                cross_e1_e2_length * e2.y - (e1.x * e2.y - e2.x * e1.y) * d_cross_e1_e2_length_d_e1.x
-                    + cross_e1_e2_length * -e2.x - (e1.x * e2.y - e2.x * e1.y) * d_cross_e1_e2_length_d_e1.y
-                    - (e1.x * e2.y - e2.x * e1.y) * d_cross_e1_e2_length_d_e1.z
-            ) / (cross_e1_e2_length * cross_e1_e2_length);
-        //print("e1: " + e1);
-        //print("e2: " + e2);
-        //print("cross_e1_e2: " + cross_e1_e2);
-        //print("cross_e1_e2_length: " + cross_e1_e2_length);
-        //print("d_n1_d_e1: " + d_n1_d_e1);
-        //print("d_cross_e1_e2_length_d_e1: " + d_cross_e1_e2_length_d_e1);
-
-        //this.doUpdate = false;
-
-        float cross_e1_e3_length = cross_e1_e3.magnitude;
-        Vector3 d_cross_e1_e3_length_d_e1 = 1f / cross_e1_e3_length * new Vector3(
-                (e1.x * e3.z - e3.x * e1.z) * e3.z + (e1.x * e3.y - e3.x * e1.y) * e3.y,
-                (e1.y * e3.z - e3.y * e1.z) * e3.z - (e1.x * e3.y - e3.x * e1.y) * e3.x,
-                (e1.y * e3.z - e3.y * e1.z) * -e3.y - (e1.x * e3.z - e3.x * e1.z) * e3.x);
-        Vector3 d_n2_d_e1 = new Vector3(
-                -(e1.y * e3.z - e3.y * e1.z) * d_cross_e1_e3_length_d_e1.x
-                    + cross_e1_e3_length * e3.z - (e1.y * e3.z - e3.y * e1.z) * d_cross_e1_e3_length_d_e1.y
-                    + cross_e1_e3_length * -e3.y - (e1.y * e3.z - e3.y * e1.z) * d_cross_e1_e3_length_d_e1.z,
-                cross_e1_e3_length * e3.z - (e1.x * e3.z - e3.x * e1.z) * d_cross_e1_e3_length_d_e1.x
-                    - (e1.x * e3.z - e3.x * e1.z) * d_cross_e1_e3_length_d_e1.y
-                    + cross_e1_e3_length * -e3.x - (e1.x * e3.z - e3.x * e1.z) * d_cross_e1_e3_length_d_e1.z,
-                cross_e1_e3_length * e3.y - (e1.x * e3.y - e3.x * e1.y) * d_cross_e1_e3_length_d_e1.x
-                    + cross_e1_e3_length * -e3.x - (e1.x * e3.y - e3.x * e1.y) * d_cross_e1_e3_length_d_e1.y
-                    - (e1.x * e3.y - e3.x * e1.y) * d_cross_e1_e3_length_d_e1.z
-            ) / (cross_e1_e3_length * cross_e1_e3_length);
-        //print("cross_e1_e3_length: " + cross_e1_e3_length);
-        //print("d_n2_d_e1: " + d_n2_d_e1);
-
-
-        // New paper calc for d_teta_d_ve1.
-        // TODO - Replace current gradient calculations with these.
-        //// cot = cos / sin
-        //float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
-        //float dot_e1_norm_e3_norm = Vector3.Dot(e1.normalized, e3.normalized);
-        //float alpha1 = Mathf.Acos(dot_e1_norm_e2_norm);
-        //float alpha2 = Mathf.Acos(-dot_e1_norm_e3_norm);
-        ////print("alpha1: " + alpha1);
-        ////print("alpha2: " + alpha2);
-        //if(Mathf.Abs(dot_e1_norm_e2_norm) == 1f || dot_e1_norm_e3_norm == 1f) {
-        //    return new Vector3(0f, 0f, 0f);
-        //}
-        //Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1 - (dot_e1_norm_e2_norm * dot_e1_norm_e2_norm)) * n1
-        //        - dot_e1_norm_e3_norm / Mathf.Sqrt(1 - (dot_e1_norm_e3_norm * dot_e1_norm_e3_norm)) * n2);
-        ////print("d_teta_d_ve1: " + d_teta_d_ve1);
-        ////this.doUpdate = false;
-
+        // Calculate d_teta_d_ve1, based on rewriting d_teta_d_x1 in paper: http://ddg.math.uni-goettingen.de/pub/bendingCAGD.pdf
+        float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
+        float dot_e1_norm_e3_norm = Vector3.Dot(e1.normalized, e3.normalized);
+        if(Mathf.Abs(dot_e1_norm_e2_norm) == 1f || dot_e1_norm_e3_norm == 1f) {
+            return new Vector3(0f, 0f, 0f); // Triangle vertices are on a single line, gradient is 0 here.
+        }
+        Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1 - (dot_e1_norm_e2_norm * dot_e1_norm_e2_norm)) * n1
+                - dot_e1_norm_e3_norm / Mathf.Sqrt(1 - (dot_e1_norm_e3_norm * dot_e1_norm_e3_norm)) * n2);
 
         // Undeformed triangle normals. These don't have to be using the same edges, as long as they are clockwise as well (or have a minus sign).
         Vector3 n1_undeformed = Vector3.Cross(this.originalVertices[v12] - this.originalVertices[v11],
@@ -436,38 +378,15 @@ public class Shell : MonoBehaviour {
         Vector3 v_triangle2_unshared = (v21 == ve1 ? vertices[v23] : (v22 == ve1 ? vertices[v21] : vertices[v22]));
         float teta_e_sign = Mathf.Sign(Vector3.Dot(n1, v_triangle2_unshared - vertices[ve1])); // 1 if teta_e positive, -1 if negative.
         float teta_e = Mathf.Acos(Vector3.Dot(n1, n2)) * teta_e_sign;
-        //print("teta_e: " + teta_e);
-        //if(teta_e < 0.01f) {
-        //    this.doUpdate = false;
-        //}
-        if(teta_e == 0f) { // TODO - Energy gradient isn't 0 when teta_e_undeformed is non-zero.
-            return new Vector3(0f, 0f, 0f); // Angle is 0, energy is 0. Prevents division by 0 below.
-        }
-        Vector3 d_teta_e_d_n1 = -teta_e_sign / Mathf.Sqrt(Mathf.Pow(1f - Vector3.Dot(n1, n2), 2)) * n2;
-        Vector3 d_teta_e_d_n2 = -teta_e_sign / Mathf.Sqrt(Mathf.Pow(1f - Vector3.Dot(n1, n2), 2)) * n1;
         Vector3 v_triangle2_undeformed_unshared = (v21 == ve1 ? this.originalVertices[v23] : (v22 == ve1 ? this.originalVertices[v21] : this.originalVertices[v22]));
         float teta_e_undeformed_sign = Mathf.Sign(Vector3.Dot(n1_undeformed, v_triangle2_undeformed_unshared - this.originalVertices[ve1])); // 1 if teta_e_undeformed positive, -1 if negative.
         float teta_e_undeformed = Mathf.Acos(Vector3.Dot(n1_undeformed, n2_undeformed)) * teta_e_undeformed_sign;
-        //print("d_teta_e_d_n1: " + d_teta_e_d_n1);
-        //print("d_teta_e_d_n2: " + d_teta_e_d_n2);
 
         // bending energy gradient.
-        float h_e_undeformed = (cross_e1_e2_length + cross_e1_e3_length) / e1.magnitude / 6f;
+        float h_e_undeformed = (cross_e1_e2.magnitude + cross_e1_e3.magnitude) / e1.magnitude / 6f;
         float d_W_bending_energy_edge_d_teta_e = 2 * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
-        print("d_W_bending_energy_edge_d_teta_e: " + d_W_bending_energy_edge_d_teta_e);
-        Vector3 d_W_bending_energy_edge_d_v1 = d_W_bending_energy_edge_d_teta_e
-            * vecElemMultiply((vecElemMultiply(d_teta_e_d_n1, d_n1_d_e1) + vecElemMultiply(d_teta_e_d_n2, d_n2_d_e1)), d_e1_d_ve1);
-
-        // TODO - Remove test.
-        //print("Returning: " + 100f * (n1 + n2).normalized * -teta_e_sign + " Sign: " + teta_e_sign);
-        //return 100f * (n1 + n2).normalized * -teta_e_sign; // This vector is the correct direction, but the sign will depend on teta_e and teta_e_undeformed.
 
         // Return the result.
-        //return d_W_bending_energy_edge_d_teta_e * d_teta_d_ve1;
-        return d_W_bending_energy_edge_d_v1;
-    }
-
-    private static Vector3 vecElemMultiply(Vector3 v1, Vector3 v2) {
-        return new Vector3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
+        return d_W_bending_energy_edge_d_teta_e * d_teta_d_ve1;
     }
 }
