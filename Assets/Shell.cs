@@ -178,7 +178,7 @@ public class Shell : MonoBehaviour {
     }
 
     // Update is called once per frame.
-    void Update() {
+    void FixedUpdate() {
 
         // Don't update if no noticable time has passed, or when the game is paused.
         if(Time.deltaTime == 0 || Time.timeScale == 0
