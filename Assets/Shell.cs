@@ -13,6 +13,7 @@ public class Shell : MonoBehaviour {
     private Vector3[] originalVertices; // Vertices in undeformed state.
     private Vector3[] verticesVelocity;
     private Vector3[] verticesAcceleration;
+    private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
     private bool doUpdate = true;
 
@@ -117,13 +118,15 @@ public class Shell : MonoBehaviour {
             }
         }
 
-        // Initialize vertex velocity and acceleration.
+        // Initialize additional vertex data.
         int numVertices = mesh.vertices.Length;
         this.verticesVelocity = new Vector3[numVertices];
         this.verticesAcceleration = new Vector3[numVertices];
+        this.verticesMovementConstraints = new bool[numVertices];
         for(int i = 0; i < numVertices; i++) {
             this.verticesVelocity[i] = new Vector3(0, 0, 0);
             this.verticesAcceleration[i] = new Vector3(0, 0, 0);
+            this.verticesMovementConstraints[i] = false;
         }
     }
 
@@ -250,6 +253,13 @@ public class Shell : MonoBehaviour {
         float beta = 0f; // 0.25f;
         Vector3[] vertices = mesh.vertices;
         for(int i = 0; i < vertices.Length; i++) {
+
+            // Skip vertex if it is constrained.
+            if(this.verticesMovementConstraints[i]) {
+                this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
+                this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
+                continue;
+            }
 
             // Calculate acceleration.
             Vector3 newAcceleration = mass * -vertexEnergyGradient[i];
