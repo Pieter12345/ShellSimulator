@@ -115,6 +115,9 @@ public class Shell : MonoBehaviour {
                         sortedTriangleList.Add(triangleList[i]);
                     }
                 }
+
+                // Replace vertex triangles list with sorted vertex triangles list.
+                this.vertexTriangles[vertexInd] = sortedTriangleList;
             }
         }
 
