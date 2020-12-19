@@ -16,6 +16,7 @@ public class Shell : MonoBehaviour {
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
     private bool doUpdate = true;
+    private bool isMeshResetButtonDown = false;
 
     // Start is called before the first frame update.
     void Start() {
@@ -138,6 +139,17 @@ public class Shell : MonoBehaviour {
             this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             this.verticesMovementConstraints[i] = false;
         }
+
+    private void reset() {
+        Mesh mesh = this.getMesh();
+        Vector3[] vertices = mesh.vertices;
+        for(int i = 0; i < mesh.vertices.Length; i++) {
+            this.verticesVelocity[i] = new Vector3(0, 0, 0);
+            this.verticesAcceleration[i] = new Vector3(0, 0, 0);
+            vertices[i] = new Vector3(this.originalVertices[i].x, this.originalVertices[i].y, this.originalVertices[i].z);
+        }
+        mesh.vertices = vertices;
+        mesh.RecalculateNormals();
     }
 
     private Mesh createMesh() {
@@ -192,6 +204,18 @@ public class Shell : MonoBehaviour {
 
     // Update is called once per frame.
     void FixedUpdate() {
+
+        // Handle reset hotkey.
+        if(Input.GetKey(KeyCode.R)) {
+            if(!this.isMeshResetButtonDown) {
+                this.isMeshResetButtonDown = true;
+                this.reset();
+                print("Mesh reset.");
+                return;
+            }
+        } else {
+            this.isMeshResetButtonDown = false;
+        }
 
         // Don't update if no noticable time has passed, or when the game is paused.
         if(Time.deltaTime == 0 || Time.timeScale == 0
