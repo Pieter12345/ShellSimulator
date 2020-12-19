@@ -8,7 +8,7 @@ public class Shell : MonoBehaviour {
     public float kArea;
     public float kBend;
 
-    private GameObject shellObj;
+    public GameObject shellObj = null;
     private List<int>[] vertexTriangles;
     private Vector3[] originalVertices; // Vertices in undeformed state.
     private Vector3[] verticesVelocity;
@@ -24,14 +24,21 @@ public class Shell : MonoBehaviour {
         this.kLength = 0f;
         this.kArea = 0f;
         this.kBend = 10f;
-        
-        // Create a new object in the scene.
-        this.shellObj = new GameObject();
-        MeshRenderer meshRenderer = this.shellObj.AddComponent<MeshRenderer>();
+
+        // Create the new object in the scene.
+        Mesh mesh;
+        if(this.shellObj == null) {
+            this.shellObj = new GameObject();
+            this.shellObj.AddComponent<MeshRenderer>();
+            this.shellObj.AddComponent<MeshFilter>();
+            mesh = this.createMesh();
+            //Mesh mesh = this.createSingleTriangleMesh();
+        } else {
+            mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
+        }
+        MeshRenderer meshRenderer = this.shellObj.GetComponent<MeshRenderer>();
         meshRenderer.sharedMaterial = new Material(Shader.Find("Custom/StandardTwoSides"));
-        MeshFilter meshFilter = this.shellObj.AddComponent<MeshFilter>();
-        Mesh mesh = this.createMesh();
-        //Mesh mesh = this.createSingleTriangleMesh();
+        MeshFilter meshFilter = this.shellObj.GetComponent<MeshFilter>();
 
         // Store undeformed vertices.
         this.originalVertices = (Vector3[]) mesh.vertices.Clone();
