@@ -16,7 +16,6 @@ public class Shell : MonoBehaviour {
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
     private bool doUpdate = true;
-    private bool isMeshResetButtonDown = false;
 
     // Start is called before the first frame update.
     void Start() {
@@ -308,11 +307,11 @@ public class Shell : MonoBehaviour {
             Vector3 newAcceleration = mass * -vertexEnergyGradient[i];
 
             // Update position.
-            vertices[i] += Time.deltaTime * this.verticesVelocity[i]
-                    + Time.deltaTime * Time.deltaTime * ((1f / 2f - beta) * this.verticesAcceleration[i] + beta * newAcceleration);
+            vertices[i] += deltaTime * this.verticesVelocity[i]
+                    + deltaTime * deltaTime * ((1f / 2f - beta) * this.verticesAcceleration[i] + beta * newAcceleration);
 
             // Update velocity.
-            this.verticesVelocity[i] += Time.deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
+            this.verticesVelocity[i] += deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
 
             // Update acceleration.
             this.verticesAcceleration[i] = newAcceleration;
