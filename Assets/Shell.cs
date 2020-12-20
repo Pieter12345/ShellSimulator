@@ -203,25 +203,34 @@ public class Shell : MonoBehaviour {
     }
 
     // Update is called once per frame.
-    void FixedUpdate() {
+    private void Update() {
 
         // Handle reset hotkey.
-        if(Input.GetKey(KeyCode.R)) {
-            if(!this.isMeshResetButtonDown) {
-                this.isMeshResetButtonDown = true;
-                this.reset();
-                print("Mesh reset.");
-                return;
-            }
-        } else {
-            this.isMeshResetButtonDown = false;
+        if(Input.GetKeyDown(KeyCode.R)) {
+            this.reset();
+            print("Mesh reset.");
         }
 
-        // Don't update if no noticable time has passed, or when the game is paused.
-        if(Time.deltaTime == 0 || Time.timeScale == 0
-                || (!this.doUpdate && !Input.GetKey(KeyCode.F) && !Input.GetKeyDown(KeyCode.G))) {
+        // Handle single step hotkey.
+        if(Input.GetKeyDown(KeyCode.G)) {
+            this.simulationStep(Time.fixedDeltaTime);
+            print("Performed single step (" + Time.fixedDeltaTime + "s).");
+        }
+    }
+
+    // FixedUpdate is called every fixed interval (Edit -> Project Settings -> Time -> Fixed Timestep).
+    void FixedUpdate() {
+
+        // Don't update if no noticable time has passed or when the simulation has been paused.
+        if(Time.deltaTime == 0 || Time.timeScale == 0 || (!this.doUpdate && !Input.GetKey(KeyCode.F))) {
             return;
         }
+
+        // Perform a simulation step.
+        this.simulationStep(Time.deltaTime);
+    }
+
+    private void simulationStep(float deltaTime) {
 
         // Get the mesh.
         Mesh mesh = this.getMesh();
