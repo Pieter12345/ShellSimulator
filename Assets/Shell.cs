@@ -312,6 +312,7 @@ public class Shell : MonoBehaviour {
 
             // Update velocity.
             this.verticesVelocity[i] += deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
+            this.verticesVelocity[i] *= 0.9f; // TODO - Replace this constant damping with something more realistic friction-based damping.
 
             // Update acceleration.
             this.verticesAcceleration[i] = newAcceleration;
