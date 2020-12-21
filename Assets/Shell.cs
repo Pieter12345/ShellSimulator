@@ -4,17 +4,24 @@ using UnityEngine;
 
 public class Shell : MonoBehaviour {
 
+    // Material property representing constants.
     public float kLength;
     public float kArea;
     public float kBend;
+    public float shellThickness = 0.002f; // [m].
+    public float shellMaterialDensity = 40f; // [kg/m^3].
 
+    // Game object to simulate.
     public GameObject shellObj = null;
+
+    // Vertex related fields.
     private List<int>[] vertexTriangles;
     private Vector3[] originalVertices; // Vertices in undeformed state.
     private Vector3[] verticesVelocity;
     private Vector3[] verticesAcceleration;
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
+    // Simulation update loop settings.
     private bool doUpdate = false;
 
     // Start is called before the first frame update.
@@ -295,11 +302,20 @@ public class Shell : MonoBehaviour {
             }
         }
 
-        // Perform Newmark Time Stepping (ODE integration).
-        float mass = 0.1f; // Some random constant mass. TODO - Replace this with some area-dependent mass.
-        float gamma = 1f; // 0.5f;
-        float beta = 0f; // 0.25f;
+        // Calculate triangle areas.
+        int[] triangles = mesh.triangles;
         Vector3[] vertices = mesh.vertices;
+        float[] triangleAreas = new float[triangles.Length];
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int v1 = triangles[triangleId * 3];
+            int v2 = triangles[triangleId * 3 + 1];
+            int v3 = triangles[triangleId * 3 + 2];
+            triangleAreas[triangleId] = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]).magnitude / 2f;
+        }
+
+        // Perform Newmark Time Stepping (ODE integration).
+        float gamma = 0.5f;
+        float beta = 0.25f;
         for(int i = 0; i < vertices.Length; i++) {
 
             // Skip vertex if it is constrained.
@@ -308,6 +324,13 @@ public class Shell : MonoBehaviour {
                 this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
                 continue;
             }
+
+            // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
+            float mass = 0f;
+            foreach(int triangleId in this.vertexTriangles[i]) {
+                mass += triangleAreas[triangleId];
+            }
+            mass *= this.shellThickness / this.shellMaterialDensity / 3f;
 
             // Calculate acceleration.
             Vector3 newAcceleration = mass * -vertexEnergyGradient[i];
