@@ -15,7 +15,7 @@ public class Shell : MonoBehaviour {
     private Vector3[] verticesAcceleration;
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
-    private bool doUpdate = true;
+    private bool doUpdate = false;
 
     // Start is called before the first frame update.
     void Start() {
@@ -208,6 +208,12 @@ public class Shell : MonoBehaviour {
         if(Input.GetKeyDown(KeyCode.R)) {
             this.reset();
             print("Mesh reset.");
+        }
+
+        // Handle simulation pause/resume hotkey.
+        if(Input.GetKeyDown(KeyCode.P)) {
+            this.doUpdate = !this.doUpdate;
+            print((this.doUpdate ? "Simulation resumed." : "Simulation paused."));
         }
 
         // Handle single step hotkey.
