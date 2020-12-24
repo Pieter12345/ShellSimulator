@@ -31,7 +31,7 @@ public class Shell : MonoBehaviour {
         // Initialize fields. Doing this overwrites the values set in Unity's inspector.
         this.kLength = 0f;
         this.kArea = 0f;
-        this.kBend = 10f;
+        this.kBend = 0.1f;
 
         // Create the new object in the scene.
         Mesh mesh;
@@ -58,14 +58,13 @@ public class Shell : MonoBehaviour {
         //verts[0].y += 2.5f;
         //verts[0].z -= 5f;
 
-        verts[1].z += 1f;
-        verts[2].z += 1f;
-
-        //verts[1].z += 1f;
-
         mesh.vertices = verts;
         mesh.RecalculateNormals();
+
+        // Add the mesh to the mesh filter.
         meshFilter.mesh = mesh;
+
+        // Set shell position.
         this.shellObj.transform.position = new Vector3(0, 1, 0);
 
         // Create triangle list per vertex.
@@ -216,9 +215,9 @@ public class Shell : MonoBehaviour {
         };
         mesh.RecalculateNormals();
 
-        //for(int i = 0; i < 2; i++) {
-        //    MeshHelper.Subdivide(mesh);
-        //}
+        for(int i = 0; i < 2; i++) {
+            MeshHelper.Subdivide(mesh);
+        }
         return mesh;
     }
 
