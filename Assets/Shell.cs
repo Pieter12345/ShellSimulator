@@ -23,6 +23,7 @@ public class Shell : MonoBehaviour {
 
     // Simulation update loop settings.
     private bool doUpdate = false;
+    public Vector3 windPressure = new Vector3(0f, 0f, 100f); // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
     // Start is called before the first frame update.
     void Start() {
@@ -361,14 +362,16 @@ public class Shell : MonoBehaviour {
             }
 
             // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
-            float mass = 0f;
+            float vertexArea = 0f;
             foreach(int triangleId in this.vertexTriangles[i]) {
-                mass += triangleAreas[triangleId];
+                vertexArea += triangleAreas[triangleId];
             }
-            mass *= this.shellThickness / this.shellMaterialDensity / 3f;
+            vertexArea /= 3f;
+            float mass = vertexArea * this.shellThickness / this.shellMaterialDensity;
 
             // Calculate acceleration.
-            Vector3 newAcceleration = mass * -vertexEnergyGradient[i];
+            Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
+            Vector3 newAcceleration = mass * (-vertexEnergyGradient[i] + windForce);
 
             // Update position.
             vertices[i] += deltaTime * this.verticesVelocity[i]
