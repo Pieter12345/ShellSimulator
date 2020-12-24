@@ -146,6 +146,41 @@ public class Shell : MonoBehaviour {
             this.verticesMovementConstraints[i] = false;
         }
 
+        // Add sail mesh specific movement constraints on the sail corner vertices.
+        Vector3[] vertices = mesh.vertices;
+        int vertMaxX = 0;
+        int vertMinX = 0;
+        int vertMaxY = 0;
+        int vertMinY = 0;
+        int vertMaxZ = 0;
+        int vertMinZ = 0;
+        for(int i = 0; i < numVertices; i++) {
+            Vector3 vertex = vertices[i];
+            if(vertex.x > vertices[vertMaxX].x) {
+                vertMaxX = i;
+            } else if(vertex.x < vertices[vertMinX].x) {
+                vertMinX = i;
+            }
+            if(vertex.y > vertices[vertMaxY].y) {
+                vertMaxY = i;
+            } else if(vertex.y < vertices[vertMinY].y) {
+                vertMinY = i;
+            }
+            if(vertex.z > vertices[vertMaxZ].z) {
+                vertMaxZ = i;
+            } else if(vertex.z < vertices[vertMinZ].z) {
+                vertMinZ = i;
+            }
+        }
+        this.verticesMovementConstraints[vertMinY] = true; // Mast/boom intersection.
+        this.verticesMovementConstraints[vertMaxX] = true; // Boom end.
+        this.verticesMovementConstraints[vertMinX] = true; // Mast top.
+        //vertices[vertMinY].z += 1f;
+        //vertices[vertMaxX].z += 2f;
+        //vertices[vertMinX].z += 3f;
+        //mesh.vertices = vertices;
+    }
+
     private void reset() {
         Mesh mesh = this.getMesh();
         Vector3[] vertices = mesh.vertices;
