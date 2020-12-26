@@ -514,7 +514,7 @@ public class Shell : MonoBehaviour {
         // Calculate d_teta_d_ve1, based on rewriting d_teta_d_x1 in paper: http://ddg.math.uni-goettingen.de/pub/bendingCAGD.pdf
         float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
         float dot_e1_norm_e3_norm = Vector3.Dot(e1.normalized, e3.normalized);
-        if(Mathf.Abs(dot_e1_norm_e2_norm) == 1f || dot_e1_norm_e3_norm == 1f) {
+        if(Mathf.Abs(dot_e1_norm_e2_norm) == 1f || Mathf.Abs(dot_e1_norm_e3_norm) == 1f) {
             return new Vector3(0f, 0f, 0f); // Triangle vertices are on a single line, gradient is 0 here.
         }
         Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1 - (dot_e1_norm_e2_norm * dot_e1_norm_e2_norm)) * n1
