@@ -23,6 +23,9 @@ public class Shell : MonoBehaviour {
 
     // Simulation update loop settings.
     private bool doUpdate = false;
+    private bool doGradientDescent = true;
+    public float kGradientDescent = 0.1f;
+    public float maxGradientDescentStep = 0.001f;
     public Vector3 windPressure = new Vector3(0f, 0f, 100f); // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
     // Start is called before the first frame update.
@@ -348,40 +351,70 @@ public class Shell : MonoBehaviour {
             triangleAreas[triangleId] = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]).magnitude / 2f;
         }
 
-        // Perform Newmark Time Stepping (ODE integration).
-        float gamma = 0.5f;
-        float beta = 0.25f;
-        for(int i = 0; i < vertices.Length; i++) {
+        // Update the vertices using discrete integration or gradient descent.
+        if(this.doGradientDescent) {
 
-            // Skip vertex if it is constrained.
-            if(this.verticesMovementConstraints[i]) {
-                this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
-                this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
-                continue;
+            // Perform grafient descent.
+            for(int i = 0; i < vertices.Length; i++) {
+
+                // Skip vertex if it is constrained.
+                if(this.verticesMovementConstraints[i]) {
+                    continue;
+                }
+
+                // Calculate vertex area (a third of the area of triangles that this vertex is part of).
+                float vertexArea = 0f;
+                foreach(int triangleId in this.vertexTriangles[i]) {
+                    vertexArea += triangleAreas[triangleId];
+                }
+                vertexArea /= 3f;
+
+                // Update vertex position.
+                Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
+                Vector3 step = this.kGradientDescent * (windForce - vertexEnergyGradient[i]);
+                if(step.magnitude > maxGradientDescentStep) {
+                    step = step.normalized * maxGradientDescentStep;
+                }
+                vertices[i] += step;
             }
 
-            // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
-            float vertexArea = 0f;
-            foreach(int triangleId in this.vertexTriangles[i]) {
-                vertexArea += triangleAreas[triangleId];
+        } else {
+
+            // Perform Newmark Time Stepping (ODE integration).
+            float gamma = 0.5f;
+            float beta = 0.25f;
+            for(int i = 0; i < vertices.Length; i++) {
+
+                // Skip vertex if it is constrained.
+                if(this.verticesMovementConstraints[i]) {
+                    this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
+                    this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
+                    continue;
+                }
+
+                // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
+                float vertexArea = 0f;
+                foreach(int triangleId in this.vertexTriangles[i]) {
+                    vertexArea += triangleAreas[triangleId];
+                }
+                vertexArea /= 3f;
+                float mass = vertexArea * this.shellThickness / this.shellMaterialDensity;
+
+                // Calculate vertex acceleration.
+                Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
+                Vector3 newAcceleration = mass * (-vertexEnergyGradient[i] + windForce);
+
+                // Update vertex position.
+                vertices[i] += deltaTime * this.verticesVelocity[i]
+                        + deltaTime * deltaTime * ((1f / 2f - beta) * this.verticesAcceleration[i] + beta * newAcceleration);
+
+                // Update vertex velocity.
+                this.verticesVelocity[i] += deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
+                this.verticesVelocity[i] *= 0.9f; // TODO - Replace this constant damping with something more realistic friction-based damping.
+
+                // Update vertex acceleration.
+                this.verticesAcceleration[i] = newAcceleration;
             }
-            vertexArea /= 3f;
-            float mass = vertexArea * this.shellThickness / this.shellMaterialDensity;
-
-            // Calculate acceleration.
-            Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
-            Vector3 newAcceleration = mass * (-vertexEnergyGradient[i] + windForce);
-
-            // Update position.
-            vertices[i] += deltaTime * this.verticesVelocity[i]
-                    + deltaTime * deltaTime * ((1f / 2f - beta) * this.verticesAcceleration[i] + beta * newAcceleration);
-
-            // Update velocity.
-            this.verticesVelocity[i] += deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
-            this.verticesVelocity[i] *= 0.9f; // TODO - Replace this constant damping with something more realistic friction-based damping.
-
-            // Update acceleration.
-            this.verticesAcceleration[i] = newAcceleration;
         }
         mesh.vertices = vertices;
         mesh.RecalculateNormals();
