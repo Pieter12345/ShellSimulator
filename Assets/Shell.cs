@@ -505,6 +505,11 @@ public class Shell : MonoBehaviour {
         Vector3 e3_undeformed = (v21 == ve1 ? this.originalVertices[v23] - this.originalVertices[v22]
                 : (v22 == ve1 ? this.originalVertices[v21] - this.originalVertices[v23] : this.originalVertices[v22] - this.originalVertices[v21]));
 
+        // Return if any of the vertices overlap. This means that no triangle normals exist.
+        if(e1.magnitude == 0f || e2.magnitude == 0f || e3.magnitude == 0f) {
+            return Vector3.zero;
+        }
+
         // Triangle normals.
         Vector3 cross_e1_e2 = Vector3.Cross(e1, e2);
         Vector3 cross_e1_e3 = Vector3.Cross(e1, e3);
@@ -514,11 +519,13 @@ public class Shell : MonoBehaviour {
         // Calculate d_teta_d_ve1, based on rewriting d_teta_d_x1 in paper: http://ddg.math.uni-goettingen.de/pub/bendingCAGD.pdf
         float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
         float dot_e1_norm_e3_norm = Vector3.Dot(e1.normalized, e3.normalized);
-        if(Mathf.Abs(dot_e1_norm_e2_norm) == 1f || Mathf.Abs(dot_e1_norm_e3_norm) == 1f) {
-            return new Vector3(0f, 0f, 0f); // Triangle vertices are on a single line, gradient is 0 here.
+        float dot_e1_norm_e2_norm_square = dot_e1_norm_e2_norm * dot_e1_norm_e2_norm;
+        float dot_e1_norm_e3_norm_square = dot_e1_norm_e3_norm * dot_e1_norm_e3_norm;
+        Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1f - dot_e1_norm_e2_norm_square) * n1
+                - dot_e1_norm_e3_norm / Mathf.Sqrt(1f - dot_e1_norm_e3_norm_square) * n2);
+        if(float.IsNaN(d_teta_d_ve1.x) || float.IsNaN(d_teta_d_ve1.y) || float.IsNaN(d_teta_d_ve1.z)) {
+            return Vector3.zero; // Triangle vertices are on a single line. Gradient is 0 here.
         }
-        Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1 - (dot_e1_norm_e2_norm * dot_e1_norm_e2_norm)) * n1
-                - dot_e1_norm_e3_norm / Mathf.Sqrt(1 - (dot_e1_norm_e3_norm * dot_e1_norm_e3_norm)) * n2);
 
         // Undeformed triangle normals. These don't have to be using the same edges, as long as they are clockwise as well (or have a minus sign).
         Vector3 n1_undeformed = Vector3.Cross(this.originalVertices[v12] - this.originalVertices[v11],
