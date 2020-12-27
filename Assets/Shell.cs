@@ -531,7 +531,8 @@ public class Shell : MonoBehaviour {
         float dot_e1_norm_e3_norm_square = dot_e1_norm_e3_norm * dot_e1_norm_e3_norm;
         Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1f - dot_e1_norm_e2_norm_square) * n1
                 - dot_e1_norm_e3_norm / Mathf.Sqrt(1f - dot_e1_norm_e3_norm_square) * n2);
-        if(float.IsNaN(d_teta_d_ve1.x) || float.IsNaN(d_teta_d_ve1.y) || float.IsNaN(d_teta_d_ve1.z)) {
+        if(float.IsNaN(d_teta_d_ve1.x) || float.IsNaN(d_teta_d_ve1.y) || float.IsNaN(d_teta_d_ve1.z)
+                || float.IsInfinity(d_teta_d_ve1.x) || float.IsInfinity(d_teta_d_ve1.y) || float.IsInfinity(d_teta_d_ve1.z)) {
             return Vector3.zero; // Triangle vertices are on a single line. Gradient is 0 here.
         }
 
