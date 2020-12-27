@@ -24,9 +24,9 @@ public class Shell : MonoBehaviour {
     // Simulation update loop settings.
     private bool doUpdate = false;
     private bool doGradientDescent = true;
-    public float kGradientDescent = 0.1f;
-    public float maxGradientDescentStep = 0.001f;
-    public Vector3 windPressure = new Vector3(0f, 0f, 100f); // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
+    public float kGradientDescent;
+    public float maxGradientDescentStep;
+    public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
     // Start is called before the first frame update.
     void Start() {
@@ -35,6 +35,9 @@ public class Shell : MonoBehaviour {
         this.kLength = 0f;
         this.kArea = 0f;
         this.kBend = 0.1f;
+        this.kGradientDescent = 0.1f;
+        this.maxGradientDescentStep = 0.001f;
+        this.windPressure = new Vector3(0f, 0f, 0f);
 
         // Create the new object in the scene.
         Mesh mesh;
