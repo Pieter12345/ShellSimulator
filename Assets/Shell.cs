@@ -149,38 +149,33 @@ public class Shell : MonoBehaviour {
             this.verticesMovementConstraints[i] = false;
         }
 
-        // Add sail mesh specific movement constraints on the sail corner vertices.
-        Vector3[] vertices = mesh.vertices;
-        int vertMaxX = 0;
-        int vertMinX = 0;
-        int vertMaxY = 0;
-        int vertMinY = 0;
-        int vertMaxZ = 0;
-        int vertMinZ = 0;
-        for(int i = 0; i < numVertices; i++) {
-            Vector3 vertex = vertices[i];
-            if(vertex.x > vertices[vertMaxX].x) {
-                vertMaxX = i;
-            } else if(vertex.x < vertices[vertMinX].x) {
-                vertMinX = i;
-            }
-            if(vertex.y > vertices[vertMaxY].y) {
-                vertMaxY = i;
-            } else if(vertex.y < vertices[vertMinY].y) {
-                vertMinY = i;
-            }
-            if(vertex.z > vertices[vertMaxZ].z) {
-                vertMaxZ = i;
-            } else if(vertex.z < vertices[vertMinZ].z) {
-                vertMinZ = i;
+        // Add movement constraints on mesh edge vertices.
+        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
+            List<int> triangleList = this.vertexTriangles[vertexInd];
+            for(int i = 0; i < triangleList.Count; i++) {
+
+                // Get triangle vertices.
+                int triangleBaseInd1 = triangleList[i] * 3;
+                int v11 = mesh.triangles[triangleBaseInd1];
+                int v12 = mesh.triangles[triangleBaseInd1 + 1];
+                int v13 = mesh.triangles[triangleBaseInd1 + 2];
+
+                // Get next triangle vertices.
+                int triangleBaseInd2 = triangleList[(i + 1) % triangleList.Count] * 3;
+                int v21 = mesh.triangles[triangleBaseInd2];
+                int v22 = mesh.triangles[triangleBaseInd2 + 1];
+                int v23 = mesh.triangles[triangleBaseInd2 + 2];
+
+                // Get the vertex indices of the other vertices that are connected to this vertex's edges.
+                int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
+                int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
+
+                // Constrain the vertex if a gap between triangles has been found.
+                if(otherVertexClockwiseInd1 != otherVertexAntiClockwiseInd2) {
+                    this.verticesMovementConstraints[vertexInd] = true;
+                }
             }
         }
-        this.verticesMovementConstraints[vertMinY] = true; // Mast/boom intersection.
-        this.verticesMovementConstraints[vertMaxX] = true; // Boom end.
-        this.verticesMovementConstraints[vertMinX] = true; // Mast top.
-        //vertices[vertMinY].z += 1f;
-        //vertices[vertMaxX].z += 2f;
-        //vertices[vertMinX].z += 3f;
         //mesh.vertices = vertices;
     }
 
