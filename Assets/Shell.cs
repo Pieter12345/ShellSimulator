@@ -553,7 +553,8 @@ public class Shell : MonoBehaviour {
         float teta_e_undeformed = Mathf.Acos(Vector3.Dot(n1_undeformed, n2_undeformed)) * teta_e_undeformed_sign;
 
         // bending energy gradient.
-        float h_e_undeformed = (cross_e1_e2.magnitude + cross_e1_e3.magnitude) / e1.magnitude / 6f;
+        teta_e_undeformed = 0f; // TODO - Remove temp test. This simulates a flat rest state.
+        float h_e_undeformed = (Vector3.Cross(e1_undeformed, e2_undeformed).magnitude + Vector3.Cross(e1_undeformed, e3_undeformed).magnitude) / e1.magnitude / 6f;
         float d_W_bending_energy_edge_d_teta_e = 2 * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
 
         // Return the result.
