@@ -346,7 +346,11 @@ public class Shell : MonoBehaviour {
             int v1 = triangles[triangleId * 3];
             int v2 = triangles[triangleId * 3 + 1];
             int v3 = triangles[triangleId * 3 + 2];
-            triangleAreas[triangleId] = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]).magnitude / 2f;
+            float triangleArea = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]).magnitude / 2f;
+            if(float.IsNaN(triangleArea)) {
+                triangleArea = 0f;
+            }
+            triangleAreas[triangleId] = triangleArea;
         }
 
         // Update the vertices using discrete integration or gradient descent.
@@ -445,6 +449,9 @@ public class Shell : MonoBehaviour {
         Vector3 edge = vertices[v2] - vertices[v1]; // Vector from v1 to v2.
         Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
         float edgeLength = edge.magnitude;
+        if(float.IsNaN(edgeLength)) {
+            return Vector3.zero; // Edge is zero-length, so the gradient is 0.
+        }
         float undeformedEdgeLength = undeformedEdge.magnitude;
         Vector3 dEdgeLength = (vertices[v1] - vertices[v2]) / edgeLength;
         return (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength;
@@ -463,6 +470,9 @@ public class Shell : MonoBehaviour {
 
         // Calculate the triangle area gradient.
         float crossProdLength = Vector3.Cross(edge21, edge23).magnitude;
+        if(float.IsNaN(crossProdLength)) {
+            return Vector3.zero; // Area is 0 m^2, so the gradient is 0.
+        }
         Vector3 dCrossProdLength = 1f / crossProdLength * new Vector3(
                 (edge21.x * edge23.z - edge23.x * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * edge23.y,
                 (edge21.y * edge23.z - edge23.y * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * -edge23.x,
