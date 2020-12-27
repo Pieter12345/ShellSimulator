@@ -32,12 +32,12 @@ public class Shell : MonoBehaviour {
     void Start() {
 
         // Initialize fields. Doing this overwrites the values set in Unity's inspector.
-        this.kLength = 0f;
-        this.kArea = 0f;
+        this.kLength = 10f;
+        this.kArea = 10f;
         this.kBend = 0.1f;
         this.kGradientDescent = 0.1f;
-        this.maxGradientDescentStep = 0.001f;
-        this.windPressure = new Vector3(0f, 0f, 0f);
+        this.maxGradientDescentStep = 0.01f;
+        this.windPressure = new Vector3(0f, 0f, 100f);
 
         // Create the new object in the scene.
         Mesh mesh;
