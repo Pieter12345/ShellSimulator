@@ -6,13 +6,6 @@ public class CameraController : MonoBehaviour {
     // Camera movement settings.
     float movementSpeed = 10f;
 
-    float mainSpeed = 10.0f; //regular speed
-    float shiftAdd = 25.0f; //multiplied by how long shift is held.  Basically running
-    float maxShift = 100.0f; //Maximum speed when holdin gshift
-    float camSens = 0.15f; //How sensitive it with mouse
-    private Vector3 lastMouse = new Vector3(255, 255, 255); //kind of in the middle of the screen, rather than at the top (play)
-    private float totalRun = 1.0f;
-
     // Camera rotation settings.
     public float mouseSensitivity = 10f;
     private float minRotationX = 10f; // 0 = down.
