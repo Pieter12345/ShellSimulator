@@ -4,10 +4,11 @@ using System.Collections;
 public class CameraController : MonoBehaviour {
 
     // Camera movement settings.
-    float movementSpeed = 10f;
+    public float movementSpeed = 10f;
 
     // Camera rotation settings.
     public float mouseSensitivity = 10f;
+    public bool doRotateWhenMouseNotCaptured = false;
     private float minRotationX = 10f; // 0 = down.
     private float maxRotationX = 170f; // 180 = up.
 
@@ -20,16 +21,18 @@ public class CameraController : MonoBehaviour {
         if(vertical < -10f) { vertical = -10f; } // Limit y so it cant glitch by looking up or down too fast.
 
         // Set camera rotation.
-        Vector3 cameraRotation = this.transform.rotation.eulerAngles;
-        cameraRotation += new Vector3(-vertical, horizontal, 0f) * this.mouseSensitivity;
-        cameraRotation.x = (cameraRotation.x + 360f) % 360f; // Maps [-360, inf] to [0, 360].
-        if(cameraRotation.x < 180f && cameraRotation.x > 90f - this.minRotationX) {
-            cameraRotation.x = 90f - this.minRotationX;
+        if(this.doRotateWhenMouseNotCaptured || Cursor.lockState == CursorLockMode.Locked) {
+            Vector3 cameraRotation = this.transform.rotation.eulerAngles;
+            cameraRotation += new Vector3(-vertical, horizontal, 0f) * this.mouseSensitivity;
+            cameraRotation.x = (cameraRotation.x + 360f) % 360f; // Maps [-360, inf] to [0, 360].
+            if(cameraRotation.x < 180f && cameraRotation.x > 90f - this.minRotationX) {
+                cameraRotation.x = 90f - this.minRotationX;
+            }
+            if(cameraRotation.x > 180f && cameraRotation.x < 270f + (180f - this.maxRotationX)) {
+                cameraRotation.x = 270f + (180f - this.maxRotationX);
+            }
+            this.transform.rotation = Quaternion.Euler(cameraRotation);
         }
-        if(cameraRotation.x > 180f && cameraRotation.x < 270f + (180f - this.maxRotationX)) {
-            cameraRotation.x = 270f + (180f - this.maxRotationX);
-        }
-        this.transform.rotation = Quaternion.Euler(cameraRotation);
 
         // Update camera position.
         Vector3 normalizedInputVelocity = this.getNormalizedInputVelocity();
