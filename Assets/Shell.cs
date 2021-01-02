@@ -114,7 +114,7 @@ public class Shell : MonoBehaviour {
                         int v23 = mesh.triangles[triangleBaseInd2 + 2];
 
                         // Get the vertex indices of the other vertices that are connected to this vertex's edges.
-                        int otherVertexClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
+                        int otherVertexClockwiseInd2 = (vertexInd == v21 ? v23 : (vertexInd == v23 ? v22 : v21));
                         int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
 
                         // Insert the triangle before the current triangle if it is placed next to it in anti-clockwise rotation.
