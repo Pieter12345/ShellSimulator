@@ -10,6 +10,7 @@ public class Shell : MonoBehaviour {
     public float kBend;
     public float shellThickness = 0.002f; // [m].
     public float shellMaterialDensity = 40f; // [kg/m^3].
+    public bool useFlatUndeformedBendState = true; // When true, assumes the bending energy to be 0 when the object is flat.
 
     // Game object to simulate.
     public GameObject shellObj = null;
@@ -536,12 +537,6 @@ public class Shell : MonoBehaviour {
             return Vector3.zero; // Triangle vertices are on a single line. Gradient is 0 here.
         }
 
-        // Undeformed triangle normals. These don't have to be using the same edges, as long as they are clockwise as well (or have a minus sign).
-        Vector3 n1_undeformed = Vector3.Cross(this.originalVertices[v12] - this.originalVertices[v11],
-                this.originalVertices[v13] - this.originalVertices[v12]).normalized;
-        Vector3 n2_undeformed = Vector3.Cross(this.originalVertices[v22] - this.originalVertices[v21],
-                this.originalVertices[v23] - this.originalVertices[v22]).normalized;
-
         // Angle between triangle normals.
         Vector3 v_triangle2_unshared = (v21 == ve1 ? vertices[v23] : (v22 == ve1 ? vertices[v21] : vertices[v22]));
         float teta_e_sign = Mathf.Sign(Vector3.Dot(n1, v_triangle2_unshared - vertices[ve1])); // 1 if teta_e positive, -1 if negative.
@@ -549,12 +544,26 @@ public class Shell : MonoBehaviour {
         if(float.IsNaN(teta_e)) {
             teta_e = Mathf.PI; // The triangles are on top of each other, which is both 180 and -180 degrees.
         }
-        Vector3 v_triangle2_undeformed_unshared = (v21 == ve1 ? this.originalVertices[v23] : (v22 == ve1 ? this.originalVertices[v21] : this.originalVertices[v22]));
-        float teta_e_undeformed_sign = Mathf.Sign(Vector3.Dot(n1_undeformed, v_triangle2_undeformed_unshared - this.originalVertices[ve1])); // 1 if teta_e_undeformed positive, -1 if negative.
-        float teta_e_undeformed = Mathf.Acos(Vector3.Dot(n1_undeformed, n2_undeformed)) * teta_e_undeformed_sign;
+
+        // Angle between undeformed triangle normals, or 0 when assuming a flat rest state for bending.
+        float teta_e_undeformed;
+        if(!this.useFlatUndeformedBendState) {
+
+            // Undeformed triangle normals. These don't have to be using the same edges, as long as they are clockwise as well (or have a minus sign).
+            Vector3 n1_undeformed = Vector3.Cross(this.originalVertices[v12] - this.originalVertices[v11],
+                    this.originalVertices[v13] - this.originalVertices[v12]).normalized;
+            Vector3 n2_undeformed = Vector3.Cross(this.originalVertices[v22] - this.originalVertices[v21],
+                    this.originalVertices[v23] - this.originalVertices[v22]).normalized;
+
+            // Angle between undeformed triangle normals.
+            Vector3 v_triangle2_undeformed_unshared = (v21 == ve1 ? this.originalVertices[v23] : (v22 == ve1 ? this.originalVertices[v21] : this.originalVertices[v22]));
+            float teta_e_undeformed_sign = Mathf.Sign(Vector3.Dot(n1_undeformed, v_triangle2_undeformed_unshared - this.originalVertices[ve1])); // 1 if teta_e_undeformed positive, -1 if negative.
+            teta_e_undeformed = Mathf.Acos(Vector3.Dot(n1_undeformed, n2_undeformed)) * teta_e_undeformed_sign;
+        } else {
+            teta_e_undeformed = 0f;
+        }
 
         // bending energy gradient.
-        teta_e_undeformed = 0f; // TODO - Remove temp test. This simulates a flat rest state.
         float h_e_undeformed = (Vector3.Cross(e1_undeformed, e2_undeformed).magnitude + Vector3.Cross(e1_undeformed, e3_undeformed).magnitude) / e1.magnitude / 6f;
         float d_W_bending_energy_edge_d_teta_e = 2 * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
 
