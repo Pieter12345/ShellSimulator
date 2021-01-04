@@ -29,6 +29,12 @@ public class Shell : MonoBehaviour {
     public float maxGradientDescentStep;
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
+    // Cached vertex/triangle properties.
+    private Vector3[] triangleNormals;
+    private Vector3[] undeformedTriangleNormals;
+    private float[] triangleAreas;
+    private float[] undeformedTriangleAreas;
+
     // Start is called before the first frame update.
     void Start() {
 
@@ -142,7 +148,7 @@ public class Shell : MonoBehaviour {
             }
         }
 
-        // Initialize additional vertex data.
+        // Initialize additional vertex and triangle data.
         int numVertices = mesh.vertices.Length;
         this.verticesVelocity = new Vector3[numVertices];
         this.verticesAcceleration = new Vector3[numVertices];
@@ -151,6 +157,30 @@ public class Shell : MonoBehaviour {
             this.verticesVelocity[i] = new Vector3(0, 0, 0);
             this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             this.verticesMovementConstraints[i] = false;
+        }
+        int numTriangles = mesh.triangles.Length;
+        this.triangleNormals = new Vector3[numTriangles];
+        this.triangleAreas = new float[numTriangles];
+        this.undeformedTriangleNormals = new Vector3[numTriangles];
+        this.undeformedTriangleAreas = new float[numTriangles];
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+            Vector3 crossProd = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]);
+            float crossProdMag = crossProd.magnitude;
+
+            // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
+            if(float.IsNaN(crossProdMag)) {
+                this.undeformedTriangleNormals[triangleId] = Vector3.zero;
+                this.undeformedTriangleAreas[triangleId] = 0f;
+            } else {
+                this.undeformedTriangleNormals[triangleId] = crossProd / crossProdMag;
+                this.undeformedTriangleAreas[triangleId] = crossProdMag / 2f; // Triangle area is half of the cross product of any two of its edges.
+            }
         }
 
         // Add movement constraints on mesh edge vertices.
@@ -284,6 +314,27 @@ public class Shell : MonoBehaviour {
         // Get the mesh.
         Mesh mesh = this.getMesh();
 
+        // Compute triangle normals and areas.
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+            Vector3 crossProd = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]);
+            float crossProdMag = crossProd.magnitude;
+
+            // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
+            if(float.IsNaN(crossProdMag)) {
+                this.triangleNormals[triangleId] = Vector3.zero;
+                this.triangleAreas[triangleId] = 0f;
+            } else {
+                this.triangleNormals[triangleId] = crossProd / crossProdMag;
+                this.triangleAreas[triangleId] = crossProdMag / 2f; // Triangle area is half of the cross product of any two of its edges.
+            }
+        }
+
         // Compute vertex energy gradient array.
         Vector3[] vertexEnergyGradient = new Vector3[mesh.vertexCount];
         for(int i = 0; i < vertexEnergyGradient.Length; i++) {
@@ -320,8 +371,8 @@ public class Shell : MonoBehaviour {
                 if(edgeSharedByTriangles) {
 
                     // Calculate bending energy gradient.
-                    vertexEnergyGradient[vertexInd] += kBend
-                            * this.getBendingEnergyGradient(v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
+                    vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
+                        triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
                 } else {
 
                     // Calculate spring energy gradient in the second edge.
@@ -330,28 +381,13 @@ public class Shell : MonoBehaviour {
 
                 // Calculate the area energy gradient in the triangle.
                 if(vertexInd == v11) {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(v11, v12, v13);
+                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(triangleId, v11, v12, v13);
                 } else if(vertexInd == v12) {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(v12, v13, v11);
+                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(triangleId, v12, v13, v11);
                 } else {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(v13, v11, v12);
+                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(triangleId, v13, v11, v12);
                 }
             }
-        }
-
-        // Calculate triangle areas.
-        int[] triangles = mesh.triangles;
-        Vector3[] vertices = mesh.vertices;
-        float[] triangleAreas = new float[triangles.Length];
-        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
-            int v1 = triangles[triangleId * 3];
-            int v2 = triangles[triangleId * 3 + 1];
-            int v3 = triangles[triangleId * 3 + 2];
-            float triangleArea = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]).magnitude / 2f;
-            if(float.IsNaN(triangleArea)) {
-                triangleArea = 0f;
-            }
-            triangleAreas[triangleId] = triangleArea;
         }
 
         // Update the vertices using discrete integration or gradient descent.
@@ -368,7 +404,7 @@ public class Shell : MonoBehaviour {
                 // Calculate vertex area (a third of the area of triangles that this vertex is part of).
                 float vertexArea = 0f;
                 foreach(int triangleId in this.vertexTriangles[i]) {
-                    vertexArea += triangleAreas[triangleId];
+                    vertexArea += this.triangleAreas[triangleId];
                 }
                 vertexArea /= 3f;
 
@@ -398,7 +434,7 @@ public class Shell : MonoBehaviour {
                 // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
                 float vertexArea = 0f;
                 foreach(int triangleId in this.vertexTriangles[i]) {
-                    vertexArea += triangleAreas[triangleId];
+                    vertexArea += this.triangleAreas[triangleId];
                 }
                 vertexArea /= 3f;
                 float mass = vertexArea * this.shellThickness / this.shellMaterialDensity;
@@ -462,7 +498,7 @@ public class Shell : MonoBehaviour {
      * Computes the triangle area energy gradient of vertex v1, for the triangle defined by vertices v1, v2 and v3.
      * Note that 1/3 of the area energy is used for v1 (the other two parts will be used for v2 and v3).
      */
-    private Vector3 getTriangleAreaEnergyGradient(int v1, int v2, int v3) {
+    private Vector3 getTriangleAreaEnergyGradient(int triangleId, int v1, int v2, int v3) {
         Vector3[] vertices = this.getMesh().vertices;
 
         // Get two edges, where only one is dependent on vertex v1.
@@ -470,26 +506,18 @@ public class Shell : MonoBehaviour {
         Vector3 edge23 = vertices[v3] - vertices[v2]; // dEdge23 / dv1 = {0, 0, 0}.
 
         // Calculate the triangle area gradient.
-        float crossProdLength = Vector3.Cross(edge21, edge23).magnitude;
-        if(float.IsNaN(crossProdLength)) {
+        if(this.triangleAreas[triangleId] == 0f) {
             return Vector3.zero; // Area is 0 m^2, so the gradient is 0.
         }
+        float crossProdLength = this.triangleAreas[triangleId] * 2f;
         Vector3 dCrossProdLength = 1f / crossProdLength * new Vector3(
                 (edge21.x * edge23.z - edge23.x * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * edge23.y,
                 (edge21.y * edge23.z - edge23.y * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * -edge23.x,
                 (edge21.y * edge23.z - edge23.y * edge21.z) * -edge23.y + (edge21.x * edge23.z - edge23.x * edge21.z) * -edge23.x);
-        float triangleArea = crossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
         Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
 
-        // Calculate undeformed triangle area.
-        // TODO - Determine beforehand and store for performance?
-        float undeformedTriangleArea = Vector3.Cross(
-                this.originalVertices[v1] - this.originalVertices[v2],
-                this.originalVertices[v3] - this.originalVertices[v2]
-            ).magnitude / 6f; // Area of triangle is half the cross product length, and we only look at a third.
-
         // Calculate the area energy gradient.
-        return (2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea;
+        return (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
     }
 
     /**
@@ -497,7 +525,8 @@ public class Shell : MonoBehaviour {
      * Vertices ve1 and ve2 are the vertices that define the edge that is shared between the two triangles.
      * Edge ve1 -> ve2 belongs to vertex v1_ and edge ve2 -> ve1 belongs to vertex v2_ (this matters for the direction of the normals).
      */
-    private Vector3 getBendingEnergyGradient(int v11, int v12, int v13, int v21, int v22, int v23, int ve1, int ve2) {
+    private Vector3 getBendingEnergyGradient(int triangleId1, int triangleId2,
+            int v11, int v12, int v13, int v21, int v22, int v23, int ve1, int ve2) {
         Vector3[] vertices = this.getMesh().vertices;
 
         // Shared edge, clockwise for triangle 1, anti-clockwise for triangle 2.
@@ -506,13 +535,9 @@ public class Shell : MonoBehaviour {
 
         // Edge in triangle 1 that does not include ve1.
         Vector3 e2 = (v11 == ve1 ? vertices[v13] - vertices[v12] : (v12 == ve1 ? vertices[v11] - vertices[v13] : vertices[v12] - vertices[v11]));
-        Vector3 e2_undeformed = (v11 == ve1 ? this.originalVertices[v13] - this.originalVertices[v12]
-                : (v12 == ve1 ? this.originalVertices[v11] - this.originalVertices[v13] : this.originalVertices[v12] - this.originalVertices[v11]));
 
         // Edge in triangle 2 that does not include ve1.
         Vector3 e3 = (v21 == ve1 ? vertices[v23] - vertices[v22] : (v22 == ve1 ? vertices[v21] - vertices[v23] : vertices[v22] - vertices[v21]));
-        Vector3 e3_undeformed = (v21 == ve1 ? this.originalVertices[v23] - this.originalVertices[v22]
-                : (v22 == ve1 ? this.originalVertices[v21] - this.originalVertices[v23] : this.originalVertices[v22] - this.originalVertices[v21]));
 
         // Return if any of the vertices overlap. This means that no triangle normals exist.
         if(e1.magnitude == 0f || e2.magnitude == 0f || e3.magnitude == 0f) {
@@ -520,10 +545,8 @@ public class Shell : MonoBehaviour {
         }
 
         // Triangle normals.
-        Vector3 cross_e1_e2 = Vector3.Cross(e1, e2);
-        Vector3 cross_e1_e3 = Vector3.Cross(e1, e3);
-        Vector3 n1 = cross_e1_e2.normalized;
-        Vector3 n2 = cross_e1_e3.normalized;
+        Vector3 n1 = this.triangleNormals[triangleId1];
+        Vector3 n2 = this.triangleNormals[triangleId2];
 
         // Calculate d_teta_d_ve1, based on rewriting d_teta_d_x1 in paper: http://ddg.math.uni-goettingen.de/pub/bendingCAGD.pdf
         float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
@@ -550,10 +573,8 @@ public class Shell : MonoBehaviour {
         if(!this.useFlatUndeformedBendState) {
 
             // Undeformed triangle normals. These don't have to be using the same edges, as long as they are clockwise as well (or have a minus sign).
-            Vector3 n1_undeformed = Vector3.Cross(this.originalVertices[v12] - this.originalVertices[v11],
-                    this.originalVertices[v13] - this.originalVertices[v12]).normalized;
-            Vector3 n2_undeformed = Vector3.Cross(this.originalVertices[v22] - this.originalVertices[v21],
-                    this.originalVertices[v23] - this.originalVertices[v22]).normalized;
+            Vector3 n1_undeformed = this.undeformedTriangleNormals[triangleId1];
+            Vector3 n2_undeformed = this.undeformedTriangleNormals[triangleId2];
 
             // Angle between undeformed triangle normals.
             Vector3 v_triangle2_undeformed_unshared = (v21 == ve1 ? this.originalVertices[v23] : (v22 == ve1 ? this.originalVertices[v21] : this.originalVertices[v22]));
@@ -564,8 +585,9 @@ public class Shell : MonoBehaviour {
         }
 
         // bending energy gradient.
-        float h_e_undeformed = (Vector3.Cross(e1_undeformed, e2_undeformed).magnitude + Vector3.Cross(e1_undeformed, e3_undeformed).magnitude) / e1_undeformed.magnitude / 6f;
-        float d_W_bending_energy_edge_d_teta_e = 2 * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
+        // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
+        float h_e_undeformed = (this.undeformedTriangleAreas[triangleId1] + this.undeformedTriangleAreas[triangleId2]) / e1_undeformed.magnitude / 3f;
+        float d_W_bending_energy_edge_d_teta_e = 2f * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
 
         // Return the result.
         return d_W_bending_energy_edge_d_teta_e * d_teta_d_ve1;
