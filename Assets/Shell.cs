@@ -564,7 +564,7 @@ public class Shell : MonoBehaviour {
         }
 
         // bending energy gradient.
-        float h_e_undeformed = (Vector3.Cross(e1_undeformed, e2_undeformed).magnitude + Vector3.Cross(e1_undeformed, e3_undeformed).magnitude) / e1.magnitude / 6f;
+        float h_e_undeformed = (Vector3.Cross(e1_undeformed, e2_undeformed).magnitude + Vector3.Cross(e1_undeformed, e3_undeformed).magnitude) / e1_undeformed.magnitude / 6f;
         float d_W_bending_energy_edge_d_teta_e = 2 * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
 
         // Return the result.
