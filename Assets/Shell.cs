@@ -337,11 +337,15 @@ public class Shell : MonoBehaviour {
             }
         }
 
-        // Compute vertex energy gradient array.
+        // Initialize vertex energy gradient array and vertex wind force array.
         Vector3[] vertexEnergyGradient = new Vector3[mesh.vertexCount];
+        Vector3[] vertexWindForce = new Vector3[mesh.vertexCount];
         for(int i = 0; i < vertexEnergyGradient.Length; i++) {
-            vertexEnergyGradient[i] = new Vector3(0, 0, 0);
+            vertexEnergyGradient[i] = Vector3.zero;
+            vertexWindForce[i] = Vector3.zero;
         }
+
+        // Compute vertex energy gradient array.
         for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
             
             for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
@@ -392,6 +396,24 @@ public class Shell : MonoBehaviour {
             }
         }
 
+        // Compute vertex wind force array.
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+
+            // Compute projection of the wind pressure vector on the triangle normal.
+            Vector3 triangleNormal = this.triangleNormals[triangleId];
+            float triangleArea = this.triangleAreas[triangleId];
+            Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal;
+
+            // Add a third of the total triangle wind force to each of its vertices.
+            vertexWindForce[v1] += totalTriangleWindForce / 3f;
+            vertexWindForce[v2] += totalTriangleWindForce / 3f;
+            vertexWindForce[v3] += totalTriangleWindForce / 3f;
+        }
+
         // Update the vertices using discrete integration or gradient descent.
         if(this.doGradientDescent) {
 
@@ -411,8 +433,7 @@ public class Shell : MonoBehaviour {
                 vertexArea /= 3f;
 
                 // Update vertex position.
-                Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
-                Vector3 step = this.kGradientDescent * (windForce - vertexEnergyGradient[i]);
+                Vector3 step = this.kGradientDescent * (vertexWindForce[i] - vertexEnergyGradient[i]);
                 if(step.magnitude > maxGradientDescentStep) {
                     step = step.normalized * maxGradientDescentStep;
                 }
@@ -442,8 +463,7 @@ public class Shell : MonoBehaviour {
                 float mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
 
                 // Calculate vertex acceleration.
-                Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
-                Vector3 newAcceleration = (-vertexEnergyGradient[i] + windForce) / mass;
+                Vector3 newAcceleration = (vertexWindForce[i] - vertexEnergyGradient[i]) / mass;
 
                 // Update vertex position.
                 vertices[i] += deltaTime * this.verticesVelocity[i]
