@@ -27,6 +27,7 @@ public class Shell : MonoBehaviour {
     private bool doGradientDescent = true;
     public float kGradientDescent;
     public float maxGradientDescentStep;
+    public float timeScale = 1f;
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
     // Cached vertex/triangle properties.
@@ -310,6 +311,7 @@ public class Shell : MonoBehaviour {
     }
 
     private void simulationStep(float deltaTime) {
+        deltaTime *= this.timeScale;
 
         // Get the mesh.
         Mesh mesh = this.getMesh();
