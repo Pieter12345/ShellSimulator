@@ -439,11 +439,11 @@ public class Shell : MonoBehaviour {
                     vertexArea += this.triangleAreas[triangleId];
                 }
                 vertexArea /= 3f;
-                float mass = vertexArea * this.shellThickness / this.shellMaterialDensity;
+                float mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
 
                 // Calculate vertex acceleration.
                 Vector3 windForce = this.windPressure * vertexArea; // TODO - Make this wind-VS-area rotation dependent.
-                Vector3 newAcceleration = mass * (-vertexEnergyGradient[i] + windForce);
+                Vector3 newAcceleration = (-vertexEnergyGradient[i] + windForce) / mass;
 
                 // Update vertex position.
                 vertices[i] += deltaTime * this.verticesVelocity[i]
