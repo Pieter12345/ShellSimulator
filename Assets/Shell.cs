@@ -53,8 +53,8 @@ public class Shell : MonoBehaviour {
             this.shellObj = new GameObject();
             this.shellObj.AddComponent<MeshRenderer>();
             this.shellObj.AddComponent<MeshFilter>();
-            mesh = this.createMesh();
-            //Mesh mesh = this.createSingleTriangleMesh();
+            mesh = MeshHelper.createSquareMesh(2);
+            //Mesh mesh = MeshHelper.createSingleTriangleMesh();
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
         }
@@ -224,56 +224,6 @@ public class Shell : MonoBehaviour {
         }
         mesh.vertices = vertices;
         mesh.RecalculateNormals();
-    }
-
-    private Mesh createMesh() {
-        Mesh mesh = new Mesh();
-        float width = 5;
-        float height = 5;
-        mesh.vertices = new Vector3[] {
-            new Vector3(0, 0, 0),
-            new Vector3(width, 0, 0),
-            new Vector3(0, height, 0),
-            new Vector3(width, height, 0)
-        };
-        mesh.triangles = new int[] {
-            0, 2, 1,
-            2, 3, 1
-        };
-        mesh.uv = new Vector2[] {
-            new Vector2(0, 0),
-            new Vector2(1, 0),
-            new Vector2(0, 1),
-            new Vector2(1, 1)
-        };
-        mesh.RecalculateNormals();
-
-        for(int i = 0; i < 2; i++) {
-            MeshHelper.Subdivide(mesh);
-        }
-        return mesh;
-    }
-
-    private Mesh createSingleTriangleMesh() {
-        Mesh mesh = new Mesh();
-        float width = 5;
-        float height = 5;
-        mesh.vertices = new Vector3[] {
-            new Vector3(0, 0, 0),
-            new Vector3(width, 0, 0),
-            new Vector3(0, height, 0)
-        };
-        mesh.triangles = new int[] {
-            0, 2, 1
-        };
-        mesh.uv = new Vector2[] {
-            new Vector2(0, 0),
-            new Vector2(1, 0),
-            new Vector2(0, 1)
-        };
-        mesh.RecalculateNormals();
-
-        return mesh;
     }
 
     // Update is called once per frame.
