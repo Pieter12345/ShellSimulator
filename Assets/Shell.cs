@@ -265,104 +265,15 @@ public class Shell : MonoBehaviour {
 
         // Get the mesh.
         Mesh mesh = this.getMesh();
-
-        // Compute triangle normals and areas.
         int[] triangles = mesh.triangles;
         Vector3[] vertices = mesh.vertices;
-        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
-            int triangleBaseIndex = triangleId * 3;
-            int v1 = triangles[triangleBaseIndex];
-            int v2 = triangles[triangleBaseIndex + 1];
-            int v3 = triangles[triangleBaseIndex + 2];
-            Vector3 crossProd = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]);
-            float crossProdMag = crossProd.magnitude;
 
-            // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
-            if(float.IsNaN(crossProdMag)) {
-                this.triangleNormals[triangleId] = Vector3.zero;
-                this.triangleAreas[triangleId] = 0f;
-            } else {
-                this.triangleNormals[triangleId] = crossProd / crossProdMag;
-                this.triangleAreas[triangleId] = crossProdMag / 2f; // Triangle area is half of the cross product of any two of its edges.
-            }
-        }
+        // Compute triangle normals and areas.
+        this.recalcTriangleNormalsAndAreas(triangles, vertices);
 
-        // Initialize vertex energy gradient array and vertex wind force array.
-        Vector3[] vertexEnergyGradient = new Vector3[mesh.vertexCount];
-        Vector3[] vertexWindForce = new Vector3[mesh.vertexCount];
-        for(int i = 0; i < vertexEnergyGradient.Length; i++) {
-            vertexEnergyGradient[i] = Vector3.zero;
-            vertexWindForce[i] = Vector3.zero;
-        }
-
-        // Compute vertex energy gradient array.
-        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-            
-            for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
-
-                // Get two possibly adjacent triangles in clockwise direction.
-                int triangleId = this.vertexTriangles[vertexInd][i];
-                int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
-
-                // Get triangle vertices.
-                int triangleBaseInd1 = triangleId * 3;
-                int triangleBaseInd2 = nextTriangleId * 3;
-                int v11 = mesh.triangles[triangleBaseInd1];
-                int v12 = mesh.triangles[triangleBaseInd1 + 1];
-                int v13 = mesh.triangles[triangleBaseInd1 + 2];
-                int v21 = mesh.triangles[triangleBaseInd2];
-                int v22 = mesh.triangles[triangleBaseInd2 + 1];
-                int v23 = mesh.triangles[triangleBaseInd2 + 2];
-
-                // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
-                int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
-                int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
-
-                // Handle the edge, or both edges if they are not the same.
-                bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
-
-                // Calculate spring energy gradient in the edge.
-                vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertexInd, otherVertexClockwiseInd1);
-
-                if(edgeSharedByTriangles) {
-
-                    // Calculate bending energy gradient.
-                    vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
-                        triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
-                } else {
-
-                    // Calculate spring energy gradient in the second edge.
-                    vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertexInd, otherVertexAntiClockwiseInd2);
-                }
-
-                // Calculate the area energy gradient in the triangle.
-                if(vertexInd == v11) {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(triangleId, v11, v12, v13);
-                } else if(vertexInd == v12) {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(triangleId, v12, v13, v11);
-                } else {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(triangleId, v13, v11, v12);
-                }
-            }
-        }
-
-        // Compute vertex wind force array.
-        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
-            int triangleBaseIndex = triangleId * 3;
-            int v1 = triangles[triangleBaseIndex];
-            int v2 = triangles[triangleBaseIndex + 1];
-            int v3 = triangles[triangleBaseIndex + 2];
-
-            // Compute projection of the wind pressure vector on the triangle normal.
-            Vector3 triangleNormal = this.triangleNormals[triangleId];
-            float triangleArea = this.triangleAreas[triangleId];
-            Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal;
-
-            // Add a third of the total triangle wind force to each of its vertices.
-            vertexWindForce[v1] += totalTriangleWindForce / 3f;
-            vertexWindForce[v2] += totalTriangleWindForce / 3f;
-            vertexWindForce[v3] += totalTriangleWindForce / 3f;
-        }
+        // Calculate vertex energy gradient array and vertex wind force array.
+        Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
+        Vector3[] vertexWindForce = this.calcVertexWindForce(triangles, vertices);
 
         // Update the vertices using discrete integration or gradient descent.
         if(this.doGradientDescent) {
@@ -427,12 +338,118 @@ public class Shell : MonoBehaviour {
                 this.verticesAcceleration[i] = newAcceleration;
             }
         }
-        mesh.vertices = vertices;
-        mesh.RecalculateNormals();
     }
 
     private Mesh getMesh() {
         return this.shellObj.GetComponent<MeshFilter>().mesh;
+    }
+
+    private void recalcTriangleNormalsAndAreas(int[] triangles, Vector3[] vertices) {
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+            Vector3 crossProd = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]);
+            float crossProdMag = crossProd.magnitude;
+
+            // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
+            if(float.IsNaN(crossProdMag)) {
+                this.triangleNormals[triangleId] = Vector3.zero;
+                this.triangleAreas[triangleId] = 0f;
+            } else {
+                this.triangleNormals[triangleId] = crossProd / crossProdMag;
+                this.triangleAreas[triangleId] = crossProdMag / 2f; // Triangle area is half of the cross product of any two of its edges.
+            }
+        }
+    }
+
+    private Vector3[] calcVertexEnergyGradient(int[] triangles, Vector3[] vertices) {
+
+        // Initialize vertex energy gradient array.
+        Vector3[] vertexEnergyGradient = new Vector3[vertices.Length];
+        for(int i = 0; i < vertexEnergyGradient.Length; i++) {
+            vertexEnergyGradient[i] = Vector3.zero;
+        }
+
+        // Compute vertex energy gradient array.
+        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
+            for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
+
+                // Get two possibly adjacent triangles in clockwise direction.
+                int triangleId = this.vertexTriangles[vertexInd][i];
+                int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
+
+                // Get triangle vertices.
+                int triangleBaseInd1 = triangleId * 3;
+                int triangleBaseInd2 = nextTriangleId * 3;
+                int v11 = triangles[triangleBaseInd1];
+                int v12 = triangles[triangleBaseInd1 + 1];
+                int v13 = triangles[triangleBaseInd1 + 2];
+                int v21 = triangles[triangleBaseInd2];
+                int v22 = triangles[triangleBaseInd2 + 1];
+                int v23 = triangles[triangleBaseInd2 + 2];
+
+                // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
+                int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
+                int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
+
+                // Handle the edge, or both edges if they are not the same.
+                bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
+
+                // Calculate spring energy gradient in the edge.
+                vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexClockwiseInd1);
+
+                if(edgeSharedByTriangles) {
+
+                    // Calculate bending energy gradient.
+                    vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
+                        vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
+                } else {
+
+                    // Calculate spring energy gradient in the second edge.
+                    vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexAntiClockwiseInd2);
+                }
+
+                // Calculate the area energy gradient in the triangle.
+                if(vertexInd == v11) {
+                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
+                } else if(vertexInd == v12) {
+                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
+                } else {
+                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
+                }
+            }
+        }
+        return vertexEnergyGradient;
+    }
+
+    private Vector3[] calcVertexWindForce(int[] triangles, Vector3[] vertices) {
+
+        // Initialize vertex wind force array.
+        Vector3[] vertexWindForce = new Vector3[vertices.Length];
+        for(int i = 0; i < vertexWindForce.Length; i++) {
+            vertexWindForce[i] = Vector3.zero;
+        }
+
+        // Compute vertex wind force array.
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+
+            // Compute projection of the wind pressure vector on the triangle normal.
+            Vector3 triangleNormal = this.triangleNormals[triangleId];
+            float triangleArea = this.triangleAreas[triangleId];
+            Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal;
+
+            // Add a third of the total triangle wind force to each of its vertices.
+            vertexWindForce[v1] += totalTriangleWindForce / 3f;
+            vertexWindForce[v2] += totalTriangleWindForce / 3f;
+            vertexWindForce[v3] += totalTriangleWindForce / 3f;
+        }
+        return vertexWindForce;
     }
 
     private float getEdgeLength(int v1, int v2) {
@@ -453,8 +470,7 @@ public class Shell : MonoBehaviour {
     /**
      * Computes the edge length energy gradient of vertex v1, for the edge between vertices v1 and v2.
      */
-    private Vector3 getEdgeLengthEnergyGradient(int v1, int v2) {
-        Vector3[] vertices = this.getMesh().vertices;
+    private Vector3 getEdgeLengthEnergyGradient(Vector3[] vertices, int v1, int v2) {
         Vector3 edge = vertices[v2] - vertices[v1]; // Vector from v1 to v2.
         Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
         float edgeLength = edge.magnitude;
@@ -470,8 +486,7 @@ public class Shell : MonoBehaviour {
      * Computes the triangle area energy gradient of vertex v1, for the triangle defined by vertices v1, v2 and v3.
      * Note that 1/3 of the area energy is used for v1 (the other two parts will be used for v2 and v3).
      */
-    private Vector3 getTriangleAreaEnergyGradient(int triangleId, int v1, int v2, int v3) {
-        Vector3[] vertices = this.getMesh().vertices;
+    private Vector3 getTriangleAreaEnergyGradient(Vector3[] vertices, int triangleId, int v1, int v2, int v3) {
 
         // Get two edges, where only one is dependent on vertex v1.
         Vector3 edge21 = vertices[v1] - vertices[v2]; // dEdge21 / dv1 = {1, 1, 1}.
@@ -497,9 +512,8 @@ public class Shell : MonoBehaviour {
      * Vertices ve1 and ve2 are the vertices that define the edge that is shared between the two triangles.
      * Edge ve1 -> ve2 belongs to vertex v1_ and edge ve2 -> ve1 belongs to vertex v2_ (this matters for the direction of the normals).
      */
-    private Vector3 getBendingEnergyGradient(int triangleId1, int triangleId2,
+    private Vector3 getBendingEnergyGradient(Vector3[] vertices, int triangleId1, int triangleId2,
             int v11, int v12, int v13, int v21, int v22, int v23, int ve1, int ve2) {
-        Vector3[] vertices = this.getMesh().vertices;
 
         // Shared edge, clockwise for triangle 1, anti-clockwise for triangle 2.
         Vector3 e1 = vertices[ve2] - vertices[ve1];
