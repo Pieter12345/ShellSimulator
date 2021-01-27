@@ -308,6 +308,16 @@ public class Shell : MonoBehaviour {
 
                 // Update vertex position.
                 Vector3 step = this.kGradientDescent * (vertexWindForce[i] - vertexEnergyGradient[i]);
+                if(float.IsNaN(step.x) || float.IsNaN(step.y) || float.IsNaN(step.z)) {
+                    print("NaN step: " + step + " vertexWindForce: " + vertexWindForce[i] + " vertexArea: " + vertexArea
+                            + " vertexEnergyGradient[" + i + "]: " + vertexEnergyGradient[i]);
+                    continue;
+                }
+                if(float.IsInfinity(step.x) || float.IsInfinity(step.y) || float.IsInfinity(step.z)) {
+                    print("Infinite step: " + step + " windForce: " + vertexWindForce + " vertexArea: " + vertexArea
+                            + " vertexEnergyGradient[" + i + "]: " + vertexEnergyGradient[i]);
+                    continue;
+                }
                 if(step.magnitude > maxGradientDescentStep) {
                     step = step.normalized * maxGradientDescentStep;
                 }
@@ -567,7 +577,18 @@ public class Shell : MonoBehaviour {
         }
         float undeformedEdgeLength = undeformedEdge.magnitude;
         Vector3 dEdgeLength = (vertices[v1] - vertices[v2]) / edgeLength;
-        return (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength;
+        Vector3 result = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength;
+        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
+            print("NaN length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
+                    + " edgeLength: " + edgeLength);
+            return Vector3.zero;
+        }
+        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
+            print("Infinite length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
+                    + " edgeLength: " + edgeLength);
+            return Vector3.zero;
+        }
+        return result;
     }
 
     /**
@@ -592,7 +613,18 @@ public class Shell : MonoBehaviour {
         Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
 
         // Calculate the area energy gradient.
-        return (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
+        Vector3 result = (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
+        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
+            print("NaN area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
+                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
+            return Vector3.zero;
+        }
+        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
+            print("Infinite area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
+                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
+            return Vector3.zero;
+        }
+        return result;
     }
 
     /**
@@ -664,6 +696,17 @@ public class Shell : MonoBehaviour {
         float d_W_bending_energy_edge_d_teta_e = 2f * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
 
         // Return the result.
-        return d_W_bending_energy_edge_d_teta_e * d_teta_d_ve1;
+        Vector3 result = d_W_bending_energy_edge_d_teta_e * d_teta_d_ve1;
+        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
+            print("NaN bending gradient: " + result + " d_W_bending_energy_edge_d_teta_e: " + d_W_bending_energy_edge_d_teta_e
+                    + " d_teta_d_ve1: " + d_teta_d_ve1);
+            return Vector3.zero;
+        }
+        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
+            print("Infinite bending gradient: " + result + " d_W_bending_energy_edge_d_teta_e: " + d_W_bending_energy_edge_d_teta_e
+                    + " d_teta_d_ve1: " + d_teta_d_ve1);
+            return Vector3.zero;
+        }
+        return result;
     }
 }
