@@ -501,21 +501,27 @@ public class Shell : MonoBehaviour {
                 if(edgeSharedByTriangles) {
 
                     // Calculate bending energy gradient.
-                    vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
-                        vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
+                    if(kBend != 0f) {
+                        vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
+                            vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
+                    }
                 } else {
 
                     // Calculate spring energy gradient in the second edge.
-                    vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexAntiClockwiseInd2);
+                    if(kLength != 0f) {
+                        vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexAntiClockwiseInd2);
+                    }
                 }
 
                 // Calculate the area energy gradient in the triangle.
-                if(vertexInd == v11) {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
-                } else if(vertexInd == v12) {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
-                } else {
-                    vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
+                if(kArea != 0f) {
+                    if(vertexInd == v11) {
+                        vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
+                    } else if(vertexInd == v12) {
+                        vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
+                    } else {
+                        vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
+                    }
                 }
             }
         }
