@@ -28,6 +28,7 @@ public class Shell : MonoBehaviour {
     public float kGradientDescent;
     public float maxGradientDescentStep;
     public float timeScale = 1f;
+    public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
     // Cached vertex/triangle properties.
@@ -332,7 +333,7 @@ public class Shell : MonoBehaviour {
 
                 // Update vertex velocity.
                 this.verticesVelocity[i] += deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
-                this.verticesVelocity[i] *= 0.9f; // TODO - Replace this constant damping with something more realistic friction-based damping.
+                this.verticesVelocity[i] *= dampingFactor; // TODO - Replace this constant damping with something more realistic friction-based damping.
 
                 // Update vertex acceleration.
                 this.verticesAcceleration[i] = newAcceleration;
