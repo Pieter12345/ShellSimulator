@@ -33,8 +33,14 @@ public class Shell : MonoBehaviour {
 
     // Cached vertex/triangle properties.
     private Vector3[] triangleNormals;
+    private Vector3[][] dTriangleNormals_dv1;
+    private Vector3[][] dTriangleNormals_dv2;
+    private Vector3[][] dTriangleNormals_dv3;
     private Vector3[] undeformedTriangleNormals;
     private float[] triangleAreas;
+    private Vector3[] dTriangleAreas_dv1;
+    private Vector3[] dTriangleAreas_dv2;
+    private Vector3[] dTriangleAreas_dv3;
     private float[] undeformedTriangleAreas;
 
     // Start is called before the first frame update.
@@ -162,7 +168,13 @@ public class Shell : MonoBehaviour {
         }
         int numTriangles = mesh.triangles.Length;
         this.triangleNormals = new Vector3[numTriangles];
+        this.dTriangleNormals_dv1 = new Vector3[numTriangles][];
+        this.dTriangleNormals_dv2 = new Vector3[numTriangles][];
+        this.dTriangleNormals_dv3 = new Vector3[numTriangles][];
         this.triangleAreas = new float[numTriangles];
+        this.dTriangleAreas_dv1 = new Vector3[numTriangles];
+        this.dTriangleAreas_dv2 = new Vector3[numTriangles];
+        this.dTriangleAreas_dv3 = new Vector3[numTriangles];
         this.undeformedTriangleNormals = new Vector3[numTriangles];
         this.undeformedTriangleAreas = new float[numTriangles];
         int[] triangles = mesh.triangles;
@@ -351,17 +363,92 @@ public class Shell : MonoBehaviour {
             int v1 = triangles[triangleBaseIndex];
             int v2 = triangles[triangleBaseIndex + 1];
             int v3 = triangles[triangleBaseIndex + 2];
-            Vector3 crossProd = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]);
-            float crossProdMag = crossProd.magnitude;
+            Vector3 e12 = vertices[v2] - vertices[v1];
+            Vector3 e13 = vertices[v3] - vertices[v1];
+            Vector3 cross_e12_e13 = Vector3.Cross(e12, e13);
+            float crossprod_length = cross_e12_e13.magnitude; // Length is the same, regardless of which edges are used.
 
             // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
-            if(float.IsNaN(crossProdMag)) {
+            if(float.IsNaN(crossprod_length)) {
+
+                // The triangle area is 0 and the triangle has infinitely many normals in a circle (two edges parallel) or sphere (all vertices on the same point).
                 this.triangleNormals[triangleId] = Vector3.zero;
                 this.triangleAreas[triangleId] = 0f;
-            } else {
-                this.triangleNormals[triangleId] = crossProd / crossProdMag;
-                this.triangleAreas[triangleId] = crossProdMag / 2f; // Triangle area is half of the cross product of any two of its edges.
+
+                // Technically, there are infinitely many options for the normal to change, and the area will almust always grow.
+                // This simplification might introduce a small error in one timestep, but only in this exact zero-area case.
+                this.dTriangleNormals_dv1[triangleId] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
+                this.dTriangleNormals_dv2[triangleId] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
+                this.dTriangleNormals_dv3[triangleId] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
+                this.dTriangleAreas_dv1[triangleId] = Vector3.zero;
+                this.dTriangleAreas_dv2[triangleId] = Vector3.zero;
+                this.dTriangleAreas_dv3[triangleId] = Vector3.zero;
+                continue;
             }
+            this.triangleNormals[triangleId] = cross_e12_e13 / crossprod_length;
+            this.triangleAreas[triangleId] = crossprod_length / 2f; // Triangle area is half of the cross product of any two of its edges.
+
+            /*
+             * Triangle normal partial derivatives:
+             * e1 === e12 and e2 === e13 and crossprod_length === cross_e1_e2_length.
+             * n = cross_e1_e2 / cross_e1_e2_length = {e1y * e2z - e2y * e1z, e1x * e2z - e2x * e1z, e1x * e2y - e2x * e1y} / cross_e1_e2_length // Vector3.
+             * d_n_d_e1 = {d_n_d_e1x, d_n_d_e1y, d_n_d_e1z} // 3x3 matrix.
+             * d_n_d_e1x = (cross_e1_e2_length * d_cross_e1_e2_d_e1x - cross_e1_e2 * d_cross_e1_e2_length_d_e1x) / cross_e1_e2_length^2 // Vector3.
+             * d_n_d_e1y = (cross_e1_e2_length * d_cross_e1_e2_d_e1y - cross_e1_e2 * d_cross_e1_e2_length_d_e1y) / cross_e1_e2_length^2 // Vector3.
+             * d_n_d_e1z = (cross_e1_e2_length * d_cross_e1_e2_d_e1z - cross_e1_e2 * d_cross_e1_e2_length_d_e1z) / cross_e1_e2_length^2 // Vector3.
+             * d_cross_e1_e2_d_e1x = {0, e2z, e2y} // Vector3.
+             * d_cross_e1_e2_d_e1y = {e2z, 0, -e2x} // Vector3.
+             * d_cross_e1_e2_d_e1z = {-e2y, -e2x, 0} // Vector3.
+             */
+            Vector3 d_cross_e12_e13_length_d_e12 = 1f / crossprod_length * new Vector3(
+                    (e12.x * e13.z - e13.x * e12.z) * e13.z + (e12.x * e13.y - e13.x * e12.y) * e13.y,
+                    (e12.y * e13.z - e13.y * e12.z) * e13.z + (e12.x * e13.y - e13.x * e12.y) * -e13.x,
+                    (e12.y * e13.z - e13.y * e12.z) * -e13.y + (e12.x * e13.z - e13.x * e12.z) * -e13.x);
+            Vector3 d_cross_e12_e13_length_d_e13 = 1f / crossprod_length * new Vector3(
+                    (e12.y * e13.z - e13.y * e12.z) * 0      + (e12.x * e13.z - e13.x * e12.z) * -e12.z + (e12.x * e13.y - e13.x * e12.y) * -e12.y,
+                    (e12.y * e13.z - e13.y * e12.z) * -e12.z + (e12.x * e13.z - e13.x * e12.z) * 0      + (e12.x * e13.y - e13.x * e12.y) * e12.x,
+                    (e12.y * e13.z - e13.y * e12.z) * e12.y  + (e12.x * e13.z - e13.x * e12.z) * e12.x  + (e12.x * e13.y - e13.x * e12.y) * 0);
+            Vector3 d_cross_e12_e13_d_e12x = new Vector3(0f, e13.z, e13.y);
+            Vector3 d_cross_e12_e13_d_e12y = new Vector3(e13.z, 0f, -e13.x);
+            Vector3 d_cross_e12_e13_d_e12z = new Vector3(-e13.y, -e13.x, 0f);
+            Vector3 d_cross_e12_e13_d_e13x = new Vector3(0f, -e12.z, -e12.y);
+            Vector3 d_cross_e12_e13_d_e13y = new Vector3(-e12.z, 0f, e12.x);
+            Vector3 d_cross_e12_e13_d_e13z = new Vector3(e12.y, e12.x, 0f);
+            Vector3 d_n_d_e12x = (crossprod_length * d_cross_e12_e13_d_e12x - cross_e12_e13 * d_cross_e12_e13_length_d_e12.x) / (crossprod_length * crossprod_length);
+            Vector3 d_n_d_e12y = (crossprod_length * d_cross_e12_e13_d_e12y - cross_e12_e13 * d_cross_e12_e13_length_d_e12.y) / (crossprod_length * crossprod_length);
+            Vector3 d_n_d_e12z = (crossprod_length * d_cross_e12_e13_d_e12z - cross_e12_e13 * d_cross_e12_e13_length_d_e12.z) / (crossprod_length * crossprod_length);
+            Vector3 d_n_d_e13x = (crossprod_length * d_cross_e12_e13_d_e13x - cross_e12_e13 * d_cross_e12_e13_length_d_e13.x) / (crossprod_length * crossprod_length);
+            Vector3 d_n_d_e13y = (crossprod_length * d_cross_e12_e13_d_e13y - cross_e12_e13 * d_cross_e12_e13_length_d_e13.y) / (crossprod_length * crossprod_length);
+            Vector3 d_n_d_e13z = (crossprod_length * d_cross_e12_e13_d_e13z - cross_e12_e13 * d_cross_e12_e13_length_d_e13.z) / (crossprod_length * crossprod_length);
+            Vector3[] d_n_d_e12 = new Vector3[] {d_n_d_e12x, d_n_d_e12y, d_n_d_e12z};
+            Vector3[] d_n_d_e13 = new Vector3[] {d_n_d_e13x, d_n_d_e13y, d_n_d_e13z};
+            Vector3 d_e12_d_v1 = new Vector3(-1f, -1f, -1f);
+            Vector3 d_e12_d_v2 = new Vector3(1f, 1f, 1f);
+            Vector3 d_e13_d_v3 = new Vector3(1f, 1f, 1f);
+            this.dTriangleNormals_dv1[triangleId] = new Vector3[] {d_n_d_e12[0] * d_e12_d_v1.x, d_n_d_e12[1] * d_e12_d_v1.y, d_n_d_e12[2] * d_e12_d_v1.z};
+            this.dTriangleNormals_dv2[triangleId] = new Vector3[] {d_n_d_e12[0] * d_e12_d_v2.x, d_n_d_e12[1] * d_e12_d_v2.y, d_n_d_e12[2] * d_e12_d_v2.z};
+            this.dTriangleNormals_dv3[triangleId] = new Vector3[] {d_n_d_e13[0] * d_e13_d_v3.x, d_n_d_e13[1] * d_e13_d_v3.y, d_n_d_e13[2] * d_e13_d_v3.z};
+
+            /*
+             * Triangle area partial derivatives:
+             * e1 === e12 and e2 === e13 and crossprod_length === cross_e1_e2_length.
+             * triangleArea = crossprod_length / 2f
+             * dTriangleArea_dv1 = {d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12z / 2f} .* d_e12_d_v1
+             * dTriangleArea_dv2 = {d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12y / 2f, d_cross_e12_e13_length_d_e12z / 2f} .* d_e12_d_v2
+             * dTriangleArea_dv3 = {d_cross_e12_e13_length_d_e13x / 2f, d_cross_e12_e13_length_d_e13y / 2f, d_cross_e12_e13_length_d_e13z / 2f} .* d_e13_d_v3
+             */
+            this.dTriangleAreas_dv1[triangleId] = new Vector3(
+                    d_cross_e12_e13_length_d_e12.x * d_e12_d_v1.x,
+                    d_cross_e12_e13_length_d_e12.y * d_e12_d_v1.y,
+                    d_cross_e12_e13_length_d_e12.z * d_e12_d_v1.z) / 2f;
+            this.dTriangleAreas_dv2[triangleId] = new Vector3(
+                    d_cross_e12_e13_length_d_e12.x * d_e12_d_v2.x,
+                    d_cross_e12_e13_length_d_e12.y * d_e12_d_v2.y,
+                    d_cross_e12_e13_length_d_e12.z * d_e12_d_v2.z) / 2f;
+            this.dTriangleAreas_dv1[triangleId] = new Vector3(
+                    d_cross_e12_e13_length_d_e13.x * d_e13_d_v3.x,
+                    d_cross_e12_e13_length_d_e13.y * d_e13_d_v3.y,
+                    d_cross_e12_e13_length_d_e13.z * d_e13_d_v3.z) / 2f;
         }
     }
 
