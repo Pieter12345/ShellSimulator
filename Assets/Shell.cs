@@ -24,7 +24,8 @@ public class Shell : MonoBehaviour {
 
     // Simulation update loop settings.
     private bool doUpdate = false;
-    private bool doGradientDescent = true;
+    public bool doGradientDescent = false;
+    private bool implicitIntegration = true;
     public float kGradientDescent;
     public float maxGradientDescentStep;
     public float timeScale = 1f;
@@ -48,11 +49,11 @@ public class Shell : MonoBehaviour {
 
         // Initialize fields. Doing this overwrites the values set in Unity's inspector.
         this.kLength = 10f;
-        this.kArea = 10f;
-        this.kBend = 0.1f;
+        this.kArea = 0f;
+        this.kBend = 0f;
         this.kGradientDescent = 0.1f;
         this.maxGradientDescentStep = 0.01f;
-        this.windPressure = new Vector3(0f, 0f, 100f);
+        this.windPressure = new Vector3(0f, 0f, 10f);
 
         // Create the new object in the scene.
         Mesh mesh;
@@ -324,7 +325,7 @@ public class Shell : MonoBehaviour {
                 vertices[i] += step;
             }
 
-        } else {
+        } else if(!this.implicitIntegration) {
 
             // Perform Newmark Time Stepping (ODE integration).
             float gamma = 0.5f;
@@ -360,7 +361,121 @@ public class Shell : MonoBehaviour {
                 // Update vertex acceleration.
                 this.verticesAcceleration[i] = newAcceleration;
             }
+        } else {
+            /*
+             * Implicit integration.
+             * Solve: x(n+1) - deltaTime * x'(n) - deltaTime^2 * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) - x(n) = f(x(n+1)) = 0
+             * Parameters:
+             *     x(n+1): Mesh vertex positions after this step (initialize with current positions).
+             *     x'(n): Mesh vertex velocities before this step.
+             *     (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) = f(x(n+1)): Acceleration calculated using vertex positions after this step.
+             * Solving:
+             *     Repeat x(n+1) -= f(x(n+1)) / f'(x(n+1)) until f(x(n+1)) is close enough to 0.
+             *  Determine velocity afterwards (fill in): x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
+             */
+
+            // As a first guess for implicit integration, we take the current vertex positions.
+            Vector3[] newVertices = (Vector3[]) vertices.Clone();
+            Vector3[] newVertexWindForce = vertexWindForce;
+            Vector3[] newVertexEnergyGradient = vertexEnergyGradient;
+
+            float absError = 0f;
+            float maxNormalizedError = 0.1f;
+            int iterations = 0;
+            int maxIterations = 20;
+            do {
+                if(iterations++ >= maxIterations) {
+                    print("Terminating Newton's method since " + maxIterations + " iterations have been reached. Current normalized error: " + (absError / vertices.Length));
+                    newVertices = vertices; // Do not make any changes.
+                    break;
+                }
+
+                // Calculate energy Hessian and wind force Hessian for the approximation of the new position.
+                Vector3[][] newEnergyHess = this.calcVertexEnergyHessian(triangles, newVertices);
+                Vector3[][] newWindForceHess = this.calcVertexWindForceHessian(triangles, newVertices);
+
+                absError = 0f;
+                for(int i = 0; i < vertices.Length; i++) {
+
+                    // Skip vertex if it is constrained.
+                    if(this.verticesMovementConstraints[i]) {
+                        this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
+                        this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
+                        continue;
+                    }
+
+                    // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
+                    float newVertexArea = 0f;
+                    float dTriangleArea_dx = 0f;
+                    float dTriangleArea_dy = 0f;
+                    float dTriangleArea_dz = 0f;
+                    foreach(int triangleId in this.vertexTriangles[i]) {
+                        newVertexArea += this.triangleAreas[triangleId];
+                        if(i == triangles[triangleId * 3]) {
+                            dTriangleArea_dx += this.dTriangleAreas_dv1[triangleId].x;
+                            dTriangleArea_dy += this.dTriangleAreas_dv1[triangleId].y;
+                            dTriangleArea_dz += this.dTriangleAreas_dv1[triangleId].z;
+                        } else if(i == triangles[triangleId * 3 + 1]) {
+                            dTriangleArea_dx += this.dTriangleAreas_dv2[triangleId].x;
+                            dTriangleArea_dy += this.dTriangleAreas_dv2[triangleId].y;
+                            dTriangleArea_dz += this.dTriangleAreas_dv2[triangleId].z;
+                        } else if(i == triangles[triangleId * 3 + 2]) {
+                            dTriangleArea_dx += this.dTriangleAreas_dv3[triangleId].x;
+                            dTriangleArea_dy += this.dTriangleAreas_dv3[triangleId].y;
+                            dTriangleArea_dz += this.dTriangleAreas_dv3[triangleId].z;
+                        }
+                    }
+                    newVertexArea /= 3f;
+                    float dNewMass_dx = dTriangleArea_dx * this.shellThickness * this.shellMaterialDensity;
+                    float dNewMass_dy = dTriangleArea_dy * this.shellThickness * this.shellMaterialDensity;
+                    float dNewMass_dz = dTriangleArea_dz * this.shellThickness * this.shellMaterialDensity;
+                    float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
+
+                    // Calculate vertex acceleration.
+                    Vector3 newAcceleration = (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
+
+                    // Calculate differential function f for the guessed/approximated vertex positions.
+                    Vector3 f = newVertices[i] - deltaTime * this.verticesVelocity[i] - deltaTime * deltaTime * newAcceleration - vertices[i];
+
+                    // Update absolute error.
+                    absError += f.magnitude;
+
+                    // Calculate differential function f gradient.
+                    Vector3[] dNewAcceleration = new Vector3[] {
+                            (newWindForceHess[i][0] - newEnergyHess[i][0]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dx / (newMass * newMass),
+                            (newWindForceHess[i][1] - newEnergyHess[i][1]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dy / (newMass * newMass),
+                            (newWindForceHess[i][2] - newEnergyHess[i][2]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dz / (newMass * newMass)
+                    };
+                    Vector3[] df = new Vector3[] {
+                            // d_f(u)_dux = {d_f_x(u)_dux, d_f_y(u)_dux, d_f_z(u)_dux}.
+                            new Vector3(1, 0, 0) - deltaTime * deltaTime * dNewAcceleration[0],
+
+                            // d_f(u)_duy = {d_f_x(u)_duy, d_f_y(u)_duy, d_f_z(u)_duy}.
+                            new Vector3(0, 1, 0) - deltaTime * deltaTime * dNewAcceleration[1],
+
+                            // d_f(u)_duz = {d_f_x(u)_duz, d_f_y(u)_duz, d_f_z(u)_duz}.
+                            new Vector3(0, 0, 1) - deltaTime * deltaTime * dNewAcceleration[2]
+                    };
+
+                    // Update newVertices following Newton's method: numVertices[i] -= f(u) / f'(u).
+                    // TODO - Validate that f'(u) is symmetrical, and otherwise use division if necessary.
+                    newVertices[i] -= f.x * df[0] + f.y * df[1] + f.z * df[2];
+                    print("Stepping: " + (f.x * df[0] + f.y * df[1] + f.z * df[2]));
+
+                    // Update triangle normals and areas.
+                    this.recalcTriangleNormalsAndAreas(triangles, newVertices);
+
+                    // Update vertex energy gradient array and vertex wind force array.
+                    newVertexEnergyGradient = this.calcVertexEnergyGradient(triangles, newVertices);
+                    newVertexWindForce = this.calcVertexWindForce(triangles, newVertices);
+                }
+            } while(absError / vertices.Length > maxNormalizedError);
+
+            // Update the vertices.
+            vertices = newVertices;
         }
+        mesh.vertices = vertices;
+        mesh.RecalculateNormals();
     }
 
     private Mesh getMesh() {
@@ -528,6 +643,70 @@ public class Shell : MonoBehaviour {
         return vertexEnergyGradient;
     }
 
+    private Vector3[][] calcVertexEnergyHessian(int[] triangles, Vector3[] vertices) {
+
+        // Initialize vertex energy Hessian.
+        Vector3[][] vertexEnergyHess = new Vector3[vertices.Length][];
+        for(int i = 0; i < vertexEnergyHess.Length; i++) {
+            vertexEnergyHess[i] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
+        }
+
+        // Compute vertex energy Hessian.
+        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
+            for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
+
+                // Get two possibly adjacent triangles in clockwise direction.
+                int triangleId = this.vertexTriangles[vertexInd][i];
+                int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
+
+                // Get triangle vertices.
+                int triangleBaseInd1 = triangleId * 3;
+                int triangleBaseInd2 = nextTriangleId * 3;
+                int v11 = triangles[triangleBaseInd1];
+                int v12 = triangles[triangleBaseInd1 + 1];
+                int v13 = triangles[triangleBaseInd1 + 2];
+                int v21 = triangles[triangleBaseInd2];
+                int v22 = triangles[triangleBaseInd2 + 1];
+                int v23 = triangles[triangleBaseInd2 + 2];
+
+                // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
+                int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
+                int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
+
+                // Handle the edge, or both edges if they are not the same.
+                bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
+
+                // Calculate spring energy Hessian in the edge.
+                Vector3[] lengthHess = this.getEdgeLengthEnergyHess(vertices, vertexInd, otherVertexClockwiseInd1);
+                vertexEnergyHess[vertexInd][0] += kLength * lengthHess[0];
+                vertexEnergyHess[vertexInd][1] += kLength * lengthHess[1];
+                vertexEnergyHess[vertexInd][2] += kLength * lengthHess[2];
+
+                // TODO - Implement area and bending Hessian.
+                if(edgeSharedByTriangles) {
+
+                    // Calculate bending energy Hessian.
+                    //vertexEnergyHess[vertexInd] += kBend * this.getBendingEnergyGradient(
+                    //    vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
+                } else {
+
+                    // Calculate spring energy Hessian in the second edge.
+                    //vertexEnergyHess[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexAntiClockwiseInd2);
+                }
+
+                // Calculate the area energy Hessian in the triangle.
+                if(vertexInd == v11) {
+                    //vertexEnergyHess[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
+                } else if(vertexInd == v12) {
+                    //vertexEnergyHess[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
+                } else {
+                    //vertexEnergyHess[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
+                }
+            }
+        }
+        return vertexEnergyHess;
+    }
+
     private Vector3[] calcVertexWindForce(int[] triangles, Vector3[] vertices) {
 
         // Initialize vertex wind force array.
@@ -554,6 +733,80 @@ public class Shell : MonoBehaviour {
             vertexWindForce[v3] += totalTriangleWindForce / 3f;
         }
         return vertexWindForce;
+    }
+
+    private Vector3[][] calcVertexWindForceHessian(int[] triangles, Vector3[] vertices) {
+
+        // Initialize vertex wind force Hessian.
+        Vector3[][] vertexWindForceHess = new Vector3[vertices.Length][];
+        for(int i = 0; i < vertexWindForceHess.Length; i++) {
+            vertexWindForceHess[i] = new Vector3[] { Vector3.zero, Vector3.zero, Vector3.zero };
+        }
+
+        // Compute vertex wind force Hessian.
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+
+            // Compute projection of the wind pressure vector on the triangle normal.
+            Vector3 triangleNormal = this.triangleNormals[triangleId];
+            Vector3[] dTriangleNormal_dv1 = this.dTriangleNormals_dv1[triangleId];
+            Vector3[] dTriangleNormal_dv2 = this.dTriangleNormals_dv2[triangleId];
+            Vector3[] dTriangleNormal_dv3 = this.dTriangleNormals_dv3[triangleId];
+            float triangleArea = this.triangleAreas[triangleId];
+            Vector3 dTriangleArea_dv1 = this.dTriangleAreas_dv1[triangleId];
+            Vector3 dTriangleArea_dv2 = this.dTriangleAreas_dv2[triangleId];
+            Vector3 dTriangleArea_dv3 = this.dTriangleAreas_dv3[triangleId];
+            Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal;
+
+            /*
+             * Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal
+             * = (windPressure.x * triangleNormal.x + windPressure.y * triangleNormal.y + windPressure.z * triangleNormal.z) * triangleArea * triangleNormal
+             * 
+             * a = windPressure.x * triangleNormal.x + windPressure.y * triangleNormal.y + windPressure.z * triangleNormal.z // float.
+             * da_dv1 = {da_dv1x, da_dv1y, da_dv1z} // Vector3.
+             * da_dv1x = windPressure.x * dTriangleNormal_x_dv1x + windPressure.y * dTriangleNormal_y_dv1x + windPressure.z * dTriangleNormal_z_dv1x // float.
+             * da_dv1y = windPressure.x * dTriangleNormal_x_dv1y + windPressure.y * dTriangleNormal_y_dv1y + windPressure.z * dTriangleNormal_z_dv1y // float.
+             * da_dv1z = windPressure.x * dTriangleNormal_x_dv1z + windPressure.y * dTriangleNormal_y_dv1z + windPressure.z * dTriangleNormal_z_dv1z // float.
+             * 
+             * dTotalTriangleWindForce_dv1 = da_dv1 * triangleArea * triangleNormal + a * dTriangleArea_dv1 * triangleNormal + a * triangleArea * d_triangleNormal_d_v1
+             * dTotalTriangleWindForce_dv1x = da_dv1x * triangleArea * triangleNormal + a * dTriangleArea_dv1x * triangleNormal + a * triangleArea * d_triangleNormal_dv1x
+             * dTotalTriangleWindForce_dv1y = da_dv1y * triangleArea * triangleNormal + a * dTriangleArea_dv1y * triangleNormal + a * triangleArea * d_triangleNormal_dv1y
+             * dTotalTriangleWindForce_dv1z = da_dv1z * triangleArea * triangleNormal + a * dTriangleArea_dv1z * triangleNormal + a * triangleArea * d_triangleNormal_dv1z
+             * 
+             */
+            float a = Vector3.Dot(this.windPressure, triangleNormal);
+            // TODO - Validate that dTriangleNormal_dv1[0] is dTriangleNormal_x_dv1, or otherwise use first column.
+            Vector3 da_dv1 = windPressure.x * dTriangleNormal_dv1[0] + windPressure.y * dTriangleNormal_dv1[1] + windPressure.z * dTriangleNormal_dv1[2];
+            Vector3 da_dv2 = windPressure.x * dTriangleNormal_dv2[0] + windPressure.y * dTriangleNormal_dv2[1] + windPressure.z * dTriangleNormal_dv2[2];
+            Vector3 da_dv3 = windPressure.x * dTriangleNormal_dv3[0] + windPressure.y * dTriangleNormal_dv3[1] + windPressure.z * dTriangleNormal_dv3[2];
+
+            Vector3[] dTriangleVertexWindForce_dv1 = new Vector3[] {
+                (da_dv1.x * triangleArea * triangleNormal + a * dTriangleArea_dv1.x * triangleNormal + a * triangleArea * dTriangleNormal_dv1[0]) / 3f,
+                (da_dv1.y * triangleArea * triangleNormal + a * dTriangleArea_dv1.y * triangleNormal + a * triangleArea * dTriangleNormal_dv1[1]) / 3f,
+                (da_dv1.z * triangleArea * triangleNormal + a * dTriangleArea_dv1.z * triangleNormal + a * triangleArea * dTriangleNormal_dv1[2]) / 3f
+            };
+            Vector3[] dTriangleVertexWindForce_dv2 = new Vector3[] {
+                (da_dv2.x * triangleArea * triangleNormal + a * dTriangleArea_dv2.x * triangleNormal + a * triangleArea * dTriangleNormal_dv2[0]) / 3f,
+                (da_dv2.y * triangleArea * triangleNormal + a * dTriangleArea_dv2.y * triangleNormal + a * triangleArea * dTriangleNormal_dv2[1]) / 3f,
+                (da_dv2.z * triangleArea * triangleNormal + a * dTriangleArea_dv2.z * triangleNormal + a * triangleArea * dTriangleNormal_dv2[2]) / 3f
+            };
+            Vector3[] dTriangleVertexWindForce_dv3 = new Vector3[] {
+                (da_dv3.x * triangleArea * triangleNormal + a * dTriangleArea_dv3.x * triangleNormal + a * triangleArea * dTriangleNormal_dv3[0]) / 3f,
+                (da_dv3.y * triangleArea * triangleNormal + a * dTriangleArea_dv3.y * triangleNormal + a * triangleArea * dTriangleNormal_dv3[1]) / 3f,
+                (da_dv3.z * triangleArea * triangleNormal + a * dTriangleArea_dv3.z * triangleNormal + a * triangleArea * dTriangleNormal_dv3[2]) / 3f
+            };
+
+            // Add a third of the total triangle wind force to each of its vertices.
+            for(int i = 0; i < 3; i++) {
+                vertexWindForceHess[v1][i] += dTriangleVertexWindForce_dv1[i];
+                vertexWindForceHess[v2][i] += dTriangleVertexWindForce_dv2[i];
+                vertexWindForceHess[v3][i] += dTriangleVertexWindForce_dv3[i];
+            }
+        }
+        return vertexWindForceHess;
     }
 
     private float getEdgeLength(int v1, int v2) {
@@ -595,6 +848,98 @@ public class Shell : MonoBehaviour {
             return Vector3.zero;
         }
         return result;
+    }
+
+    /**
+     * Computes the edge length energy Hessian of vertex v1, for the edge between vertices v1 and v2.
+     */
+    private Vector3[] getEdgeLengthEnergyHess(Vector3[] vertices, int v1, int v2) {
+        /*
+         * EdgeLength (float):
+         *     sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         * 
+         * dEdgeLength_dv1x (float):
+         *     (v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2) = (v1x - v2x) / edgeLength
+         * 
+         * dEdgeLength_dv1 (Vector3):
+         *     (v1 - v2) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2) = (v1 - v2) / edgeLength
+         * 
+         * ddEdgeLength_dv1x_dv1y (float):
+         *    ((v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
+         *    (edgeLength * (v1x - v2x)' - (v1x - v2x) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 - (v1x - v2x) * dEdgeLength.y) / edgeLength^2
+         *    (v2x - v1x) * dEdgeLength.y / edgeLength^2
+         *
+         * ddEdgeLength_dv1y_dv1x (float):
+         *    ((v1y - v2y) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
+         *    (edgeLength * (v1y - v2y)' - (v1y - v2y) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 - (v1y - v2y) * dEdgeLength.x) / edgeLength^2
+         *    (v2y - v1y) * dEdgeLength.x / edgeLength^2 = (v2y - v1y) * (v1x - v2x) / edgeLength / edgeLength^2 = (v2y - v1y) * (v1x - v2x) / edgeLength^3
+         * 
+         * ddEdgeLength_dv1x_dv1x (float):
+         *     ((v1x - v2x) / edgeLength)'
+         *     (edgeLength * (v1x - v2x)' - (v1x - v2x) * dEdgeLength.x) / edgeLength^2
+         *     (edgeLength - (v1x - v2x) * dEdgeLength.x) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         *         = (edgeLength - (v1x - v2x) * dEdgeLength.x) / edgeLength^2
+         *         = (edgeLength - (v1x - v2x) * (v1x - v2x) / edgeLength) / edgeLength^2
+         *         = (edgeLength^2 - (v1x - v2x)^2) / edgeLength^3
+         * 
+         * ddEdgeLength_dv1y_dv1y (float):
+         *     ((v1y - v2y) / edgeLength)'
+         *     (edgeLength * (v1y - v2y)' - (v1y - v2y) * dEdgeLength.y) / edgeLength^2
+         *     (edgeLength - (v1y - v2y) * dEdgeLength.y) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         *     (edgeLength - (v1y - v2y) * dEdgeLength.y) / edgeLength^2
+         *     (edgeLength - (v1y - v2y) * (v1 - v2) / edgeLength) / edgeLength^2
+         *     (edgeLength^2 - (v1y - v2y)^2) / edgeLength^3
+         * 
+         * ddEdgeLength_dv1_dv1 (symmetric 3x3 matrix, Hessian):
+         *     | ddEdgeLength_dv1x_dv1x, ddEdgeLength_dv1y_dv1x, ddEdgeLength_dv1z_dv1x |
+         *     | ddEdgeLength_dv1x_dv1y, ddEdgeLength_dv1y_dv1y, ddEdgeLength_dv1z_dv1y |
+         *     | ddEdgeLength_dv1x_dv1z, ddEdgeLength_dv1y_dv1z, ddEdgeLength_dv1z_dv1z |
+         *     =
+         *     | edgeLength^2 - (v1x - v2x)^2, (v2y - v1y) * (v1x - v2x)   , (v2z - v1z) * (v1x - v2x) |
+         *     | (v2x - v1x) * (v1y - v2y)   , edgeLength^2 - (v2y - v1y)^2, (v2z - v1z) * (v1x - v2x) | / edgeLength^3
+         *     | (v2x - v1x) * (v1z - v2z)   , (v2y - v1y) * (v1z - v2z), edgeLength^2 - (v2z - v1z)^2 |
+         * 
+         * Length energy gradient (Vector3):
+         *     (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1
+         * 
+         * Length energy Hessian (3x3 matrix):
+         *     ((2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1)'
+         *     (2 * edgeLength / undeformedEdgeLength - 2)' * dEdgeLength_dv1 + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1
+         *     2 / undeformedEdgeLength * dEdgeLength_dv1 + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1
+         *     =
+         *     | 2 / undeformedEdgeLength * dEdgeLength_dv1x + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1x |
+         *     | 2 / undeformedEdgeLength * dEdgeLength_dv1y + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1y |
+         *     | 2 / undeformedEdgeLength * dEdgeLength_dv1z + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1z |
+         */
+
+        Vector3 e_v1_v2 = vertices[v2] - vertices[v1];
+        Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
+        float edgeLength = e_v1_v2.magnitude;
+        if(float.IsNaN(edgeLength)) {
+            return new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
+        }
+        float undeformedEdgeLength = undeformedEdge.magnitude;
+        Vector3 dEdgeLength_dv1 = (vertices[v1] - vertices[v2]) / edgeLength;
+
+        float edgeLengthSquare = edgeLength * edgeLength;
+        float edgeLengthCube = edgeLengthSquare * edgeLength;
+        Vector3[] ddEdgeLength_dv1_dv1 = new Vector3[] {
+            new Vector3(edgeLengthSquare - e_v1_v2.x * e_v1_v2.x,                  - e_v1_v2.y * e_v1_v2.x,                  - e_v1_v2.z * e_v1_v2.x) / edgeLengthCube,
+            new Vector3(                 - e_v1_v2.x * e_v1_v2.y, edgeLengthSquare - e_v1_v2.y * e_v1_v2.y,                  - e_v1_v2.z * e_v1_v2.y) / edgeLengthCube,
+            new Vector3(                 - e_v1_v2.x * e_v1_v2.z,                  - e_v1_v2.y * e_v1_v2.z, edgeLengthSquare - e_v1_v2.z * e_v1_v2.z) / edgeLengthCube
+        };
+
+        // Calculate length energy Hessian. This matrix is symmetrical, so transposing it has no effect.
+        Vector3 a = 2 / undeformedEdgeLength * dEdgeLength_dv1;
+        float b = 2 * edgeLength / undeformedEdgeLength - 2;
+        Vector3[] lengthEnergyHess = new Vector3[] {
+            a + b * ddEdgeLength_dv1_dv1[0],
+            a + b * ddEdgeLength_dv1_dv1[1],
+            a + b * ddEdgeLength_dv1_dv1[2]
+        };
+        return lengthEnergyHess;
     }
 
     /**
