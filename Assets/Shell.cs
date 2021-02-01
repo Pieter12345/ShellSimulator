@@ -61,14 +61,15 @@ public class Shell : MonoBehaviour {
             this.shellObj = new GameObject();
             this.shellObj.AddComponent<MeshRenderer>();
             this.shellObj.AddComponent<MeshFilter>();
-            mesh = MeshHelper.createSquareMesh(2);
-            //Mesh mesh = MeshHelper.createSingleTriangleMesh();
+            //mesh = MeshHelper.createSquareMesh(5, 5, 2);
+            mesh = MeshHelper.createTriangleMesh(5, 5, 5); // 5 subdivisions leads to 561 vertices and 3072 triangles.
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
         }
         MeshRenderer meshRenderer = this.shellObj.GetComponent<MeshRenderer>();
         meshRenderer.sharedMaterial = new Material(Shader.Find("Custom/StandardTwoSides"));
         MeshFilter meshFilter = this.shellObj.GetComponent<MeshFilter>();
+        print("Mesh loaded with " + mesh.vertices.Length + " vertices and " + mesh.triangles.Length + " triangles.");
 
         // Store undeformed vertices.
         this.originalVertices = (Vector3[]) mesh.vertices.Clone();

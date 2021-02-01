@@ -79,12 +79,10 @@ public class MeshHelper {
     }
 
     /*
-     * Creates a square mesh from (0, 0, 0) to (5, 5, 0) with two triangles to which numSubdivisions subdivisions are applied.
+     * Creates a square mesh from (0, 0, 0) to (width, height, 0) with two triangles to which numSubdivisions subdivisions are applied.
      */
-    public static Mesh createSquareMesh(int numSubdivisions) {
+    public static Mesh createSquareMesh(float width, float height, int numSubdivisions) {
         Mesh mesh = new Mesh();
-        float width = 5;
-        float height = 5;
         mesh.vertices = new Vector3[] {
             new Vector3(0, 0, 0),
             new Vector3(width, 0, 0),
@@ -109,10 +107,11 @@ public class MeshHelper {
         return mesh;
     }
 
-    public static Mesh createSingleTriangleMesh() {
+    /*
+     * Creates a triangle mesh with corners (0, 0, 0), (width, 0, 0) and (0, height, 0) to which numSubdivisions subdivisions are applied.
+     */
+    public static Mesh createTriangleMesh(float width, float height, int numSubdivisions) {
         Mesh mesh = new Mesh();
-        float width = 5;
-        float height = 5;
         mesh.vertices = new Vector3[] {
             new Vector3(0, 0, 0),
             new Vector3(width, 0, 0),
@@ -127,7 +126,10 @@ public class MeshHelper {
             new Vector2(0, 1)
         };
         mesh.RecalculateNormals();
-
+        
+        for(int i = 0; i < numSubdivisions; i++) {
+            MeshHelper.Subdivide(mesh);
+        }
         return mesh;
     }
 }
