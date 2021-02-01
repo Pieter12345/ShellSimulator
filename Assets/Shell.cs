@@ -571,7 +571,7 @@ public class Shell : MonoBehaviour {
                     d_cross_e12_e13_length_d_e12.x * d_e12_d_v2.x,
                     d_cross_e12_e13_length_d_e12.y * d_e12_d_v2.y,
                     d_cross_e12_e13_length_d_e12.z * d_e12_d_v2.z) / 2f;
-            this.dTriangleAreas_dv1[triangleId] = new Vector3(
+            this.dTriangleAreas_dv3[triangleId] = new Vector3(
                     d_cross_e12_e13_length_d_e13.x * d_e13_d_v3.x,
                     d_cross_e12_e13_length_d_e13.y * d_e13_d_v3.y,
                     d_cross_e12_e13_length_d_e13.z * d_e13_d_v3.z) / 2f;
