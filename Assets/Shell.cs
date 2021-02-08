@@ -472,6 +472,26 @@ public class Shell : MonoBehaviour {
                 }
             } while(absError / vertices.Length > maxNormalizedError);
 
+            // Update velocity: x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
+            for(int i = 0; i < vertices.Length; i++) {
+
+                // Skip vertex if it is constrained.
+                if(this.verticesMovementConstraints[i]) {
+                    continue;
+                }
+
+                // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
+                float newVertexArea = 0f;
+                foreach(int triangleId in this.vertexTriangles[i]) {
+                    newVertexArea += this.triangleAreas[triangleId];
+                }
+                newVertexArea /= 3f;
+                float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
+
+                // Update the velocity.
+                this.verticesVelocity[i] += deltaTime * (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
+            }
+
             // Update the vertices.
             vertices = newVertices;
         }
