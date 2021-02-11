@@ -1,0 +1,97 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+public class VecD {
+
+    private double[] vector;
+    
+    public int length { get { return this.vector.Length; } }
+    public double magnitude {
+        get {
+            double sum = 0;
+            for(int i = 0; i < this.vector.Length; i++) {
+                sum += this.vector[i] * this.vector[i];
+            }
+            return Math.Sqrt(sum);
+        }
+    }
+
+    public VecD(int size) {
+        this.vector = new double[size];
+        // TODO - Need to initialize to 0?
+    }
+
+    public VecD(params double[] elements) {
+        this.vector = elements;
+    }
+
+    public VecD(params VecD[] vecs) {
+        int size = 0;
+        for(int i = 0; i < vecs.Length; i++) {
+            size += vecs[i].length;
+        }
+        this.vector = new double[size];
+        int ind = 0;
+        for(int i = 0; i < vecs.Length; i++) {
+            for(int j = 0; j < vecs[i].length; j++) {
+                this.vector[ind++] = vecs[i][j];
+            }
+        }
+    }
+
+    public double this[int i] {
+        get { return this.vector[i]; }
+        set { this.vector[i] = value; }
+    }
+    
+    public static VecD operator +(VecD v) => v;
+    public static VecD operator -(VecD v) => new VecD(v.length).sub(v);
+    public static VecD operator +(VecD v1, VecD v2) => new VecD(v1.vector).add(v2);
+    public static VecD operator -(VecD v1, VecD v2) => new VecD(v1.vector).sub(v2);
+    public static VecD operator *(VecD v, double val) => new VecD(v.vector).mul(val);
+    public static VecD operator *(double val, VecD v) => new VecD(v.vector).mul(val);
+    public static VecD operator /(VecD v, double val) => new VecD(v.vector).div(val);
+
+    public VecD add(VecD v) {
+        ensureVectorsSameLength(this, v);
+        for(int i = 0; i < this.length; i++) {
+            this.vector[i] += v.vector[i];
+        }
+        return this;
+    }
+
+    public VecD sub(VecD v) {
+        ensureVectorsSameLength(this, v);
+        for(int i = 0; i < this.length; i++) {
+            this.vector[i] -= v.vector[i];
+        }
+        return this;
+    }
+
+    public VecD mul(double val) {
+        for(int i = 0; i < this.vector.Length; i++) {
+            this.vector[i] *= val;
+        }
+        return this;
+    }
+
+    public VecD div(double val) {
+        for(int i = 0; i < this.vector.Length; i++) {
+            this.vector[i] /= val;
+        }
+        return this;
+    }
+
+    public double[] asDoubleArray() {
+        return (double[]) this.vector.Clone();
+    }
+
+    private static void ensureVectorsSameLength(VecD v1, VecD v2) {
+        if(v1.length != v2.length) {
+            throw new ArithmeticException("Cannot perform binary operation on different size vectors. Sizes: " + v1.length + " and " + v2.length + ".");
+        }
+    }
+}

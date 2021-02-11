@@ -22,6 +22,10 @@ public class Shell : MonoBehaviour {
     private Vector3[] verticesAcceleration;
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
+    private VecD[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
+    private VecD vertexVelocities; // Format: {vx1, vy1, vz1, vx2, ...}. TODO - Determine format (see positions).
+    private Edge[] edges;
+
     // Simulation update loop settings.
     private bool doUpdate = false;
     public bool doGradientDescent = false;
@@ -62,7 +66,7 @@ public class Shell : MonoBehaviour {
             this.shellObj.AddComponent<MeshRenderer>();
             this.shellObj.AddComponent<MeshFilter>();
             //mesh = MeshHelper.createSquareMesh(5, 5, 2);
-            mesh = MeshHelper.createTriangleMesh(5, 5, 5); // 5 subdivisions leads to 561 vertices and 3072 triangles.
+            mesh = MeshHelper.createTriangleMesh(5, 5, 3); // 5 subdivisions leads to 561 vertices and 3072 triangles.
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
         }
@@ -159,16 +163,25 @@ public class Shell : MonoBehaviour {
         }
 
         // Initialize additional vertex and triangle data.
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
         int numVertices = mesh.vertices.Length;
+        this.vertexPositions = new VecD[numVertices];
         this.verticesVelocity = new Vector3[numVertices];
         this.verticesAcceleration = new Vector3[numVertices];
         this.verticesMovementConstraints = new bool[numVertices];
         for(int i = 0; i < numVertices; i++) {
+            Vector3 vertex = vertices[i];
+            this.vertexPositions[i] = new VecD(vertex.x, vertex.y, vertex.z);
             this.verticesVelocity[i] = new Vector3(0, 0, 0);
             this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             this.verticesMovementConstraints[i] = false;
         }
-        int numTriangles = mesh.triangles.Length;
+        this.vertexVelocities = new VecD(numVertices * 3);
+        for(int i = 0; i < numVertices * 3; i++) {
+            this.vertexVelocities[i] = 0;
+        }
+        int numTriangles = triangles.Length;
         this.triangleNormals = new Vector3[numTriangles];
         this.dTriangleNormals_dv1 = new Vector3[numTriangles][];
         this.dTriangleNormals_dv2 = new Vector3[numTriangles][];
@@ -179,8 +192,6 @@ public class Shell : MonoBehaviour {
         this.dTriangleAreas_dv3 = new Vector3[numTriangles];
         this.undeformedTriangleNormals = new Vector3[numTriangles];
         this.undeformedTriangleAreas = new float[numTriangles];
-        int[] triangles = mesh.triangles;
-        Vector3[] vertices = mesh.vertices;
         for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
             int triangleBaseIndex = triangleId * 3;
             int v1 = triangles[triangleBaseIndex];
@@ -226,7 +237,50 @@ public class Shell : MonoBehaviour {
                 }
             }
         }
+
+        //// Add sail mesh specific movement constraints on the sail corner vertices.
+        //Vector3[] vertices = mesh.vertices;
+        //int vertMaxX = 0;
+        //int vertMinX = 0;
+        //int vertMaxY = 0;
+        //int vertMinY = 0;
+        //int vertMaxZ = 0;
+        //int vertMinZ = 0;
+        //for(int i = 0; i < numVertices; i++) {
+        //    Vector3 vertex = vertices[i];
+        //    if(vertex.x > vertices[vertMaxX].x) {
+        //        vertMaxX = i;
+        //    } else if(vertex.x < vertices[vertMinX].x) {
+        //        vertMinX = i;
+        //    }
+        //    if(vertex.y > vertices[vertMaxY].y) {
+        //        vertMaxY = i;
+        //    } else if(vertex.y < vertices[vertMinY].y) {
+        //        vertMinY = i;
+        //    }
+        //    if(vertex.z > vertices[vertMaxZ].z) {
+        //        vertMaxZ = i;
+        //    } else if(vertex.z < vertices[vertMinZ].z) {
+        //        vertMinZ = i;
+        //    }
+        //}
+        //this.verticesMovementConstraints[vertMinY] = true; // Mast/boom intersection.
+        //this.verticesMovementConstraints[vertMaxX] = true; // Boom end.
+        //this.verticesMovementConstraints[vertMinX] = true; // Mast top.
+        ////vertices[vertMinY].z += 1f;
+        ////vertices[vertMaxX].z += 2f;
+        ////vertices[vertMinX].z += 3f;
+        ////mesh.vertices = vertices;
+
+        //// Visualize vertex constraints.
+        //Vector3[] vertices = mesh.vertices;
+        //for(int i = 0; i < this.verticesMovementConstraints.Length; i++) {
+        //    if(this.verticesMovementConstraints[i]) {
+        //        vertices[i].z += 2;
+        //    }
+        //}
         //mesh.vertices = vertices;
+        //mesh.RecalculateNormals();
     }
 
     private void reset() {
@@ -362,7 +416,7 @@ public class Shell : MonoBehaviour {
                 // Update vertex acceleration.
                 this.verticesAcceleration[i] = newAcceleration;
             }
-        } else {
+        } else if(false) { // TODO - Temp disable.
             /*
              * Implicit integration.
              * Solve: x(n+1) - deltaTime * x'(n) - deltaTime^2 * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) - x(n) = f(x(n+1)) = 0
@@ -394,6 +448,13 @@ public class Shell : MonoBehaviour {
                 // Calculate energy Hessian and wind force Hessian for the approximation of the new position.
                 Vector3[][] newEnergyHess = this.calcVertexEnergyHessian(triangles, newVertices);
                 Vector3[][] newWindForceHess = this.calcVertexWindForceHessian(triangles, newVertices);
+
+                // Make the Hessians positive definite. This affects the path that Newton's method takes, but not its target.
+                // TODO - Test whether this works and potentially make changes to the method to make the Hessian positive definite.
+                for(int i = 0; i < vertices.Length; i++) {
+                    makeHessPositiveDefinite(newEnergyHess[i]);
+                    makeHessPositiveDefinite(newWindForceHess[i]);
+                }
 
                 absError = 0f;
                 for(int i = 0; i < vertices.Length; i++) {
@@ -461,7 +522,7 @@ public class Shell : MonoBehaviour {
                     // Update newVertices following Newton's method: numVertices[i] -= f(u) / f'(u).
                     // TODO - Validate that f'(u) is symmetrical, and otherwise use division if necessary.
                     newVertices[i] -= f.x * df[0] + f.y * df[1] + f.z * df[2];
-                    print("Stepping: " + (f.x * df[0] + f.y * df[1] + f.z * df[2]));
+                    //print("Stepping: " + (f.x * df[0] + f.y * df[1] + f.z * df[2]));
 
                     // Update triangle normals and areas.
                     this.recalcTriangleNormalsAndAreas(triangles, newVertices);
@@ -494,6 +555,119 @@ public class Shell : MonoBehaviour {
 
             // Update the vertices.
             vertices = newVertices;
+        } else {
+
+            /*
+             * Calculate all requires mesh things here, following the paper:
+             * https://studios.disneyresearch.com/wp-content/uploads/2019/03/Discrete-Bending-Forces-and-Their-Jacobians-Paper.pdf
+             * This should eventually be moved to methods and fields where convenient.
+             */
+
+            // Create edge list. TODO - Cache this.
+            List<Edge> edges = new List<Edge>();
+            for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
+                List<int> triangleList = this.vertexTriangles[vertexInd];
+                for(int i = 0; i < triangleList.Count; i++) {
+                    int triangleInd = triangleList[i];
+                    int v1 = triangles[triangleInd * 3];
+                    int v2 = triangles[triangleInd * 3 + 1];
+                    int v3 = triangles[triangleInd * 3 + 2];
+                    if(vertexInd == v1) {
+                        if(vertexInd < v2) {
+                            edges.Add(new Edge(vertexInd, v2));
+                        }
+                        if(vertexInd < v3) {
+                            edges.Add(new Edge(vertexInd, v3));
+                        }
+                    } else if(vertexInd == v2) {
+                        if(vertexInd < v1) {
+                            edges.Add(new Edge(vertexInd, v1));
+                        }
+                        if(vertexInd < v3) {
+                            edges.Add(new Edge(vertexInd, v3));
+                        }
+                    } else if(vertexInd == v3) {
+                        if(vertexInd < v1) {
+                            edges.Add(new Edge(vertexInd, v1));
+                        }
+                        if(vertexInd < v2) {
+                            edges.Add(new Edge(vertexInd, v2));
+                        }
+                    }
+                }
+            }
+
+
+            // TODO - Create a system-wide length energy Hessian.
+            MatD forceHess = new MatD(vertices.Length * 3, vertices.Length * 3);
+            foreach(Edge edge in edges) {
+
+                // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
+                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge.v1, edge.v2);
+                for(int i = 0; i < 3; i++) {
+                    for(int j = 0; j < 3; j++) {
+
+                        // ddLengthEnergy_dv1_dv1.
+                        forceHess[edge.v1 * 3 + i, edge.v1 * 3 + j] = lengthEnergyHess[i, j];
+
+                        // ddLengthEnergy_dv2_dv2.
+                        forceHess[edge.v2 * 3 + i, edge.v2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
+
+                        // ddLengthEnergy_dv1_dv2.
+                        forceHess[edge.v1 * 3 + i, edge.v2 * 3 + j] = lengthEnergyHess[i, j + 3];
+
+                        // ddLengthEnergy_dv2_dv1.
+                        forceHess[edge.v2 * 3 + i, edge.v1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                    }
+                }
+            }
+
+            // Calculate lumped vertex mass (a third of the area of triangles that each vertex is part of).
+            // TODO - Look into adding constraints by making 1/mass === 0 for constrained variables (can be done per x, y, z of every vertex).
+            MatD inverseMassMatrix = new MatD(vertices.Length * 3, vertices.Length * 3); // Diagonal matrix with pairs of 3 equal 1/mass_i (for each x, y and z).
+            for(int i = 0; i < vertices.Length; i++) {
+                double vertexArea = 0d;
+                foreach(int triangleId in this.vertexTriangles[i]) {
+                    vertexArea += this.triangleAreas[triangleId];
+                }
+                vertexArea /= 3d;
+                double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
+                double inverseMass = 1d / mass;
+                inverseMassMatrix[3 * i, 3 * i] = inverseMass;
+                inverseMassMatrix[3 * i + 1, 3 * i + 1] = inverseMass;
+                inverseMassMatrix[3 * i + 2, 3 * i + 2] = inverseMass;
+            }
+
+
+
+
+            // Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
+            VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
+            // TODO - vertexForces = vertexWindForce - vertexEnergyGradient;
+
+            /*
+             * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
+             * Format: mat * delta_v = vec
+             * mat = I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x
+             * vec = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
+             */
+            MatD d_vertexForces_d_velocity = new MatD(vertices.Length * 3, vertices.Length * 3); // This is a zero matrix until some velocity based damping force will be implemented.
+            MatD d_vertexForces_d_pos = -forceHess; // This is the energy Hessian (switch sign from energy to force).
+            MatD identMat = new MatD(inverseMassMatrix.numRows, inverseMassMatrix.numColumns).addDiag(1.0);
+            MatD mat = identMat - deltaTime * inverseMassMatrix * d_vertexForces_d_velocity - deltaTime * deltaTime * inverseMassMatrix * d_vertexForces_d_pos;
+            VecD vec = deltaTime * inverseMassMatrix * (vertexForces + deltaTime * d_vertexForces_d_pos * this.vertexVelocities);
+            VecD deltaVelocity = this.sparseLinearSolve(mat, vec);
+
+            // Update vertex velocity.
+            this.vertexVelocities += deltaVelocity;
+
+            // Update vertex positions: pos(i + 1) = pos(i) + deltaTime * velocity(i + 1).
+            for(int i = 0; i < this.vertexPositions.Length; i++) {
+                for(int coord = 0; coord < 3; coord++) {
+                    this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord];
+                    vertices[i][coord] = (float) this.vertexPositions[i][coord];
+                }
+            }
         }
         mesh.vertices = vertices;
         mesh.RecalculateNormals();
@@ -516,6 +690,7 @@ public class Shell : MonoBehaviour {
 
             // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
             if(float.IsNaN(crossprod_length)) {
+                print("Encountered zero-area triangle.");
 
                 // The triangle area is 0 and the triangle has infinitely many normals in a circle (two edges parallel) or sphere (all vertices on the same point).
                 this.triangleNormals[triangleId] = Vector3.zero;
@@ -872,6 +1047,242 @@ public class Shell : MonoBehaviour {
     }
 
     /**
+     * Computes the edge length energy gradient of the edge between vertices v1 and v2, towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+     * The result is a vector of length 6.
+     */
+    private VecD getEdgeLengthEnergyGradient(VecD[] vertexPositions, int v1, int v2) {
+        VecD edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+        double edgeLength = edge.magnitude;
+        if(double.IsNaN(edgeLength)) {
+            return new VecD(0, 0, 0, 0, 0, 0); // Edge is zero-length, so the gradient is 0.
+        }
+        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude;
+        VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
+        VecD dEdgeLength_dv2 = -dEdgeLength_dv1;
+        VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+
+        VecD result = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1v2;
+        for(int i = 0; i < result.length; i++) {
+            if(double.IsNaN(result[i])) {
+                print("NaN length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
+                        + " edgeLength: " + edgeLength);
+                return new VecD(0, 0, 0, 0, 0, 0);
+            }
+            if(double.IsInfinity(result[i])) {
+                print("Infinite length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
+                        + " edgeLength: " + edgeLength);
+                return new VecD(0, 0, 0, 0, 0, 0);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Computes the edge length energy Hessian of the edge between vertices v1 and v2, towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+     * The result is a 6x6 matrix containing all combinations of double partial derivatives towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+     */
+    private MatD getEdgeLengthEnergyHess(VecD[] vertices, int v1, int v2) {
+        /*
+         * edgeLength (float):
+         *     sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         * 
+         * dEdgeLength_dv1x (float):
+         *     (v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2) = (v1x - v2x) / edgeLength
+         * 
+         * dEdgeLength_dv1 (Vector3):
+         *     (v1 - v2) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2) = (v1 - v2) / edgeLength
+         * 
+         * dEdgeLength_dv2 (Vector3):
+         *     -dEdgeLength_dv1
+         * 
+         * ddEdgeLength_dv1x_dv1y (float):
+         *    ((v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
+         *    (edgeLength * (v1x - v2x)' - (v1x - v2x) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 - (v1x - v2x) * dEdgeLength.y) / edgeLength^2
+         *    (v2x - v1x) * dEdgeLength.y / edgeLength^2
+         *
+         * ddEdgeLength_dv1y_dv1x (float):
+         *    ((v1y - v2y) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
+         *    (edgeLength * (v1y - v2y)' - (v1y - v2y) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 - (v1y - v2y) * dEdgeLength.x) / edgeLength^2
+         *    (v2y - v1y) * dEdgeLength.x / edgeLength^2 = (v2y - v1y) * (v1x - v2x) / edgeLength / edgeLength^2 = (v2y - v1y) * (v1x - v2x) / edgeLength^3
+         *    ddEdgeLength_dv1x_dv1y // The resulting Hessian is symmetrical.
+         * 
+         * ddEdgeLength_dv1x_dv1x (float):
+         *     ((v1x - v2x) / edgeLength)'
+         *     (edgeLength * (v1x - v2x)' - (v1x - v2x) * dEdgeLength.x) / edgeLength^2
+         *     (edgeLength - (v1x - v2x) * dEdgeLength.x) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         *         = (edgeLength - (v1x - v2x) * dEdgeLength.x) / edgeLength^2
+         *         = (edgeLength - (v1x - v2x) * (v1x - v2x) / edgeLength) / edgeLength^2
+         *         = (edgeLength^2 - (v1x - v2x)^2) / edgeLength^3
+         * 
+         * ddEdgeLength_dv1y_dv1y (float):
+         *     ((v1y - v2y) / edgeLength)'
+         *     (edgeLength * (v1y - v2y)' - (v1y - v2y) * dEdgeLength.y) / edgeLength^2
+         *     (edgeLength - (v1y - v2y) * dEdgeLength.y) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         *     (edgeLength - (v1y - v2y) * dEdgeLength.y) / edgeLength^2
+         *     (edgeLength - (v1y - v2y) * (v1y - v2y) / edgeLength) / edgeLength^2
+         *     (edgeLength^2 - (v1y - v2y)^2) / edgeLength^3
+         * 
+         * ddEdgeLength_dv2x_dv2y (float):
+         *    (-(v1x - v2x) / edgeLength)'
+         *    (edgeLength * -(v1x - v2x)' - -(v1x - v2x) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 + (v1x - v2x) * dEdgeLength_dv2y) / edgeLength^2
+         *    (v1x - v2x) * dEdgeLength_dv2y / edgeLength^2
+         *    (v1x - v2x) * (-(v1y - v2y) / edgeLength) / edgeLength^2
+         *    (v1x - v2x) * (v2y - v1y) / edgeLength^3
+         *    -ddEdgeLength_dv1x_dv1y
+         * 
+         * ddEdgeLength_dv1x_dv2x (float):
+         *    ((v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
+         *    (edgeLength * (v1x - v2x)' - (v1x - v2x) * edgeLength') / edgeLength^2
+         *    (edgeLength * -1 - (v1x - v2x) * dEdgeLength_dv2x) / edgeLength^2
+         *    (-edgeLength - (v1x - v2x) * dEdgeLength_dv2x) / edgeLength^2
+         *    (-edgeLength - (v1x - v2x) * -(v1x - v2x) / edgeLength) / edgeLength^2
+         *    (-edgeLength^2 + (v1x - v2x)^2) / edgeLength^3
+         * 
+         * ddEdgeLength_dv1x_dv2y (float):
+         *    ((v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
+         *    (edgeLength * (v1x - v2x)' - (v1x - v2x) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 - (v1x - v2x) * dEdgeLength_dv2y) / edgeLength^2
+         *    (v2x - v1x) * dEdgeLength_dv2y / edgeLength^2
+         *    (v2x - v1x) * ((v1y - v2y) / edgeLength) / edgeLength^2
+         *    (v2x - v1x) * (v1y - v2y) / edgeLength^3
+         *    ddEdgeLength_dv1x_dv1y // x and y are just independent?
+         * 
+         * ddEdgeLength_dv2x_dv1y (float):
+         *    (-(v1x - v2x) / edgeLength)'
+         *    (edgeLength * -(v1x - v2x)' - -(v1x - v2x) * edgeLength') / edgeLength^2
+         *    (edgeLength * 0 + (v1x - v2x) * dEdgeLength.y) / edgeLength^2
+         *    (v1x - v2x) * dEdgeLength_dv1y / edgeLength^2
+         *    ddEdgeLength_dv1y_dv2x // The resulting Hessian is symmetrical.
+         * 
+         * ddEdgeLength_dv2x_dv2x (float):
+         *     (-(v1x - v2x) / edgeLength)'
+         *     (edgeLength * -(v1x - v2x)' - -(v1x - v2x) * dEdgeLength_dv2x) / edgeLength^2
+         *     (edgeLength + (v1x - v2x) * dEdgeLength_dv2x) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
+         *         = (edgeLength + (v1x - v2x) * dEdgeLength_dv2x) / edgeLength^2
+         *         = (edgeLength + (v1x - v2x) * -(v1x - v2x) / edgeLength) / edgeLength^2
+         *         = (edgeLength^2 - (v1x - v2x)^2) / edgeLength^3
+         *         = ddEdgeLength_dv1x_dv1x
+         * 
+         * ddEdgeLength_dv2i_dv2i (Vector3):
+         *     ddEdgeLength_dv1i_dv1i // The 3 diagonals are equal, together these form the diagonals of the 6x6 length Hessian.
+         * 
+         * ddEdgeLength_dv2i_dv2j where i != j (3x3 matrix excluding diagonals):
+         *     -ddEdgeLength_dv1i_dv1j
+         * 
+         * ddEdgeLength_dv1_dv1 (symmetric 3x3 matrix):
+         *     | ddEdgeLength_dv1x_dv1x, ddEdgeLength_dv1y_dv1x, ddEdgeLength_dv1z_dv1x |
+         *     | ddEdgeLength_dv1x_dv1y, ddEdgeLength_dv1y_dv1y, ddEdgeLength_dv1z_dv1y |
+         *     | ddEdgeLength_dv1x_dv1z, ddEdgeLength_dv1y_dv1z, ddEdgeLength_dv1z_dv1z |
+         *     =
+         *     | edgeLength^2 - (v1x - v2x)^2, (v2y - v1y) * (v1x - v2x)   , (v2z - v1z) * (v1x - v2x) |
+         *     | (v2x - v1x) * (v1y - v2y)   , edgeLength^2 - (v2y - v1y)^2, (v2z - v1z) * (v1x - v2x) | / edgeLength^3
+         *     | (v2x - v1x) * (v1z - v2z)   , (v2y - v1y) * (v1z - v2z), edgeLength^2 - (v2z - v1z)^2 |
+         * 
+         * ddEdgeLength_dv2_dv2 (symmetric 3x3 matrix):
+         *     | ddEdgeLength_dv2x_dv2x, ddEdgeLength_dv2y_dv2x, ddEdgeLength_dv2z_dv2x |
+         *     | ddEdgeLength_dv2x_dv2y, ddEdgeLength_dv2y_dv2y, ddEdgeLength_dv2z_dv2y |
+         *     | ddEdgeLength_dv2x_dv2z, ddEdgeLength_dv2y_dv2z, ddEdgeLength_dv2z_dv2z |
+         *     =
+         *     |  ddEdgeLength_dv1x_dv1x, -ddEdgeLength_dv1y_dv1x, -ddEdgeLength_dv1z_dv1x |
+         *     | -ddEdgeLength_dv1x_dv1y,  ddEdgeLength_dv1y_dv1y, -ddEdgeLength_dv1z_dv1y |
+         *     | -ddEdgeLength_dv1x_dv1z, -ddEdgeLength_dv1y_dv1z,  ddEdgeLength_dv1z_dv1z |
+         * 
+         * ddEdgeLength_dv1_dv2 (symmetric 3x3 matrix):
+         *     | ddEdgeLength_dv1x_dv2x, ddEdgeLength_dv1y_dv2x, ddEdgeLength_dv1z_dv2x |
+         *     | ddEdgeLength_dv1x_dv2y, ddEdgeLength_dv1y_dv2y, ddEdgeLength_dv1z_dv2y |
+         *     | ddEdgeLength_dv1x_dv2z, ddEdgeLength_dv1y_dv2z, ddEdgeLength_dv1z_dv2z |
+         *     =
+         *     | -ddEdgeLength_dv1x_dv1x,  ddEdgeLength_dv1y_dv1x,  ddEdgeLength_dv1z_dv1x |
+         *     |  ddEdgeLength_dv1x_dv1y, -ddEdgeLength_dv1y_dv1y,  ddEdgeLength_dv1z_dv1y |
+         *     |  ddEdgeLength_dv1x_dv1z,  ddEdgeLength_dv1y_dv1z, -ddEdgeLength_dv1z_dv1z |
+         * 
+         * ddEdgeLength_dv2_dv1 (symmetric 3x3 matrix):
+         *     ddEdgeLength_dv1_dv2 // Symmetrical.
+         * 
+         * edgeLengthHess (ddEdgeLength_dv1v2_dv1v2) (6x6 matrix, composed of 4 3x3 matrices):
+         *     | ddEdgeLength_dv1_dv1, ddEdgeLength_dv1_dv2 |
+         *     | ddEdgeLength_dv2_dv1, ddEdgeLength_dv2_dv2 |
+         * 
+         * Length energy gradient (dLengthEnergy_dv1v2) (Vector with length 6):
+         *     Substitute: dEdgeLength_dv1v2 = [dEdgeLength_dv1, dEdgeLength_dv2]
+         *     (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1v2
+         *     dLengthEnergy_di = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_di // Double, for i = {v1x, v1y, v1z, v2x, v2y, v2z}.
+         * 
+         * Length energy Hessian (ddLengthEnergy_dv1v2_dv1v2) (6x6 matrix):
+         *     
+         *     Consider per element i in length energy gradient, towards each element j (elements are {v1x, v1y, v1z, v2x, v2y, v2z}):
+         *         ((2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_di)'
+         *         (2 * edgeLength / undeformedEdgeLength - 2)' * dEdgeLength_di + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_di_dj
+         *         2 / undeformedEdgeLength * dEdgeLength_dj * dEdgeLength_di + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_di_dj
+         *             // For all 6 coordinates, this becomes symmetrical due to ddEdgeLength_di_dj == ddEdgeLength_dj_di and dEdgeLength_dj * dEdgeLength_di == dEdgeLength_di * dEdgeLength_dj
+         *     
+         *     ddLengthEnergy_di_dj = 2 / undeformedEdgeLength * dEdgeLength_dj * dEdgeLength_di + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_di_dj
+         *         // For i and j = {v1x, v1y, v1z, v2x, v2y, v2z}.
+         */
+
+        // TODO - This is a copy from the energy gradient code. Combine this in a way to prevent double calculations.
+        VecD edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+        double edgeLength = edge.magnitude;
+        if(double.IsNaN(edgeLength)) {
+            return new MatD(new double[,] {
+                {0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0}
+            });
+        }
+        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude;
+        VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
+        VecD dEdgeLength_dv2 = -dEdgeLength_dv1;
+        VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+
+        VecD dEdgeEnergy_dv1v2 = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1v2;
+        // TODO - Copied gradient code ends here (See TODO above).
+
+        // Calculate edge length Hessian.
+        double edgeLengthSquare = edgeLength * edgeLength;
+        double edgeLengthCube = edgeLengthSquare * edgeLength;
+        MatD ddEdgeLength_dv1_dv1 = new MatD(new double[,] {
+            {edgeLengthSquare - edge[0] * edge[0],                  - edge[1] * edge[0],                  - edge[2] * edge[0]},
+            {                 - edge[0] * edge[1], edgeLengthSquare - edge[1] * edge[1],                  - edge[2] * edge[1]},
+            {                 - edge[0] * edge[2],                  - edge[1] * edge[2], edgeLengthSquare - edge[2] * edge[2]}
+        }) / edgeLengthCube;
+        
+        MatD ddEdgeLength_dv1_dv2 = ddEdgeLength_dv1_dv1.Clone();
+        ddEdgeLength_dv1_dv2[0, 0] *= -1;
+        ddEdgeLength_dv1_dv2[1, 1] *= -1;
+        ddEdgeLength_dv1_dv2[2, 2] *= -1;
+        MatD ddEdgeLength_dv2_dv1 = ddEdgeLength_dv1_dv2;
+        MatD ddEdgeLength_dv2_dv2 = -ddEdgeLength_dv1_dv2;
+
+        MatD edgeLengthHess = new MatD(6, 6);
+        for(int i = 0; i < 3; i++) {
+            for(int j = 0; j < 3; j++) {
+                edgeLengthHess[i, j] = ddEdgeLength_dv1_dv1[i, j];
+                edgeLengthHess[i + 3, j] = ddEdgeLength_dv1_dv2[i, j];
+                edgeLengthHess[i, j + 3] = ddEdgeLength_dv2_dv1[i, j];
+                edgeLengthHess[i + 3, j + 3] = ddEdgeLength_dv2_dv2[i, j];
+            }
+        }
+
+        // Calculate length energy Hessian.
+        // ddLengthEnergy_di_dj = 2 / undeformedEdgeLength * dEdgeLength_dj * dEdgeLength_di + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_di_dj
+        MatD lengthEnergyHess = new MatD(6, 6);
+        double a = (2 * edgeLength / undeformedEdgeLength - 2);
+        for(int i = 0; i < 6; i++) {
+            for(int j = 0; j < 6; j++) {
+                lengthEnergyHess[i, j] = 2 / undeformedEdgeLength * dEdgeLength_dv1v2[i] * dEdgeLength_dv1v2[j] + a * edgeLengthHess[i, j];
+            }
+        }
+        return lengthEnergyHess;
+    }
+
+    /**
      * Computes the edge length energy Hessian of vertex v1, for the edge between vertices v1 and v2.
      */
     private Vector3[] getEdgeLengthEnergyHess(Vector3[] vertices, int v1, int v2) {
@@ -1000,6 +1411,68 @@ public class Shell : MonoBehaviour {
     }
 
     /**
+     * Computes the triangle area energy Hessian of vertex v1, for the triangle defined by vertices v1, v2 and v3.
+     * Note that 1/3 of the area energy is used for v1 (the other two parts will be used for v2 and v3).
+     */
+    private Vector3[] getTriangleAreaEnergyHessian(Vector3[] vertices, int triangleId, int v1, int v2, int v3) {
+
+        /*
+         * Triangle energy gradient in v1 (Vector3):
+         *     (2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea_dv1
+         *     = 2 * triangleArea / undeformedTriangleArea * dTriangleArea_dv1 - 2 * dTriangleArea_dv1
+         *     = 2 / undeformedTriangleArea * triangleArea * dTriangleArea_dv1 - 2 * dTriangleArea_dv1
+         * 
+         * Assumption: The triangle Hessian in v1 only depends on the gradient in v1, and not on the gradients in v2 and v3.
+         * 
+         * Triangle energy Hessian (3x3 matrix):
+         *     | ddTriangleAreaEnergy_dv1x_dv1x, ddTriangleAreaEnergy_dv1x_dv1y, ddTriangleAreaEnergy_dv1x_dv1z |
+         *     | ddTriangleAreaEnergy_dv1y_dv1x, ddTriangleAreaEnergy_dv1y_dv1y, ddTriangleAreaEnergy_dv1y_dv1z |
+         *     | ddTriangleAreaEnergy_dv1z_dv1x, ddTriangleAreaEnergy_dv1z_dv1y, ddTriangleAreaEnergy_dv1z_dv1z |
+         * 
+         * ddTriangleAreaEnergy_dv1x_dv1x = d((2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea_dv1x) / dv1x
+         *     = 2 * dTriangleArea_dv1x / undeformedTriangleArea * dTriangleArea_dv1x + (2 * triangleArea / undeformedTriangleArea - 2) * ddTriangleArea_dv1x_dv1x
+         * ddTriangleAreaEnergy_dv1x_dv1y = d((2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea_dv1x) / dv1y
+         *     = 2 * dTriangleArea_dv1y / undeformedTriangleArea * dTriangleArea_dv1x + (2 * triangleArea / undeformedTriangleArea - 2) * ddTriangleArea_dv1x_dv1y
+         * 
+         * Cache ddTriangleArea_dv1_dv1 if this is used in bending energy as well? Doesn't look like it. Or if in the caching code more variables are available already.
+         * 
+         * 
+         */
+        // TODO - Implement.
+        /*
+        // Get two edges, where only one is dependent on vertex v1.
+        Vector3 edge21 = vertices[v1] - vertices[v2]; // dEdge21 / dv1 = {1, 1, 1}.
+        Vector3 edge23 = vertices[v3] - vertices[v2]; // dEdge23 / dv1 = {0, 0, 0}.
+
+        // Calculate the triangle area gradient.
+        if(this.triangleAreas[triangleId] == 0f) {
+            return Vector3.zero; // Area is 0 m^2, so the gradient is 0.
+        }
+        float crossProdLength = this.triangleAreas[triangleId] * 2f;
+        Vector3 dCrossProdLength = 1f / crossProdLength * new Vector3(
+                (edge21.x * edge23.z - edge23.x * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * edge23.y,
+                (edge21.y * edge23.z - edge23.y * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * -edge23.x,
+                (edge21.y * edge23.z - edge23.y * edge21.z) * -edge23.y + (edge21.x * edge23.z - edge23.x * edge21.z) * -edge23.x);
+        Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
+
+        // Calculate the area energy gradient.
+        Vector3 result = (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
+        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
+            print("NaN area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
+                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
+            return Vector3.zero;
+        }
+        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
+            print("Infinite area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
+                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
+            return Vector3.zero;
+        }
+        return result;
+        */
+        return null;
+    }
+
+    /**
      * Computes the bending energy gradient of the adjacent triangles defined by vertices v1_ and v2_.
      * Vertices ve1 and ve2 are the vertices that define the edge that is shared between the two triangles.
      * Edge ve1 -> ve2 belongs to vertex v1_ and edge ve2 -> ve1 belongs to vertex v2_ (this matters for the direction of the normals).
@@ -1081,4 +1554,63 @@ public class Shell : MonoBehaviour {
         }
         return result;
     }
+
+    /**
+     * Makes the given Hessian positive definite by adding the identity matrix to it until it is positive definite.
+     */
+    private static void makeHessPositiveDefinite(Vector3[] hess) {
+        if(hess[0].x <= 0) {
+            float amount = 0.01f - hess[0].x; // 0.01f to ensure a positive non-zero value.
+            hess[0].x += amount;
+            hess[1].y += amount;
+            hess[2].z += amount;
+        }
+        float subRowOneFromTwoAmount = hess[1].x / hess[0].x;
+        float subRowOneFromThreeAmount = hess[2].x / hess[0].x;
+        float hess11 = hess[1].y - subRowOneFromTwoAmount * hess[0].y;
+        if(hess11 <= 0) {
+            float amount = 0.01f - hess11; // 0.01f to ensure a positive non-zero value.
+            hess[0].x += amount;
+            hess[1].y += amount;
+            hess[2].z += amount;
+        }
+        float subRowTwoFromThreeAmount = hess[2].y / hess[1].y;
+        float hess22 = hess[2].z - subRowOneFromThreeAmount * hess[0].z - subRowTwoFromThreeAmount * hess[1].z;
+        if(hess22 <= 0) {
+            float amount = 0.01f - hess22; // 0.01f to ensure a positive non-zero value.
+            hess[0].x += amount;
+            hess[1].y += amount;
+            hess[2].z += amount;
+        }
+    }
+
+    /*
+     * Solves the given linear equation using a sparse linear solver.
+     * Equation: mat * x = vec
+     * Returns vector x.
+     */
+    private VecD sparseLinearSolve(MatD mat, VecD vec) {
+        // See example code: https://www.alglib.net/translator/man/manual.csharp.html#example_linlsqr_d_1
+        alglib.sparsematrix algMat;
+        alglib.sparsecreate(mat.numRows, mat.numColumns, out algMat);
+        for(int row = 0; row < mat.numRows; row++) {
+            for(int col = 0; col < mat.numColumns; col++) {
+                if(mat[row, col] != 0) {
+                    alglib.sparseset(algMat, row, col, mat[row, col]);
+                }
+            }
+        }
+        alglib.sparseconverttocrs(algMat);
+        alglib.linlsqrstate solverObj;
+        alglib.linlsqrreport report;
+        double[] x;
+        alglib.linlsqrcreate(mat.numRows, mat.numColumns, out solverObj);
+        alglib.linlsqrsolvesparse(solverObj, algMat, vec.asDoubleArray());
+        alglib.linlsqrresults(solverObj, out x, out report);
+        return new VecD(x);
+    }
+
+    //private static Vector3 multiplyElementWise(Vector3 v1, Vector3 v2) {
+    //    return new Vector3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
+    //}
 }

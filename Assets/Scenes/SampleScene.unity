@@ -686,11 +686,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1242885441 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: -283896659171260863, guid: 098fc7ef1a561cd4e9ea64a7cb52c560, type: 3}
-  m_PrefabInstance: {fileID: 1996533951}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1530456320
 GameObject:
   m_ObjectHideFlags: 0
@@ -726,9 +721,12 @@ MonoBehaviour:
   shellThickness: 0.002
   shellMaterialDensity: 40
   useFlatUndeformedBendState: 1
-  shellObj: {fileID: 1242885441}
+  shellObj: {fileID: 0}
+  doGradientDescent: 0
   kGradientDescent: 0
   maxGradientDescentStep: 0
+  timeScale: 1
+  dampingFactor: 0.99
   windPressure: {x: 0, y: 0, z: 0}
 --- !u!4 &1530456322
 Transform:
