@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 public class MatD {
 
@@ -164,7 +160,7 @@ public class MatD {
 
     public override string ToString() {
         string str = (this.numRows > 0 ? this.getRowStr(0) : "");
-        for(int i = 0; i < this.numRows; i++) {
+        for(int i = 1; i < this.numRows; i++) {
             str += "; " + this.getRowStr(i);
         }
         return base.ToString() + "{" + str + "}";
@@ -172,7 +168,7 @@ public class MatD {
 
     private string getRowStr(int row) {
         string str = (this.numColumns > 0 ? this.matrix[row, 0].ToString() : "");
-        for(int i = 0; i < this.numColumns; i++) {
+        for(int i = 1; i < this.numColumns; i++) {
             str += ", " + this.matrix[row, i];
         }
         return str;

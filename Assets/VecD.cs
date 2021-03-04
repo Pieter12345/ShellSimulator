@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using UnityEngine;
 
 public class VecD {
 
@@ -21,11 +18,14 @@ public class VecD {
 
     public VecD(int size) {
         this.vector = new double[size];
-        // TODO - Need to initialize to 0?
     }
 
     public VecD(params double[] elements) {
         this.vector = elements;
+    }
+
+    public VecD(Vector3 vec) {
+        this.vector = new double[] {vec.x, vec.y, vec.z};
     }
 
     public VecD(params VecD[] vecs) {
@@ -49,11 +49,15 @@ public class VecD {
     
     public static VecD operator +(VecD v) => v;
     public static VecD operator -(VecD v) => new VecD(v.length).sub(v);
-    public static VecD operator +(VecD v1, VecD v2) => new VecD(v1.vector).add(v2);
-    public static VecD operator -(VecD v1, VecD v2) => new VecD(v1.vector).sub(v2);
-    public static VecD operator *(VecD v, double val) => new VecD(v.vector).mul(val);
-    public static VecD operator *(double val, VecD v) => new VecD(v.vector).mul(val);
-    public static VecD operator /(VecD v, double val) => new VecD(v.vector).div(val);
+    public static VecD operator +(VecD v1, VecD v2) => new VecD((double[]) v1.vector.Clone()).add(v2);
+    public static VecD operator +(VecD v, double val) => new VecD((double[]) v.vector.Clone()).add(val);
+    public static VecD operator +(double val, VecD v) => new VecD((double[]) v.vector.Clone()).add(val);
+    public static VecD operator -(VecD v1, VecD v2) => new VecD((double[]) v1.vector.Clone()).sub(v2);
+    public static VecD operator -(VecD v, double val) => new VecD((double[]) v.vector.Clone()).sub(val);
+    public static VecD operator -(double val, VecD v) => new VecD((double[]) v.vector.Clone()).sub(val);
+    public static VecD operator *(VecD v, double val) => new VecD((double[]) v.vector.Clone()).mul(val);
+    public static VecD operator *(double val, VecD v) => new VecD((double[]) v.vector.Clone()).mul(val);
+    public static VecD operator /(VecD v, double val) => new VecD((double[]) v.vector.Clone()).div(val);
 
     public VecD add(VecD v) {
         ensureVectorsSameLength(this, v);
@@ -63,10 +67,24 @@ public class VecD {
         return this;
     }
 
+    public VecD add(double val) {
+        for(int i = 0; i < this.length; i++) {
+            this.vector[i] += val;
+        }
+        return this;
+    }
+
     public VecD sub(VecD v) {
         ensureVectorsSameLength(this, v);
         for(int i = 0; i < this.length; i++) {
             this.vector[i] -= v.vector[i];
+        }
+        return this;
+    }
+
+    public VecD sub(double val) {
+        for(int i = 0; i < this.length; i++) {
+            this.vector[i] -= val;
         }
         return this;
     }
@@ -91,10 +109,19 @@ public class VecD {
 
     public override string ToString() {
         string str = (this.vector.Length > 0 ? this.vector[0].ToString() : "");
-        for(int i = 0; i < this.vector.Length; i++) {
+        for(int i = 1; i < this.vector.Length; i++) {
             str += ", " + this.vector[i];
         }
         return base.ToString() + "{" + str + "}";
+    }
+
+    public static double dot(VecD v1, VecD v2) {
+        ensureVectorsSameLength(v1, v2);
+        double ret = 0;
+        for(int i = 0; i < v1.length; i++) {
+            ret += v1[i] * v2[i];
+        }
+        return ret;
     }
 
     private static void ensureVectorsSameLength(VecD v1, VecD v2) {

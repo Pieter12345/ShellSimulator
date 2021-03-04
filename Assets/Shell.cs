@@ -16,28 +16,30 @@ public class Shell : MonoBehaviour {
     public GameObject shellObj = null;
 
     // Vertex related fields.
-    private List<int>[] vertexTriangles;
+    private List<int>[] sortedVertexTriangles;
     private Vector3[] originalVertices; // Vertices in undeformed state.
     private Vector3[] verticesVelocity;
     private Vector3[] verticesAcceleration;
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
-    private VecD[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
-    private VecD vertexVelocities; // Format: {vx1, vy1, vz1, vx2, ...}. TODO - Determine format (see positions).
-    private Edge[] edges;
+    private Vec3D[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
+    private VecD vertexVelocities; // Format: {vx1, vy1, vz1, vx2, v2y, v2z, ...}.
+    private VecD vertexAccelerations; // Format: {ax1, ay1, az1, ax2, a2y, a2z, ...}.
+    private List<Edge> edges;
 
     // Simulation update loop settings.
     private bool doUpdate = false;
-    public bool doGradientDescent = false;
-    private bool implicitIntegration = true;
-    public float kGradientDescent;
-    public float maxGradientDescentStep;
-    public float timeScale = 1f;
+    public bool doGradientDescent = true;
+    private bool implicitIntegration = false;
+    public double kGradientDescent;
+    public double maxGradientDescentStep;
+    public double timeScale = 1f;
     public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
 
     // Cached vertex/triangle properties.
-    private Vector3[] triangleNormals;
+    private Vec3D[] triangleNormals;
+    private Vector3[] triangleNormals_old;
     private Vector3[][] dTriangleNormals_dv1;
     private Vector3[][] dTriangleNormals_dv2;
     private Vector3[][] dTriangleNormals_dv3;
@@ -48,14 +50,20 @@ public class Shell : MonoBehaviour {
     private Vector3[] dTriangleAreas_dv3;
     private float[] undeformedTriangleAreas;
 
+    void Awake() {
+        QualitySettings.vSyncCount = 0; // Disable V-sync.
+        Application.targetFrameRate = 100; // Set max framerate.
+        System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US"); // To print decimal points instead of commas.
+    }
+
     // Start is called before the first frame update.
     void Start() {
 
         // Initialize fields. Doing this overwrites the values set in Unity's inspector.
-        this.kLength = 10f;
-        this.kArea = 0f;
+        this.kLength = 0f;
+        this.kArea = 10f;
         this.kBend = 0f;
-        this.kGradientDescent = 0.1f;
+        this.kGradientDescent = 1f;
         this.maxGradientDescentStep = 0.01f;
         this.windPressure = new Vector3(0f, 0f, 10f);
 
@@ -65,7 +73,8 @@ public class Shell : MonoBehaviour {
             this.shellObj = new GameObject();
             this.shellObj.AddComponent<MeshRenderer>();
             this.shellObj.AddComponent<MeshFilter>();
-            //mesh = MeshHelper.createSquareMesh(5, 5, 2);
+            //mesh = MeshHelper.createTriangleMesh(5, 5, 0);
+            //mesh = MeshHelper.createSquareMesh(5, 5, 1);
             mesh = MeshHelper.createTriangleMesh(5, 5, 3); // 5 subdivisions leads to 561 vertices and 3072 triangles.
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
@@ -84,6 +93,9 @@ public class Shell : MonoBehaviour {
         //verts[0].x += 2.5f;
         //verts[0].y += 2.5f;
         //verts[0].z -= 5f;
+        //verts[1].y += 1f;
+        //verts[1].x += 1f;
+        //verts[1].z += 1f;
 
         mesh.vertices = verts;
         mesh.RecalculateNormals();
@@ -91,98 +103,41 @@ public class Shell : MonoBehaviour {
         // Add the mesh to the mesh filter.
         meshFilter.mesh = mesh;
 
+        // Get mesh variables for convenience.
+        int[] triangles = mesh.triangles;
+        Vector3[] vertices = mesh.vertices;
+        int numVertices = mesh.vertexCount;
+
         // Set shell position.
         this.shellObj.transform.position = new Vector3(0, 1, 0);
 
-        // Create triangle list per vertex.
-        this.vertexTriangles = new List<int>[mesh.vertexCount];
-        for(int i = 0; i < this.vertexTriangles.Length; i++) {
-            this.vertexTriangles[i] = new List<int>();
-        }
-        for(int i = 0; i < mesh.triangles.Length; i += 3) {
-            int triangleId = i / 3;
-            this.vertexTriangles[mesh.triangles[i]].Add(triangleId);
-            this.vertexTriangles[mesh.triangles[i + 1]].Add(triangleId);
-            this.vertexTriangles[mesh.triangles[i + 2]].Add(triangleId);
-        }
+        // Create clockwise sorted triangle list per vertex.
+        this.sortedVertexTriangles = MeshUtils.getSortedVertexTriangles(triangles, numVertices);
 
-        // Sort triangle list per vertex in clockwise order.
-        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-            List<int> triangleList = this.vertexTriangles[vertexInd];
-            if(triangleList.Count > 0) {
-                List<int> sortedTriangleList = new List<int>(triangleList.Count);
-                sortedTriangleList.Add(triangleList[0]);
-                for(int i = 1; i < triangleList.Count; i++) {
-
-                    // Get triangle vertices.
-                    int triangleBaseInd1 = triangleList[i] * 3;
-                    int v11 = mesh.triangles[triangleBaseInd1];
-                    int v12 = mesh.triangles[triangleBaseInd1 + 1];
-                    int v13 = mesh.triangles[triangleBaseInd1 + 2];
-
-                    // Get the vertex indices of the other vertices that are connected to this vertex's edges.
-                    int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
-                    int otherVertexAntiClockwiseInd1 = (vertexInd == v11 ? v12 : (vertexInd == v12 ? v13 : v11));
-
-                    // Insert the triangle into the sorted triangles list.
-                    bool inserted = false;
-                    for(int j = 0; j < sortedTriangleList.Count; j++) {
-
-                        // Get triangle vertices.
-                        int triangleBaseInd2 = sortedTriangleList[j] * 3;
-                        int v21 = mesh.triangles[triangleBaseInd2];
-                        int v22 = mesh.triangles[triangleBaseInd2 + 1];
-                        int v23 = mesh.triangles[triangleBaseInd2 + 2];
-
-                        // Get the vertex indices of the other vertices that are connected to this vertex's edges.
-                        int otherVertexClockwiseInd2 = (vertexInd == v21 ? v23 : (vertexInd == v23 ? v22 : v21));
-                        int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
-
-                        // Insert the triangle before the current triangle if it is placed next to it in anti-clockwise rotation.
-                        if(otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2) {
-                            sortedTriangleList.Insert(j, triangleList[i]);
-                            inserted = true;
-                            break;
-                        }
-
-                        // Insert the triangle after the current triangle if it is placed next to it in clockwise rotation.
-                        if(otherVertexAntiClockwiseInd1 == otherVertexClockwiseInd2) {
-                            sortedTriangleList.Insert(j + 1, triangleList[i]);
-                            inserted = true;
-                            break;
-                        }
-                    }
-                    if(!inserted) {
-                        sortedTriangleList.Add(triangleList[i]);
-                    }
-                }
-
-                // Replace vertex triangles list with sorted vertex triangles list.
-                this.vertexTriangles[vertexInd] = sortedTriangleList;
-            }
-        }
+        // Cache mesh edges.
+        this.edges = MeshUtils.getEdges(this.sortedVertexTriangles, triangles);
 
         // Initialize additional vertex and triangle data.
-        int[] triangles = mesh.triangles;
-        Vector3[] vertices = mesh.vertices;
-        int numVertices = mesh.vertices.Length;
-        this.vertexPositions = new VecD[numVertices];
+        this.vertexPositions = new Vec3D[numVertices];
         this.verticesVelocity = new Vector3[numVertices];
         this.verticesAcceleration = new Vector3[numVertices];
         this.verticesMovementConstraints = new bool[numVertices];
         for(int i = 0; i < numVertices; i++) {
             Vector3 vertex = vertices[i];
-            this.vertexPositions[i] = new VecD(vertex.x, vertex.y, vertex.z);
+            this.vertexPositions[i] = new Vec3D(vertex.x, vertex.y, vertex.z);
             this.verticesVelocity[i] = new Vector3(0, 0, 0);
             this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             this.verticesMovementConstraints[i] = false;
         }
         this.vertexVelocities = new VecD(numVertices * 3);
+        this.vertexAccelerations = new VecD(numVertices * 3);
         for(int i = 0; i < numVertices * 3; i++) {
             this.vertexVelocities[i] = 0;
+            this.vertexAccelerations[i] = 0;
         }
         int numTriangles = triangles.Length;
-        this.triangleNormals = new Vector3[numTriangles];
+        this.triangleNormals_old = new Vector3[numTriangles];
+        this.triangleNormals = new Vec3D[numTriangles];
         this.dTriangleNormals_dv1 = new Vector3[numTriangles][];
         this.dTriangleNormals_dv2 = new Vector3[numTriangles][];
         this.dTriangleNormals_dv3 = new Vector3[numTriangles][];
@@ -197,7 +152,7 @@ public class Shell : MonoBehaviour {
             int v1 = triangles[triangleBaseIndex];
             int v2 = triangles[triangleBaseIndex + 1];
             int v3 = triangles[triangleBaseIndex + 2];
-            Vector3 crossProd = Vector3.Cross(vertices[v2] - vertices[v1], vertices[v3] - vertices[v1]);
+            Vector3 crossProd = Vector3.Cross(this.originalVertices[v2] - this.originalVertices[v1], this.originalVertices[v3] - this.originalVertices[v1]);
             float crossProdMag = crossProd.magnitude;
 
             // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
@@ -211,8 +166,8 @@ public class Shell : MonoBehaviour {
         }
 
         // Add movement constraints on mesh edge vertices.
-        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-            List<int> triangleList = this.vertexTriangles[vertexInd];
+        for(int vertexInd = 0; vertexInd < this.sortedVertexTriangles.Length; vertexInd++) {
+            List<int> triangleList = this.sortedVertexTriangles[vertexInd];
             for(int i = 0; i < triangleList.Count; i++) {
 
                 // Get triangle vertices.
@@ -290,7 +245,13 @@ public class Shell : MonoBehaviour {
             this.verticesVelocity[i] = new Vector3(0, 0, 0);
             this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             vertices[i] = new Vector3(this.originalVertices[i].x, this.originalVertices[i].y, this.originalVertices[i].z);
+
+            this.vertexPositions[i] = new Vec3D(this.originalVertices[i].x, this.originalVertices[i].y, this.originalVertices[i].z);
+            for(int coord = 0; coord < 3; coord++) {
+                this.vertexVelocities[3 * i + coord] = 0;
+            }
         }
+        //this.vertexPositions[5][2] += 5; // TODO - Remove test.
         mesh.vertices = vertices;
         mesh.RecalculateNormals();
     }
@@ -329,7 +290,7 @@ public class Shell : MonoBehaviour {
         this.simulationStep(Time.deltaTime);
     }
 
-    private void simulationStep(float deltaTime) {
+    private void simulationStep(double deltaTime) {
         deltaTime *= this.timeScale;
 
         // Get the mesh.
@@ -340,81 +301,113 @@ public class Shell : MonoBehaviour {
         // Compute triangle normals and areas.
         this.recalcTriangleNormalsAndAreas(triangles, vertices);
 
-        // Calculate vertex energy gradient array and vertex wind force array.
-        Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
-        Vector3[] vertexWindForce = this.calcVertexWindForce(triangles, vertices);
-
         // Update the vertices using discrete integration or gradient descent.
         if(this.doGradientDescent) {
 
-            // Perform grafient descent.
-            for(int i = 0; i < vertices.Length; i++) {
+            // Perform gradient descent.
+            VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+            VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
 
-                // Skip vertex if it is constrained.
-                if(this.verticesMovementConstraints[i]) {
-                    continue;
-                }
+            
+            // TODO - Remove debug when no longer necessary.
+            //Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
+            //VecD vertexEnergyGradientF = new VecD(vertexEnergyGradient.Length * 3);
+            //for(int i = 0; i < vertexEnergyGradient.Length; i++) {
+            //    vertexEnergyGradientF[3 * i] = vertexEnergyGradient[i].x;
+            //    vertexEnergyGradientF[3 * i + 1] = vertexEnergyGradient[i].y;
+            //    vertexEnergyGradientF[3 * i + 2] = vertexEnergyGradient[i].z;
+            //}
+            //print("Energy grad d: " + vertexEnergyGradientD);
+            //print("Energy grad f: " + vertexEnergyGradientF);
 
-                // Calculate vertex area (a third of the area of triangles that this vertex is part of).
-                float vertexArea = 0f;
-                foreach(int triangleId in this.vertexTriangles[i]) {
-                    vertexArea += this.triangleAreas[triangleId];
-                }
-                vertexArea /= 3f;
 
-                // Update vertex position.
-                Vector3 step = this.kGradientDescent * (vertexWindForce[i] - vertexEnergyGradient[i]);
-                if(float.IsNaN(step.x) || float.IsNaN(step.y) || float.IsNaN(step.z)) {
-                    print("NaN step: " + step + " vertexWindForce: " + vertexWindForce[i] + " vertexArea: " + vertexArea
-                            + " vertexEnergyGradient[" + i + "]: " + vertexEnergyGradient[i]);
-                    continue;
+            VecD step = this.kGradientDescent * (vertexWindForce - vertexEnergyGradient);
+            for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
+                if(!this.verticesMovementConstraints[vertexInd]) {
+                    VecD stepVec = new VecD(step[3 * vertexInd], step[3 * vertexInd + 1], step[3 * vertexInd + 2]);
+                    double stepVecMag = stepVec.magnitude;
+
+                    // Disallow NaN and infinite steps.
+                    if(double.IsNaN(stepVec[0]) || double.IsNaN(stepVec[1]) || double.IsNaN(stepVec[2])) {
+                        print("NaN step: " + stepVec);
+                        continue;
+                    }
+                    if(double.IsInfinity(stepVec[0]) || double.IsInfinity(stepVec[1]) || double.IsInfinity(stepVec[2])) {
+                        print("Infinite step: " + step);
+                        continue;
+                    }
+
+                    // Limit step size.
+                    if(stepVecMag > this.maxGradientDescentStep) {
+                        stepVec = stepVec / stepVecMag * this.maxGradientDescentStep;
+                    }
+
+                    // Apply step.
+                    for(int coord = 0; coord < 3; coord++) {
+                        this.vertexPositions[vertexInd][coord] += stepVec[coord];
+                        vertices[vertexInd][coord] = (float) this.vertexPositions[vertexInd][coord];
+                    }
                 }
-                if(float.IsInfinity(step.x) || float.IsInfinity(step.y) || float.IsInfinity(step.z)) {
-                    print("Infinite step: " + step + " windForce: " + vertexWindForce + " vertexArea: " + vertexArea
-                            + " vertexEnergyGradient[" + i + "]: " + vertexEnergyGradient[i]);
-                    continue;
-                }
-                if(step.magnitude > maxGradientDescentStep) {
-                    step = step.normalized * maxGradientDescentStep;
-                }
-                vertices[i] += step;
             }
 
         } else if(!this.implicitIntegration) {
 
+            // Calculate vertex energy gradient array and vertex wind force array.
+            VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+            VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
+
             // Perform Newmark Time Stepping (ODE integration).
-            float gamma = 0.5f;
-            float beta = 0.25f;
-            for(int i = 0; i < vertices.Length; i++) {
+            double gamma = 0.5d;
+            double beta = 0.25d;
+            for(int i = 0; i < this.vertexPositions.Length; i++) {
 
                 // Skip vertex if it is constrained.
                 if(this.verticesMovementConstraints[i]) {
-                    this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
-                    this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
+                    this.vertexVelocities[3 * i] = 0;
+                    this.vertexVelocities[3 * i + 1] = 0;
+                    this.vertexVelocities[3 * i + 2] = 0;
+                    this.vertexAccelerations[3 * i] = 0;
+                    this.vertexAccelerations[3 * i + 1] = 0;
+                    this.vertexAccelerations[3 * i + 2] = 0;
+
+                    this.verticesVelocity[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new velocities).
+                    this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new accelerations).
                     continue;
                 }
 
                 // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
-                float vertexArea = 0f;
-                foreach(int triangleId in this.vertexTriangles[i]) {
+                double vertexArea = 0f;
+                foreach(int triangleId in this.sortedVertexTriangles[i]) {
                     vertexArea += this.triangleAreas[triangleId];
                 }
-                vertexArea /= 3f;
-                float mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
+                vertexArea /= 3d;
+                double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
 
                 // Calculate vertex acceleration.
-                Vector3 newAcceleration = (vertexWindForce[i] - vertexEnergyGradient[i]) / mass;
+                Vec3D newAcceleration = new Vec3D();
+                for(int coord = 0; coord < 3; coord++) {
+                    newAcceleration[coord] = (vertexWindForce[3 * i + coord] - vertexEnergyGradient[3 * i + coord]) / mass;
+                }
 
                 // Update vertex position.
-                vertices[i] += deltaTime * this.verticesVelocity[i]
-                        + deltaTime * deltaTime * ((1f / 2f - beta) * this.verticesAcceleration[i] + beta * newAcceleration);
+                for(int coord = 0; coord < 3; coord++) {
+                    this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord]
+                            + deltaTime * deltaTime * ((1d / 2d - beta) * this.vertexAccelerations[3 * i + coord] + beta * newAcceleration[coord]);
+
+                    // Apply to mesh vertices.
+                    vertices[i][coord] = (float) this.vertexPositions[i][coord];
+                }
 
                 // Update vertex velocity.
-                this.verticesVelocity[i] += deltaTime * ((1f - gamma) * this.verticesAcceleration[i] + gamma * newAcceleration);
-                this.verticesVelocity[i] *= dampingFactor; // TODO - Replace this constant damping with something more realistic friction-based damping.
+                for(int coord = 0; coord < 3; coord++) {
+                    this.vertexVelocities[3 * i + coord] += deltaTime * ((1d - gamma) * this.vertexAccelerations[3 * i + coord] + gamma * newAcceleration[coord]);
+                    this.vertexVelocities[3 * i + coord] *= dampingFactor; // TODO - Replace this constant damping with something more realistic friction-based damping.
+                }
 
                 // Update vertex acceleration.
-                this.verticesAcceleration[i] = newAcceleration;
+                for(int coord = 0; coord < 3; coord++) {
+                    this.vertexAccelerations[3 * i + coord] = newAcceleration[coord];
+                }
             }
         } else if(false) { // TODO - Temp disable.
             /*
@@ -428,6 +421,10 @@ public class Shell : MonoBehaviour {
              *     Repeat x(n+1) -= f(x(n+1)) / f'(x(n+1)) until f(x(n+1)) is close enough to 0.
              *  Determine velocity afterwards (fill in): x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
              */
+            
+            // Calculate vertex energy gradient array and vertex wind force array.
+            Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
+            Vector3[] vertexWindForce = this.calcVertexWindForce(triangles, vertices);
 
             // As a first guess for implicit integration, we take the current vertex positions.
             Vector3[] newVertices = (Vector3[]) vertices.Clone();
@@ -471,7 +468,7 @@ public class Shell : MonoBehaviour {
                     float dTriangleArea_dx = 0f;
                     float dTriangleArea_dy = 0f;
                     float dTriangleArea_dz = 0f;
-                    foreach(int triangleId in this.vertexTriangles[i]) {
+                    foreach(int triangleId in this.sortedVertexTriangles[i]) {
                         newVertexArea += this.triangleAreas[triangleId];
                         if(i == triangles[triangleId * 3]) {
                             dTriangleArea_dx += this.dTriangleAreas_dv1[triangleId].x;
@@ -497,7 +494,7 @@ public class Shell : MonoBehaviour {
                     Vector3 newAcceleration = (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
 
                     // Calculate differential function f for the guessed/approximated vertex positions.
-                    Vector3 f = newVertices[i] - deltaTime * this.verticesVelocity[i] - deltaTime * deltaTime * newAcceleration - vertices[i];
+                    Vector3 f = newVertices[i] - (float) deltaTime * this.verticesVelocity[i] - (float) (deltaTime * deltaTime) * newAcceleration - vertices[i];
 
                     // Update absolute error.
                     absError += f.magnitude;
@@ -510,13 +507,13 @@ public class Shell : MonoBehaviour {
                     };
                     Vector3[] df = new Vector3[] {
                             // d_f(u)_dux = {d_f_x(u)_dux, d_f_y(u)_dux, d_f_z(u)_dux}.
-                            new Vector3(1, 0, 0) - deltaTime * deltaTime * dNewAcceleration[0],
+                            new Vector3(1, 0, 0) - (float) (deltaTime * deltaTime) * dNewAcceleration[0],
 
                             // d_f(u)_duy = {d_f_x(u)_duy, d_f_y(u)_duy, d_f_z(u)_duy}.
-                            new Vector3(0, 1, 0) - deltaTime * deltaTime * dNewAcceleration[1],
+                            new Vector3(0, 1, 0) - (float) (deltaTime * deltaTime) * dNewAcceleration[1],
 
                             // d_f(u)_duz = {d_f_x(u)_duz, d_f_y(u)_duz, d_f_z(u)_duz}.
-                            new Vector3(0, 0, 1) - deltaTime * deltaTime * dNewAcceleration[2]
+                            new Vector3(0, 0, 1) - (float) (deltaTime * deltaTime) * dNewAcceleration[2]
                     };
 
                     // Update newVertices following Newton's method: numVertices[i] -= f(u) / f'(u).
@@ -543,14 +540,14 @@ public class Shell : MonoBehaviour {
 
                 // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
                 float newVertexArea = 0f;
-                foreach(int triangleId in this.vertexTriangles[i]) {
+                foreach(int triangleId in this.sortedVertexTriangles[i]) {
                     newVertexArea += this.triangleAreas[triangleId];
                 }
                 newVertexArea /= 3f;
                 float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
 
                 // Update the velocity.
-                this.verticesVelocity[i] += deltaTime * (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
+                this.verticesVelocity[i] += (float) deltaTime * (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
             }
 
             // Update the vertices.
@@ -563,61 +560,26 @@ public class Shell : MonoBehaviour {
              * This should eventually be moved to methods and fields where convenient.
              */
 
-            // Create edge list. TODO - Cache this.
-            List<Edge> edges = new List<Edge>();
-            for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-                List<int> triangleList = this.vertexTriangles[vertexInd];
-                for(int i = 0; i < triangleList.Count; i++) {
-                    int triangleInd = triangleList[i];
-                    int v1 = triangles[triangleInd * 3];
-                    int v2 = triangles[triangleInd * 3 + 1];
-                    int v3 = triangles[triangleInd * 3 + 2];
-                    if(vertexInd == v1) {
-                        if(vertexInd < v2) {
-                            edges.Add(new Edge(vertexInd, v2));
-                        }
-                        if(vertexInd < v3) {
-                            edges.Add(new Edge(vertexInd, v3));
-                        }
-                    } else if(vertexInd == v2) {
-                        if(vertexInd < v1) {
-                            edges.Add(new Edge(vertexInd, v1));
-                        }
-                        if(vertexInd < v3) {
-                            edges.Add(new Edge(vertexInd, v3));
-                        }
-                    } else if(vertexInd == v3) {
-                        if(vertexInd < v1) {
-                            edges.Add(new Edge(vertexInd, v1));
-                        }
-                        if(vertexInd < v2) {
-                            edges.Add(new Edge(vertexInd, v2));
-                        }
-                    }
-                }
-            }
-
-
             // TODO - Create a system-wide length energy Hessian.
             MatD forceHess = new MatD(vertices.Length * 3, vertices.Length * 3);
-            foreach(Edge edge in edges) {
+            foreach(Edge edge in this.edges) {
 
                 // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge.v1, edge.v2);
+                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge.ve1, edge.ve2);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
 
                         // ddLengthEnergy_dv1_dv1.
-                        forceHess[edge.v1 * 3 + i, edge.v1 * 3 + j] = lengthEnergyHess[i, j];
+                        forceHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
 
                         // ddLengthEnergy_dv2_dv2.
-                        forceHess[edge.v2 * 3 + i, edge.v2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
+                        forceHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
 
                         // ddLengthEnergy_dv1_dv2.
-                        forceHess[edge.v1 * 3 + i, edge.v2 * 3 + j] = lengthEnergyHess[i, j + 3];
+                        forceHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
 
                         // ddLengthEnergy_dv2_dv1.
-                        forceHess[edge.v2 * 3 + i, edge.v1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                        forceHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
                     }
                 }
             }
@@ -627,7 +589,7 @@ public class Shell : MonoBehaviour {
             MatD inverseMassMatrix = new MatD(vertices.Length * 3, vertices.Length * 3); // Diagonal matrix with pairs of 3 equal 1/mass_i (for each x, y and z).
             for(int i = 0; i < vertices.Length; i++) {
                 double vertexArea = 0d;
-                foreach(int triangleId in this.vertexTriangles[i]) {
+                foreach(int triangleId in this.sortedVertexTriangles[i]) {
                     vertexArea += this.triangleAreas[triangleId];
                 }
                 vertexArea /= 3d;
@@ -642,8 +604,10 @@ public class Shell : MonoBehaviour {
 
 
             // Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
-            VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
-            // TODO - vertexForces = vertexWindForce - vertexEnergyGradient;
+            //VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
+            // TODO - vertexForces = vertexWindForce - vertexEnergyGradient; // TODO - THIS IS ESSENTIAL TO HAVE FORCES.
+            VecD vertexEnergyGradientD = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+            VecD vertexForces = -vertexEnergyGradientD;
 
             /*
              * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
@@ -657,6 +621,9 @@ public class Shell : MonoBehaviour {
             MatD mat = identMat - deltaTime * inverseMassMatrix * d_vertexForces_d_velocity - deltaTime * deltaTime * inverseMassMatrix * d_vertexForces_d_pos;
             VecD vec = deltaTime * inverseMassMatrix * (vertexForces + deltaTime * d_vertexForces_d_pos * this.vertexVelocities);
             VecD deltaVelocity = this.sparseLinearSolve(mat, vec);
+            //print("mat: " + mat);
+            //print("vec: " + vec);
+            //print("deltaVelocity: " + deltaVelocity);
 
             // Update vertex velocity.
             this.vertexVelocities += deltaVelocity;
@@ -693,7 +660,8 @@ public class Shell : MonoBehaviour {
                 print("Encountered zero-area triangle.");
 
                 // The triangle area is 0 and the triangle has infinitely many normals in a circle (two edges parallel) or sphere (all vertices on the same point).
-                this.triangleNormals[triangleId] = Vector3.zero;
+                this.triangleNormals_old[triangleId] = Vector3.zero;
+                this.triangleNormals[triangleId] = new Vec3D(0, 0, 0);
                 this.triangleAreas[triangleId] = 0f;
 
                 // Technically, there are infinitely many options for the normal to change, and the area will almust always grow.
@@ -706,7 +674,8 @@ public class Shell : MonoBehaviour {
                 this.dTriangleAreas_dv3[triangleId] = Vector3.zero;
                 continue;
             }
-            this.triangleNormals[triangleId] = cross_e12_e13 / crossprod_length;
+            this.triangleNormals_old[triangleId] = cross_e12_e13 / crossprod_length;
+            this.triangleNormals[triangleId] = new Vec3D(this.triangleNormals_old[triangleId][0], this.triangleNormals_old[triangleId][1], this.triangleNormals_old[triangleId][2]);
             this.triangleAreas[triangleId] = crossprod_length / 2f; // Triangle area is half of the cross product of any two of its edges.
 
             /*
@@ -782,12 +751,12 @@ public class Shell : MonoBehaviour {
         }
 
         // Compute vertex energy gradient array.
-        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-            for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
+        for(int vertexInd = 0; vertexInd < this.sortedVertexTriangles.Length; vertexInd++) {
+            for(int i = 0; i < this.sortedVertexTriangles[vertexInd].Count; i++) {
 
                 // Get two possibly adjacent triangles in clockwise direction.
-                int triangleId = this.vertexTriangles[vertexInd][i];
-                int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
+                int triangleId = this.sortedVertexTriangles[vertexInd][i];
+                int nextTriangleId = this.sortedVertexTriangles[vertexInd][(i + 1) % this.sortedVertexTriangles[vertexInd].Count];
 
                 // Get triangle vertices.
                 int triangleBaseInd1 = triangleId * 3;
@@ -839,6 +808,104 @@ public class Shell : MonoBehaviour {
         return vertexEnergyGradient;
     }
 
+    private VecD calcVertexEnergyGradient(int[] triangles, Vec3D[] vertices) {
+
+        // Initialize vertex energy gradient array.
+        VecD vertexEnergyGradient = new VecD(vertices.Length * 3);
+
+        // Compute edge length and bending energy gradient.
+        foreach(Edge edge in this.edges) {
+
+            // Compute edge length energy gradient.
+            VecD edgeLengthEnergyGrad = this.kLength * this.getEdgeLengthEnergyGradient(vertices, edge.ve1, edge.ve2);
+            vertexEnergyGradient[3 * edge.ve1] += edgeLengthEnergyGrad[0];
+            vertexEnergyGradient[3 * edge.ve1 + 1] += edgeLengthEnergyGrad[1];
+            vertexEnergyGradient[3 * edge.ve1 + 2] += edgeLengthEnergyGrad[2];
+            vertexEnergyGradient[3 * edge.ve2] += edgeLengthEnergyGrad[3];
+            vertexEnergyGradient[3 * edge.ve2 + 1] += edgeLengthEnergyGrad[4];
+            vertexEnergyGradient[3 * edge.ve2 + 2] += edgeLengthEnergyGrad[5];
+
+            // Compute edge bending energy gradient.
+            if(edge.hasSideFlaps()) {
+                VecD edgeBendEnergyGrad = this.kBend * this.getBendingEnergyGradient(vertices, edge);
+                vertexEnergyGradient[3 * edge.ve1] += edgeBendEnergyGrad[0];
+                vertexEnergyGradient[3 * edge.ve1 + 1] += edgeBendEnergyGrad[1];
+                vertexEnergyGradient[3 * edge.ve1 + 2] += edgeBendEnergyGrad[2];
+                vertexEnergyGradient[3 * edge.ve2] += edgeBendEnergyGrad[3];
+                vertexEnergyGradient[3 * edge.ve2 + 1] += edgeBendEnergyGrad[4];
+                vertexEnergyGradient[3 * edge.ve2 + 2] += edgeBendEnergyGrad[5];
+                vertexEnergyGradient[3 * edge.vf1] += edgeBendEnergyGrad[6];
+                vertexEnergyGradient[3 * edge.vf1 + 1] += edgeBendEnergyGrad[7];
+                vertexEnergyGradient[3 * edge.vf1 + 2] += edgeBendEnergyGrad[8];
+                vertexEnergyGradient[3 * edge.vf2] += edgeBendEnergyGrad[9];
+                vertexEnergyGradient[3 * edge.vf2 + 1] += edgeBendEnergyGrad[10];
+                vertexEnergyGradient[3 * edge.vf2 + 2] += edgeBendEnergyGrad[11];
+            }
+        }
+
+        // Compute triangle area energy gradient.
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int v1 = triangles[3 * triangleId];
+            int v2 = triangles[3 * triangleId + 1];
+            int v3 = triangles[3 * triangleId + 2];
+            VecD triangleAreaEnergyGrad = this.kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v1, v2, v3);
+            for(int coord = 0; coord < 3; coord++) {
+                vertexEnergyGradient[3 * v1 + coord] += triangleAreaEnergyGrad[coord];
+                vertexEnergyGradient[3 * v2 + coord] += triangleAreaEnergyGrad[3 + coord];
+                vertexEnergyGradient[3 * v3 + coord] += triangleAreaEnergyGrad[6 + coord];
+            }
+        }
+
+        // TODO - Add area and bending energy gradients. Strip out the logic that's no longer needed (since the edge list has been added).
+        // Compute vertex energy gradient array.
+        //for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
+        //    for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
+
+        //        // Get two possibly adjacent triangles in clockwise direction.
+        //        int triangleId = this.vertexTriangles[vertexInd][i];
+        //        int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
+
+        //        // Get triangle vertices.
+        //        int triangleBaseInd1 = triangleId * 3;
+        //        int triangleBaseInd2 = nextTriangleId * 3;
+        //        int v11 = triangles[triangleBaseInd1];
+        //        int v12 = triangles[triangleBaseInd1 + 1];
+        //        int v13 = triangles[triangleBaseInd1 + 2];
+        //        int v21 = triangles[triangleBaseInd2];
+        //        int v22 = triangles[triangleBaseInd2 + 1];
+        //        int v23 = triangles[triangleBaseInd2 + 2];
+
+        //        // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
+        //        int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
+        //        int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
+
+        //        // Handle the edge, or both edges if they are not the same.
+        //        bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
+
+        //        if(edgeSharedByTriangles) {
+
+        //            // Calculate bending energy gradient.
+        //            if(kBend != 0f) {
+        //                vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
+        //                    vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
+        //            }
+        //        }
+
+        //        // Calculate the area energy gradient in the triangle.
+        //        if(kArea != 0f) {
+        //            if(vertexInd == v11) {
+        //                vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
+        //            } else if(vertexInd == v12) {
+        //                vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
+        //            } else {
+        //                vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
+        //            }
+        //        }
+        //    }
+        //}
+        return vertexEnergyGradient;
+    }
+
     private Vector3[][] calcVertexEnergyHessian(int[] triangles, Vector3[] vertices) {
 
         // Initialize vertex energy Hessian.
@@ -848,12 +915,12 @@ public class Shell : MonoBehaviour {
         }
 
         // Compute vertex energy Hessian.
-        for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-            for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
+        for(int vertexInd = 0; vertexInd < this.sortedVertexTriangles.Length; vertexInd++) {
+            for(int i = 0; i < this.sortedVertexTriangles[vertexInd].Count; i++) {
 
                 // Get two possibly adjacent triangles in clockwise direction.
-                int triangleId = this.vertexTriangles[vertexInd][i];
-                int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
+                int triangleId = this.sortedVertexTriangles[vertexInd][i];
+                int nextTriangleId = this.sortedVertexTriangles[vertexInd][(i + 1) % this.sortedVertexTriangles[vertexInd].Count];
 
                 // Get triangle vertices.
                 int triangleBaseInd1 = triangleId * 3;
@@ -919,7 +986,7 @@ public class Shell : MonoBehaviour {
             int v3 = triangles[triangleBaseIndex + 2];
 
             // Compute projection of the wind pressure vector on the triangle normal.
-            Vector3 triangleNormal = this.triangleNormals[triangleId];
+            Vector3 triangleNormal = this.triangleNormals_old[triangleId];
             float triangleArea = this.triangleAreas[triangleId];
             Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal;
 
@@ -927,6 +994,41 @@ public class Shell : MonoBehaviour {
             vertexWindForce[v1] += totalTriangleWindForce / 3f;
             vertexWindForce[v2] += totalTriangleWindForce / 3f;
             vertexWindForce[v3] += totalTriangleWindForce / 3f;
+        }
+        return vertexWindForce;
+    }
+
+    /*
+     * Calculates the wind force acting on each vertex.
+     * Returns the wind force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+     */
+    private VecD calcVertexWindForce(int[] triangles, VecD[] vertices) {
+
+        // Initialize vertex wind force array.
+        VecD vertexWindForce = new VecD(vertices.Length * 3);
+
+        // Compute vertex wind force.
+        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+            int triangleBaseIndex = triangleId * 3;
+            int v1 = triangles[triangleBaseIndex];
+            int v2 = triangles[triangleBaseIndex + 1];
+            int v3 = triangles[triangleBaseIndex + 2];
+
+            // Compute projection of the wind pressure vector on the triangle normal.
+            VecD triangleNormal = this.triangleNormals[triangleId];
+            if(triangleNormal == null) {
+                continue; // Triangle has a zero-area and no normal, so the projected wind force is zero as well.
+            }
+            float triangleArea = this.triangleAreas[triangleId];
+            VecD totalTriangleWindForce = VecD.dot(new VecD(this.windPressure), triangleNormal) * triangleArea * triangleNormal;
+
+            // Add a third of the total triangle wind force to each of its vertices.
+            VecD totalTriangleWindForcePart = totalTriangleWindForce / 3d;
+            for(int coord = 0; coord < 3; coord++) {
+                vertexWindForce[3 * v1 + coord] += totalTriangleWindForcePart[coord];
+                vertexWindForce[3 * v2 + coord] += totalTriangleWindForcePart[coord];
+                vertexWindForce[3 * v3 + coord] += totalTriangleWindForcePart[coord];
+            }
         }
         return vertexWindForce;
     }
@@ -947,7 +1049,7 @@ public class Shell : MonoBehaviour {
             int v3 = triangles[triangleBaseIndex + 2];
 
             // Compute projection of the wind pressure vector on the triangle normal.
-            Vector3 triangleNormal = this.triangleNormals[triangleId];
+            Vector3 triangleNormal = this.triangleNormals_old[triangleId];
             Vector3[] dTriangleNormal_dv1 = this.dTriangleNormals_dv1[triangleId];
             Vector3[] dTriangleNormal_dv2 = this.dTriangleNormals_dv2[triangleId];
             Vector3[] dTriangleNormal_dv3 = this.dTriangleNormals_dv3[triangleId];
@@ -1050,15 +1152,15 @@ public class Shell : MonoBehaviour {
      * Computes the edge length energy gradient of the edge between vertices v1 and v2, towards {v1x, v1y, v1z, v2x, v2y, v2z}.
      * The result is a vector of length 6.
      */
-    private VecD getEdgeLengthEnergyGradient(VecD[] vertexPositions, int v1, int v2) {
-        VecD edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+    private VecD getEdgeLengthEnergyGradient(Vec3D[] vertexPositions, int v1, int v2) {
+        Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
         double edgeLength = edge.magnitude;
         if(double.IsNaN(edgeLength)) {
             return new VecD(0, 0, 0, 0, 0, 0); // Edge is zero-length, so the gradient is 0.
         }
         double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude;
-        VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
-        VecD dEdgeLength_dv2 = -dEdgeLength_dv1;
+        Vec3D dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
+        Vec3D dEdgeLength_dv2 = -dEdgeLength_dv1;
         VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
 
         VecD result = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1v2;
@@ -1393,7 +1495,8 @@ public class Shell : MonoBehaviour {
                 (edge21.x * edge23.z - edge23.x * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * edge23.y,
                 (edge21.y * edge23.z - edge23.y * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * -edge23.x,
                 (edge21.y * edge23.z - edge23.y * edge21.z) * -edge23.y + (edge21.x * edge23.z - edge23.x * edge21.z) * -edge23.x);
-        Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
+        //Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
+        Vector3 dTriangleArea = dCrossProdLength / 2f; // Area of triangle is half the cross product length.
 
         // Calculate the area energy gradient.
         Vector3 result = (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
@@ -1408,6 +1511,36 @@ public class Shell : MonoBehaviour {
             return Vector3.zero;
         }
         return result;
+    }
+
+    /**
+     * Computes the triangle area energy gradient for the triangle defined by vertices v1, v2 and v3.
+     * Returns the gradient towards {v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z}.
+     */
+    private VecD getTriangleAreaEnergyGradient(Vec3D[] vertices, int triangleId, int v1Ind, int v2Ind, int v3Ind) {
+
+        // Return if the area is zero.
+        if(this.triangleAreas[triangleId] == 0d) {
+            return new VecD(0, 0, 0, 0, 0, 0, 0, 0, 0); // Area is 0 m^2, so the gradient is 0.
+        }
+        
+        // Get triangle vertices.
+        Vec3D v1 = vertices[v1Ind];
+        Vec3D v2 = vertices[v2Ind];
+        Vec3D v3 = vertices[v3Ind];
+
+        // Compute triangle energy gradient. See thesis notes for derivation.
+        double crossProdLength = this.triangleAreas[triangleId] * 2d;
+        VecD a = new VecD(0          , v3.z - v2.z, v2.y - v3.y, 0                        , v2.z - v3.z + v1.z - v2.z, v2.y - v1.y + v3.y - v2.y, 0          , v2.z - v1.z, v1.y - v2.y);
+        VecD b = new VecD(v2.z - v3.z, 0          , v3.x - v2.x, v2.z - v1.z + v3.z - v2.z, 0                        , v2.x - v3.x + v1.x - v2.x, v1.z - v2.z, 0          , v2.x - v1.x);
+        VecD c = new VecD(v3.y - v2.y, v2.x - v3.x, 0          , v2.y - v3.y + v1.y - v2.y, v2.x - v1.x + v3.x - v2.x, 0                        , v2.y - v1.y, v1.x - v2.x, 0          );
+        double d = ((v1.y - v2.y) * (v3.z - v2.z) - (v3.y - v2.y) * (v1.z - v2.z));
+        double e = ((v2.x - v1.x) * (v3.z - v2.z) + (v3.x - v2.x) * (v1.z - v2.z));
+        double f = ((v1.x - v2.x) * (v3.y - v2.y) - (v3.x - v2.x) * (v1.y - v2.y));
+        VecD d_crossProdLength_dv1v2v3 = (d * a + e * b + f * c) / crossProdLength;
+        VecD d_triangleArea_dv1v2v3 = d_crossProdLength_dv1v2v3 / 2d;
+        VecD d_triangleEnergy_dv1v2v3 = (2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d) * d_triangleArea_dv1v2v3;
+        return d_triangleEnergy_dv1v2v3;
     }
 
     /**
@@ -1496,8 +1629,8 @@ public class Shell : MonoBehaviour {
         }
 
         // Triangle normals.
-        Vector3 n1 = this.triangleNormals[triangleId1];
-        Vector3 n2 = this.triangleNormals[triangleId2];
+        Vector3 n1 = this.triangleNormals_old[triangleId1];
+        Vector3 n2 = this.triangleNormals_old[triangleId2];
 
         // Calculate d_teta_d_ve1, based on rewriting d_teta_d_x1 in paper: http://ddg.math.uni-goettingen.de/pub/bendingCAGD.pdf
         float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
@@ -1556,6 +1689,78 @@ public class Shell : MonoBehaviour {
     }
 
     /**
+     * Computes the bending energy gradient of the given edge. This gradient is taken towards the edge-defining vertices ve1 and ve2, as well
+     * as the vertices vf1 and vf2, completing triangles 1 and 2 connected to the edge respectively.
+     * The return values are the bending energy gradient towards: {ve1x. ve1y, ve1z, ve2x. ve2y, ve2z, vf1x. vf1y, vf1z, vf2x. vf2y, vf2z}.
+     */
+    private VecD getBendingEnergyGradient(Vec3D[] vertices, Edge edge) {
+
+        // Define required constants.
+        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude;
+        // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
+        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
+        double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
+
+        // Get triangle normals.
+        Vec3D n1 = this.triangleNormals[edge.triangleId1];
+        Vec3D n2 = this.triangleNormals[edge.triangleId2];
+
+        // Return if at least one of the triangles has a zero area and no normal.
+        if(n1 == null || n2 == null) {
+            return new VecD(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+        
+        // Calculate hinge angle.
+        double teta_e_sign = Mathf.Sign((float) VecD.dot(n1, vertices[edge.vf2] - vertices[edge.ve1])); // 1 if teta_e positive, -1 if negative.
+        double dot_n1_n2 = VecD.dot(n1, n2);
+        double teta_e = -Mathf.Acos((float) (dot_n1_n2 > 1d ? 1d : (dot_n1_n2 < -1d ? -1d : dot_n1_n2))) * teta_e_sign; // Limit the dot product of the normals at 1 (fix precision errors).
+
+        // TODO - Remove this check if it can't happen. Check what happens for non-existing normals though.
+        if(double.IsNaN(teta_e)) {
+            print("NaN teta_e. sign: " + teta_e_sign + ", dot(n1, n2): " + VecD.dot(n1, n2));
+            // teta_e = Mathf.PI; // The triangles are on top of each other, which is both 180 and -180 degrees.
+            return new VecD(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+        
+        // Calculate energy derivative towards hinge angle teta.
+        double d_fi_d_teta = 2d * (teta_e - teta_e_undeformed) * undeformedEdgeLength / h_e_undeformed;
+
+        // Return if the energy gradient is zero.
+        if(d_fi_d_teta == 0d) {
+            return new VecD(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+
+        // Define edges, angles and edge heights (following paper https://studios.disneyresearch.com/wp-content/uploads/2019/03/Discrete-Bending-Forces-and-Their-Jacobians-Paper.pdf).
+        Vec3D e0 = vertices[edge.ve2] - vertices[edge.ve1]; // Middle horizontal edge.
+        Vec3D t1_e1 = vertices[edge.vf1] - vertices[edge.ve2]; // Top right edge.
+        Vec3D t1_e2 = vertices[edge.vf1] - vertices[edge.ve1]; // Top left edge.
+        Vec3D t2_e1 = vertices[edge.vf2] - vertices[edge.ve2]; // Bottom right edge.
+        Vec3D t2_e2 = vertices[edge.vf2] - vertices[edge.ve1]; // Bottom left edge.
+        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2.magnitude)));
+        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1.magnitude)));
+        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2.magnitude)));
+        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1.magnitude)));
+        double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0.magnitude;
+        double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1.magnitude;
+        double t1_h2 = 2d * this.triangleAreas[edge.triangleId1] / t1_e2.magnitude;
+        double t2_h0 = 2d * this.triangleAreas[edge.triangleId2] / e0.magnitude;
+        double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1.magnitude;
+        double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2.magnitude;
+
+        // Calculate derivatives of teta towards all 4 vertices.
+        VecD d_teta_d_ve1 = Mathf.Cos(t1_alpha2) / t1_h1 * n1 + Mathf.Cos(t2_alpha2) / t2_h1 * n2;
+        VecD d_teta_d_ve2 = Mathf.Cos(t1_alpha1) / t1_h2 * n1 + Mathf.Cos(t2_alpha1) / t2_h2 * n2;
+        VecD d_teta_d_vf1 = -n1 / t1_h0;
+        VecD d_teta_d_vf2 = -n2 / t2_h0;
+        
+        // Assemble hinge angle gradient.
+        VecD d_teta_d_ve1ve2vf1vf2 = new VecD(d_teta_d_ve1, d_teta_d_ve2, d_teta_d_vf1, d_teta_d_vf2);
+
+        // Return the bending energy gradient.
+        return d_fi_d_teta * d_teta_d_ve1ve2vf1vf2;
+    }
+
+    /**
      * Makes the given Hessian positive definite by adding the identity matrix to it until it is positive definite.
      */
     private static void makeHessPositiveDefinite(Vector3[] hess) {
@@ -1609,8 +1814,4 @@ public class Shell : MonoBehaviour {
         alglib.linlsqrresults(solverObj, out x, out report);
         return new VecD(x);
     }
-
-    //private static Vector3 multiplyElementWise(Vector3 v1, Vector3 v2) {
-    //    return new Vector3(v1.x * v2.x, v1.y * v2.y, v1.z * v2.z);
-    //}
 }

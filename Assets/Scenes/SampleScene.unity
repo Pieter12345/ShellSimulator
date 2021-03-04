@@ -722,7 +722,7 @@ MonoBehaviour:
   shellMaterialDensity: 40
   useFlatUndeformedBendState: 1
   shellObj: {fileID: 0}
-  doGradientDescent: 0
+  doGradientDescent: 1
   kGradientDescent: 0
   maxGradientDescentStep: 0
   timeScale: 1
