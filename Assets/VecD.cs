@@ -89,6 +89,14 @@ public class VecD {
         return (double[]) this.vector.Clone();
     }
 
+    public override string ToString() {
+        string str = (this.vector.Length > 0 ? this.vector[0].ToString() : "");
+        for(int i = 0; i < this.vector.Length; i++) {
+            str += ", " + this.vector[i];
+        }
+        return base.ToString() + "{" + str + "}";
+    }
+
     private static void ensureVectorsSameLength(VecD v1, VecD v2) {
         if(v1.length != v2.length) {
             throw new ArithmeticException("Cannot perform binary operation on different size vectors. Sizes: " + v1.length + " and " + v2.length + ".");

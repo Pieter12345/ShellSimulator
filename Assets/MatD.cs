@@ -161,4 +161,20 @@ public class MatD {
     public MatD Clone() {
         return new MatD((double[,]) this.matrix.Clone());
     }
+
+    public override string ToString() {
+        string str = (this.numRows > 0 ? this.getRowStr(0) : "");
+        for(int i = 0; i < this.numRows; i++) {
+            str += "; " + this.getRowStr(i);
+        }
+        return base.ToString() + "{" + str + "}";
+    }
+
+    private string getRowStr(int row) {
+        string str = (this.numColumns > 0 ? this.matrix[row, 0].ToString() : "");
+        for(int i = 0; i < this.numColumns; i++) {
+            str += ", " + this.matrix[row, i];
+        }
+        return str;
+    }
 }
