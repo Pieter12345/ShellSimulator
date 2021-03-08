@@ -17,15 +17,13 @@ public class Shell : MonoBehaviour {
 
     // Vertex related fields.
     private List<int>[] sortedVertexTriangles;
+    private List<Edge> edges;
     private Vector3[] originalVertices; // Vertices in undeformed state.
-    private Vector3[] verticesVelocity;
-    private Vector3[] verticesAcceleration;
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
     private Vec3D[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
     private VecD vertexVelocities; // Format: {vx1, vy1, vz1, vx2, v2y, v2z, ...}.
     private VecD vertexAccelerations; // Format: {ax1, ay1, az1, ax2, a2y, a2z, ...}.
-    private List<Edge> edges;
 
     // Simulation update loop settings.
     public TimeSteppingMethod timeSteppingMethod = TimeSteppingMethod.GRADIENT_DESCENT;
@@ -118,14 +116,10 @@ public class Shell : MonoBehaviour {
 
         // Initialize additional vertex and triangle data.
         this.vertexPositions = new Vec3D[numVertices];
-        this.verticesVelocity = new Vector3[numVertices];
-        this.verticesAcceleration = new Vector3[numVertices];
         this.verticesMovementConstraints = new bool[numVertices];
         for(int i = 0; i < numVertices; i++) {
             Vector3 vertex = vertices[i];
             this.vertexPositions[i] = new Vec3D(vertex.x, vertex.y, vertex.z);
-            this.verticesVelocity[i] = new Vector3(0, 0, 0);
-            this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             this.verticesMovementConstraints[i] = false;
         }
         this.vertexVelocities = new VecD(numVertices * 3);
@@ -241,8 +235,6 @@ public class Shell : MonoBehaviour {
         Mesh mesh = this.getMesh();
         Vector3[] vertices = mesh.vertices;
         for(int i = 0; i < mesh.vertices.Length; i++) {
-            this.verticesVelocity[i] = new Vector3(0, 0, 0);
-            this.verticesAcceleration[i] = new Vector3(0, 0, 0);
             vertices[i] = new Vector3(this.originalVertices[i].x, this.originalVertices[i].y, this.originalVertices[i].z);
 
             this.vertexPositions[i] = new Vec3D(this.originalVertices[i].x, this.originalVertices[i].y, this.originalVertices[i].z);
@@ -518,9 +510,6 @@ public class Shell : MonoBehaviour {
                 this.vertexAccelerations[3 * i] = 0;
                 this.vertexAccelerations[3 * i + 1] = 0;
                 this.vertexAccelerations[3 * i + 2] = 0;
-
-                this.verticesVelocity[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new velocities).
-                this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new accelerations).
                 continue;
             }
 
