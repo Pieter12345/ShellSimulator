@@ -303,340 +303,356 @@ public class Shell : MonoBehaviour {
 
         // Update the vertices using discrete integration or gradient descent.
         if(this.doGradientDescent) {
-
-            // Perform gradient descent.
-            VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
-            VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
-
-            
-            // TODO - Remove debug when no longer necessary.
-            //Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
-            //VecD vertexEnergyGradientF = new VecD(vertexEnergyGradient.Length * 3);
-            //for(int i = 0; i < vertexEnergyGradient.Length; i++) {
-            //    vertexEnergyGradientF[3 * i] = vertexEnergyGradient[i].x;
-            //    vertexEnergyGradientF[3 * i + 1] = vertexEnergyGradient[i].y;
-            //    vertexEnergyGradientF[3 * i + 2] = vertexEnergyGradient[i].z;
-            //}
-            //print("Energy grad d: " + vertexEnergyGradientD);
-            //print("Energy grad f: " + vertexEnergyGradientF);
-
-
-            VecD step = this.kGradientDescent * (vertexWindForce - vertexEnergyGradient);
-            for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
-                if(!this.verticesMovementConstraints[vertexInd]) {
-                    VecD stepVec = new VecD(step[3 * vertexInd], step[3 * vertexInd + 1], step[3 * vertexInd + 2]);
-                    double stepVecMag = stepVec.magnitude;
-
-                    // Disallow NaN and infinite steps.
-                    if(double.IsNaN(stepVec[0]) || double.IsNaN(stepVec[1]) || double.IsNaN(stepVec[2])) {
-                        print("NaN step: " + stepVec);
-                        continue;
-                    }
-                    if(double.IsInfinity(stepVec[0]) || double.IsInfinity(stepVec[1]) || double.IsInfinity(stepVec[2])) {
-                        print("Infinite step: " + step);
-                        continue;
-                    }
-
-                    // Limit step size.
-                    if(stepVecMag > this.maxGradientDescentStep) {
-                        stepVec = stepVec / stepVecMag * this.maxGradientDescentStep;
-                    }
-
-                    // Apply step.
-                    for(int coord = 0; coord < 3; coord++) {
-                        this.vertexPositions[vertexInd][coord] += stepVec[coord];
-                        vertices[vertexInd][coord] = (float) this.vertexPositions[vertexInd][coord];
-                    }
-                }
-            }
-
+            this.doGradientDescentStep();
         } else if(!this.implicitIntegration) {
+            this.doExplititIntegrationNewmarkStep(deltaTime);
+        } else {
+            this.doImplicitIntegrationStep(deltaTime);
+        }
+        
 
-            // Calculate vertex energy gradient array and vertex wind force array.
-            VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
-            VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
+        // TODO - This implementation is wrong. Use things like the mass calculation if useful. Remove after having used all useful parts.
+        /*
+         * Implicit integration.
+         * Solve: x(n+1) - deltaTime * x'(n) - deltaTime^2 * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) - x(n) = f(x(n+1)) = 0
+         * Parameters:
+         *     x(n+1): Mesh vertex positions after this step (initialize with current positions).
+         *     x'(n): Mesh vertex velocities before this step.
+         *     (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) = f(x(n+1)): Acceleration calculated using vertex positions after this step.
+         * Solving:
+         *     Repeat x(n+1) -= f(x(n+1)) / f'(x(n+1)) until f(x(n+1)) is close enough to 0.
+         *  Determine velocity afterwards (fill in): x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
+         * /
+        
+        // Calculate vertex energy gradient array and vertex wind force array.
+        Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
+        Vector3[] vertexWindForce = this.calcVertexWindForce(triangles, vertices);
 
-            // Perform Newmark Time Stepping (ODE integration).
-            double gamma = 0.5d;
-            double beta = 0.25d;
-            for(int i = 0; i < this.vertexPositions.Length; i++) {
+        // As a first guess for implicit integration, we take the current vertex positions.
+        Vector3[] newVertices = (Vector3[]) vertices.Clone();
+        Vector3[] newVertexWindForce = vertexWindForce;
+        Vector3[] newVertexEnergyGradient = vertexEnergyGradient;
 
-                // Skip vertex if it is constrained.
-                if(this.verticesMovementConstraints[i]) {
-                    this.vertexVelocities[3 * i] = 0;
-                    this.vertexVelocities[3 * i + 1] = 0;
-                    this.vertexVelocities[3 * i + 2] = 0;
-                    this.vertexAccelerations[3 * i] = 0;
-                    this.vertexAccelerations[3 * i + 1] = 0;
-                    this.vertexAccelerations[3 * i + 2] = 0;
-
-                    this.verticesVelocity[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new velocities).
-                    this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new accelerations).
-                    continue;
-                }
-
-                // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
-                double vertexArea = 0f;
-                foreach(int triangleId in this.sortedVertexTriangles[i]) {
-                    vertexArea += this.triangleAreas[triangleId];
-                }
-                vertexArea /= 3d;
-                double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
-
-                // Calculate vertex acceleration.
-                Vec3D newAcceleration = new Vec3D();
-                for(int coord = 0; coord < 3; coord++) {
-                    newAcceleration[coord] = (vertexWindForce[3 * i + coord] - vertexEnergyGradient[3 * i + coord]) / mass;
-                }
-
-                // Update vertex position.
-                for(int coord = 0; coord < 3; coord++) {
-                    this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord]
-                            + deltaTime * deltaTime * ((1d / 2d - beta) * this.vertexAccelerations[3 * i + coord] + beta * newAcceleration[coord]);
-
-                    // Apply to mesh vertices.
-                    vertices[i][coord] = (float) this.vertexPositions[i][coord];
-                }
-
-                // Update vertex velocity.
-                for(int coord = 0; coord < 3; coord++) {
-                    this.vertexVelocities[3 * i + coord] += deltaTime * ((1d - gamma) * this.vertexAccelerations[3 * i + coord] + gamma * newAcceleration[coord]);
-                    this.vertexVelocities[3 * i + coord] *= dampingFactor; // TODO - Replace this constant damping with something more realistic friction-based damping.
-                }
-
-                // Update vertex acceleration.
-                for(int coord = 0; coord < 3; coord++) {
-                    this.vertexAccelerations[3 * i + coord] = newAcceleration[coord];
-                }
+        float absError = 0f;
+        float maxNormalizedError = 0.1f;
+        int iterations = 0;
+        int maxIterations = 20;
+        do {
+            if(iterations++ >= maxIterations) {
+                print("Terminating Newton's method since " + maxIterations + " iterations have been reached. Current normalized error: " + (absError / vertices.Length));
+                newVertices = vertices; // Do not make any changes.
+                break;
             }
-        } else if(false) { // TODO - Temp disable.
-            /*
-             * Implicit integration.
-             * Solve: x(n+1) - deltaTime * x'(n) - deltaTime^2 * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) - x(n) = f(x(n+1)) = 0
-             * Parameters:
-             *     x(n+1): Mesh vertex positions after this step (initialize with current positions).
-             *     x'(n): Mesh vertex velocities before this step.
-             *     (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1)) = f(x(n+1)): Acceleration calculated using vertex positions after this step.
-             * Solving:
-             *     Repeat x(n+1) -= f(x(n+1)) / f'(x(n+1)) until f(x(n+1)) is close enough to 0.
-             *  Determine velocity afterwards (fill in): x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
-             */
-            
-            // Calculate vertex energy gradient array and vertex wind force array.
-            Vector3[] vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, vertices);
-            Vector3[] vertexWindForce = this.calcVertexWindForce(triangles, vertices);
 
-            // As a first guess for implicit integration, we take the current vertex positions.
-            Vector3[] newVertices = (Vector3[]) vertices.Clone();
-            Vector3[] newVertexWindForce = vertexWindForce;
-            Vector3[] newVertexEnergyGradient = vertexEnergyGradient;
+            // Calculate energy Hessian and wind force Hessian for the approximation of the new position.
+            Vector3[][] newEnergyHess = this.calcVertexEnergyHessian(triangles, newVertices);
+            Vector3[][] newWindForceHess = this.calcVertexWindForceHessian(triangles, newVertices);
 
-            float absError = 0f;
-            float maxNormalizedError = 0.1f;
-            int iterations = 0;
-            int maxIterations = 20;
-            do {
-                if(iterations++ >= maxIterations) {
-                    print("Terminating Newton's method since " + maxIterations + " iterations have been reached. Current normalized error: " + (absError / vertices.Length));
-                    newVertices = vertices; // Do not make any changes.
-                    break;
-                }
+            // Make the Hessians positive definite. This affects the path that Newton's method takes, but not its target.
+            // TODO - Test whether this works and potentially make changes to the method to make the Hessian positive definite.
+            for(int i = 0; i < vertices.Length; i++) {
+                makeHessPositiveDefinite(newEnergyHess[i]);
+                makeHessPositiveDefinite(newWindForceHess[i]);
+            }
 
-                // Calculate energy Hessian and wind force Hessian for the approximation of the new position.
-                Vector3[][] newEnergyHess = this.calcVertexEnergyHessian(triangles, newVertices);
-                Vector3[][] newWindForceHess = this.calcVertexWindForceHessian(triangles, newVertices);
-
-                // Make the Hessians positive definite. This affects the path that Newton's method takes, but not its target.
-                // TODO - Test whether this works and potentially make changes to the method to make the Hessian positive definite.
-                for(int i = 0; i < vertices.Length; i++) {
-                    makeHessPositiveDefinite(newEnergyHess[i]);
-                    makeHessPositiveDefinite(newWindForceHess[i]);
-                }
-
-                absError = 0f;
-                for(int i = 0; i < vertices.Length; i++) {
-
-                    // Skip vertex if it is constrained.
-                    if(this.verticesMovementConstraints[i]) {
-                        this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
-                        this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
-                        continue;
-                    }
-
-                    // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
-                    float newVertexArea = 0f;
-                    float dTriangleArea_dx = 0f;
-                    float dTriangleArea_dy = 0f;
-                    float dTriangleArea_dz = 0f;
-                    foreach(int triangleId in this.sortedVertexTriangles[i]) {
-                        newVertexArea += this.triangleAreas[triangleId];
-                        if(i == triangles[triangleId * 3]) {
-                            dTriangleArea_dx += this.dTriangleAreas_dv1[triangleId].x;
-                            dTriangleArea_dy += this.dTriangleAreas_dv1[triangleId].y;
-                            dTriangleArea_dz += this.dTriangleAreas_dv1[triangleId].z;
-                        } else if(i == triangles[triangleId * 3 + 1]) {
-                            dTriangleArea_dx += this.dTriangleAreas_dv2[triangleId].x;
-                            dTriangleArea_dy += this.dTriangleAreas_dv2[triangleId].y;
-                            dTriangleArea_dz += this.dTriangleAreas_dv2[triangleId].z;
-                        } else if(i == triangles[triangleId * 3 + 2]) {
-                            dTriangleArea_dx += this.dTriangleAreas_dv3[triangleId].x;
-                            dTriangleArea_dy += this.dTriangleAreas_dv3[triangleId].y;
-                            dTriangleArea_dz += this.dTriangleAreas_dv3[triangleId].z;
-                        }
-                    }
-                    newVertexArea /= 3f;
-                    float dNewMass_dx = dTriangleArea_dx * this.shellThickness * this.shellMaterialDensity;
-                    float dNewMass_dy = dTriangleArea_dy * this.shellThickness * this.shellMaterialDensity;
-                    float dNewMass_dz = dTriangleArea_dz * this.shellThickness * this.shellMaterialDensity;
-                    float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
-
-                    // Calculate vertex acceleration.
-                    Vector3 newAcceleration = (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
-
-                    // Calculate differential function f for the guessed/approximated vertex positions.
-                    Vector3 f = newVertices[i] - (float) deltaTime * this.verticesVelocity[i] - (float) (deltaTime * deltaTime) * newAcceleration - vertices[i];
-
-                    // Update absolute error.
-                    absError += f.magnitude;
-
-                    // Calculate differential function f gradient.
-                    Vector3[] dNewAcceleration = new Vector3[] {
-                            (newWindForceHess[i][0] - newEnergyHess[i][0]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dx / (newMass * newMass),
-                            (newWindForceHess[i][1] - newEnergyHess[i][1]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dy / (newMass * newMass),
-                            (newWindForceHess[i][2] - newEnergyHess[i][2]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dz / (newMass * newMass)
-                    };
-                    Vector3[] df = new Vector3[] {
-                            // d_f(u)_dux = {d_f_x(u)_dux, d_f_y(u)_dux, d_f_z(u)_dux}.
-                            new Vector3(1, 0, 0) - (float) (deltaTime * deltaTime) * dNewAcceleration[0],
-
-                            // d_f(u)_duy = {d_f_x(u)_duy, d_f_y(u)_duy, d_f_z(u)_duy}.
-                            new Vector3(0, 1, 0) - (float) (deltaTime * deltaTime) * dNewAcceleration[1],
-
-                            // d_f(u)_duz = {d_f_x(u)_duz, d_f_y(u)_duz, d_f_z(u)_duz}.
-                            new Vector3(0, 0, 1) - (float) (deltaTime * deltaTime) * dNewAcceleration[2]
-                    };
-
-                    // Update newVertices following Newton's method: numVertices[i] -= f(u) / f'(u).
-                    // TODO - Validate that f'(u) is symmetrical, and otherwise use division if necessary.
-                    newVertices[i] -= f.x * df[0] + f.y * df[1] + f.z * df[2];
-                    //print("Stepping: " + (f.x * df[0] + f.y * df[1] + f.z * df[2]));
-
-                    // Update triangle normals and areas.
-                    this.recalcTriangleNormalsAndAreas(triangles, newVertices);
-
-                    // Update vertex energy gradient array and vertex wind force array.
-                    newVertexEnergyGradient = this.calcVertexEnergyGradient(triangles, newVertices);
-                    newVertexWindForce = this.calcVertexWindForce(triangles, newVertices);
-                }
-            } while(absError / vertices.Length > maxNormalizedError);
-
-            // Update velocity: x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
+            absError = 0f;
             for(int i = 0; i < vertices.Length; i++) {
 
                 // Skip vertex if it is constrained.
                 if(this.verticesMovementConstraints[i]) {
+                    this.verticesVelocity[i] = new Vector3(0f, 0f, 0f);
+                    this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f);
                     continue;
                 }
 
                 // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
                 float newVertexArea = 0f;
+                float dTriangleArea_dx = 0f;
+                float dTriangleArea_dy = 0f;
+                float dTriangleArea_dz = 0f;
                 foreach(int triangleId in this.sortedVertexTriangles[i]) {
                     newVertexArea += this.triangleAreas[triangleId];
-                }
-                newVertexArea /= 3f;
-                float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
-
-                // Update the velocity.
-                this.verticesVelocity[i] += (float) deltaTime * (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
-            }
-
-            // Update the vertices.
-            vertices = newVertices;
-        } else {
-
-            /*
-             * Calculate all requires mesh things here, following the paper:
-             * https://studios.disneyresearch.com/wp-content/uploads/2019/03/Discrete-Bending-Forces-and-Their-Jacobians-Paper.pdf
-             * This should eventually be moved to methods and fields where convenient.
-             */
-
-            // TODO - Create a system-wide length energy Hessian.
-            MatD forceHess = new MatD(vertices.Length * 3, vertices.Length * 3);
-            foreach(Edge edge in this.edges) {
-
-                // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge.ve1, edge.ve2);
-                for(int i = 0; i < 3; i++) {
-                    for(int j = 0; j < 3; j++) {
-
-                        // ddLengthEnergy_dv1_dv1.
-                        forceHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
-
-                        // ddLengthEnergy_dv2_dv2.
-                        forceHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
-
-                        // ddLengthEnergy_dv1_dv2.
-                        forceHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
-
-                        // ddLengthEnergy_dv2_dv1.
-                        forceHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                    if(i == triangles[triangleId * 3]) {
+                        dTriangleArea_dx += this.dTriangleAreas_dv1[triangleId].x;
+                        dTriangleArea_dy += this.dTriangleAreas_dv1[triangleId].y;
+                        dTriangleArea_dz += this.dTriangleAreas_dv1[triangleId].z;
+                    } else if(i == triangles[triangleId * 3 + 1]) {
+                        dTriangleArea_dx += this.dTriangleAreas_dv2[triangleId].x;
+                        dTriangleArea_dy += this.dTriangleAreas_dv2[triangleId].y;
+                        dTriangleArea_dz += this.dTriangleAreas_dv2[triangleId].z;
+                    } else if(i == triangles[triangleId * 3 + 2]) {
+                        dTriangleArea_dx += this.dTriangleAreas_dv3[triangleId].x;
+                        dTriangleArea_dy += this.dTriangleAreas_dv3[triangleId].y;
+                        dTriangleArea_dz += this.dTriangleAreas_dv3[triangleId].z;
                     }
                 }
+                newVertexArea /= 3f;
+                float dNewMass_dx = dTriangleArea_dx * this.shellThickness * this.shellMaterialDensity;
+                float dNewMass_dy = dTriangleArea_dy * this.shellThickness * this.shellMaterialDensity;
+                float dNewMass_dz = dTriangleArea_dz * this.shellThickness * this.shellMaterialDensity;
+                float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
+
+                // Calculate vertex acceleration.
+                Vector3 newAcceleration = (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
+
+                // Calculate differential function f for the guessed/approximated vertex positions.
+                Vector3 f = newVertices[i] - (float) deltaTime * this.verticesVelocity[i] - (float) (deltaTime * deltaTime) * newAcceleration - vertices[i];
+
+                // Update absolute error.
+                absError += f.magnitude;
+
+                // Calculate differential function f gradient.
+                Vector3[] dNewAcceleration = new Vector3[] {
+                        (newWindForceHess[i][0] - newEnergyHess[i][0]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dx / (newMass * newMass),
+                        (newWindForceHess[i][1] - newEnergyHess[i][1]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dy / (newMass * newMass),
+                        (newWindForceHess[i][2] - newEnergyHess[i][2]) / newMass - (newVertexWindForce[i] - newVertexEnergyGradient[i]) * dNewMass_dz / (newMass * newMass)
+                };
+                Vector3[] df = new Vector3[] {
+                        // d_f(u)_dux = {d_f_x(u)_dux, d_f_y(u)_dux, d_f_z(u)_dux}.
+                        new Vector3(1, 0, 0) - (float) (deltaTime * deltaTime) * dNewAcceleration[0],
+
+                        // d_f(u)_duy = {d_f_x(u)_duy, d_f_y(u)_duy, d_f_z(u)_duy}.
+                        new Vector3(0, 1, 0) - (float) (deltaTime * deltaTime) * dNewAcceleration[1],
+
+                        // d_f(u)_duz = {d_f_x(u)_duz, d_f_y(u)_duz, d_f_z(u)_duz}.
+                        new Vector3(0, 0, 1) - (float) (deltaTime * deltaTime) * dNewAcceleration[2]
+                };
+
+                // Update newVertices following Newton's method: numVertices[i] -= f(u) / f'(u).
+                // TODO - Validate that f'(u) is symmetrical, and otherwise use division if necessary.
+                newVertices[i] -= f.x * df[0] + f.y * df[1] + f.z * df[2];
+                //print("Stepping: " + (f.x * df[0] + f.y * df[1] + f.z * df[2]));
+
+                // Update triangle normals and areas.
+                this.recalcTriangleNormalsAndAreas(triangles, newVertices);
+
+                // Update vertex energy gradient array and vertex wind force array.
+                newVertexEnergyGradient = this.calcVertexEnergyGradient(triangles, newVertices);
+                newVertexWindForce = this.calcVertexWindForce(triangles, newVertices);
+            }
+        } while(absError / vertices.Length > maxNormalizedError);
+
+        // Update velocity: x'(n+1) = x'(n) + deltaTime * (windForce(x(n+1)) - energyGradient(x(n+1))) / mass(x(n+1))
+        for(int i = 0; i < vertices.Length; i++) {
+
+            // Skip vertex if it is constrained.
+            if(this.verticesMovementConstraints[i]) {
+                continue;
             }
 
-            // Calculate lumped vertex mass (a third of the area of triangles that each vertex is part of).
-            // TODO - Look into adding constraints by making 1/mass === 0 for constrained variables (can be done per x, y, z of every vertex).
-            MatD inverseMassMatrix = new MatD(vertices.Length * 3, vertices.Length * 3); // Diagonal matrix with pairs of 3 equal 1/mass_i (for each x, y and z).
-            for(int i = 0; i < vertices.Length; i++) {
-                double vertexArea = 0d;
-                foreach(int triangleId in this.sortedVertexTriangles[i]) {
-                    vertexArea += this.triangleAreas[triangleId];
+            // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
+            float newVertexArea = 0f;
+            foreach(int triangleId in this.sortedVertexTriangles[i]) {
+                newVertexArea += this.triangleAreas[triangleId];
+            }
+            newVertexArea /= 3f;
+            float newMass = newVertexArea * this.shellThickness * this.shellMaterialDensity;
+
+            // Update the velocity.
+            this.verticesVelocity[i] += (float) deltaTime * (newVertexWindForce[i] - newVertexEnergyGradient[i]) / newMass;
+        }
+
+        // Update the vertices.
+        mesh.vertices = newVertices;
+        mesh.RecalculateNormals();
+        */
+    }
+
+    private void doGradientDescentStep() {
+        int[] triangles = this.getMesh().triangles;
+        VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
+        VecD step = this.kGradientDescent * (vertexWindForce - vertexEnergyGradient);
+        for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
+            if(!this.verticesMovementConstraints[vertexInd]) {
+                VecD stepVec = new VecD(step[3 * vertexInd], step[3 * vertexInd + 1], step[3 * vertexInd + 2]);
+                double stepVecMag = stepVec.magnitude;
+
+                // Disallow NaN and infinite steps.
+                if(stepVec.containsNaN()) {
+                    print("NaN step: " + stepVec);
+                    continue;
                 }
-                vertexArea /= 3d;
-                double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
-                double inverseMass = 1d / mass;
-                inverseMassMatrix[3 * i, 3 * i] = inverseMass;
-                inverseMassMatrix[3 * i + 1, 3 * i + 1] = inverseMass;
-                inverseMassMatrix[3 * i + 2, 3 * i + 2] = inverseMass;
-            }
+                if(stepVec.containsInf()) {
+                    print("Infinite step: " + step);
+                    continue;
+                }
 
+                // Limit step size.
+                if(stepVecMag > this.maxGradientDescentStep) {
+                    stepVec = stepVec / stepVecMag * this.maxGradientDescentStep;
+                }
 
-
-
-            // Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
-            //VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
-            // TODO - vertexForces = vertexWindForce - vertexEnergyGradient; // TODO - THIS IS ESSENTIAL TO HAVE FORCES.
-            VecD vertexEnergyGradientD = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
-            VecD vertexForces = -vertexEnergyGradientD;
-
-            /*
-             * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
-             * Format: mat * delta_v = vec
-             * mat = I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x
-             * vec = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
-             */
-            MatD d_vertexForces_d_velocity = new MatD(vertices.Length * 3, vertices.Length * 3); // This is a zero matrix until some velocity based damping force will be implemented.
-            MatD d_vertexForces_d_pos = -forceHess; // This is the energy Hessian (switch sign from energy to force).
-            MatD identMat = new MatD(inverseMassMatrix.numRows, inverseMassMatrix.numColumns).addDiag(1.0);
-            MatD mat = identMat - deltaTime * inverseMassMatrix * d_vertexForces_d_velocity - deltaTime * deltaTime * inverseMassMatrix * d_vertexForces_d_pos;
-            VecD vec = deltaTime * inverseMassMatrix * (vertexForces + deltaTime * d_vertexForces_d_pos * this.vertexVelocities);
-            VecD deltaVelocity = this.sparseLinearSolve(mat, vec);
-            //print("mat: " + mat);
-            //print("vec: " + vec);
-            //print("deltaVelocity: " + deltaVelocity);
-
-            // Update vertex velocity.
-            this.vertexVelocities += deltaVelocity;
-
-            // Update vertex positions: pos(i + 1) = pos(i) + deltaTime * velocity(i + 1).
-            for(int i = 0; i < this.vertexPositions.Length; i++) {
+                // Apply step.
                 for(int coord = 0; coord < 3; coord++) {
-                    this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord];
-                    vertices[i][coord] = (float) this.vertexPositions[i][coord];
+                    this.vertexPositions[vertexInd][coord] += stepVec[coord];
                 }
             }
         }
-        mesh.vertices = vertices;
+        this.updateMesh();
+    }
+
+    private void doExplititIntegrationNewmarkStep(double deltaTime) {
+        
+        // Calculate vertex energy gradient array and vertex wind force array.
+        int[] triangles = this.getMesh().triangles;
+        VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
+
+        // Perform Newmark Time Stepping (ODE integration).
+        double gamma = 0.5d;
+        double beta = 0.25d;
+        for(int i = 0; i < this.vertexPositions.Length; i++) {
+
+            // Skip vertex if it is constrained.
+            if(this.verticesMovementConstraints[i]) {
+                this.vertexVelocities[3 * i] = 0;
+                this.vertexVelocities[3 * i + 1] = 0;
+                this.vertexVelocities[3 * i + 2] = 0;
+                this.vertexAccelerations[3 * i] = 0;
+                this.vertexAccelerations[3 * i + 1] = 0;
+                this.vertexAccelerations[3 * i + 2] = 0;
+
+                this.verticesVelocity[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new velocities).
+                this.verticesAcceleration[i] = new Vector3(0f, 0f, 0f); // TODO - Remove (replace with new accelerations).
+                continue;
+            }
+
+            // Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
+            double vertexArea = 0f;
+            foreach(int triangleId in this.sortedVertexTriangles[i]) {
+                vertexArea += this.triangleAreas[triangleId];
+            }
+            vertexArea /= 3d;
+            double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
+
+            // Calculate vertex acceleration.
+            Vec3D newAcceleration = new Vec3D();
+            for(int coord = 0; coord < 3; coord++) {
+                newAcceleration[coord] = (vertexWindForce[3 * i + coord] - vertexEnergyGradient[3 * i + coord]) / mass;
+            }
+
+            // Update vertex position.
+            for(int coord = 0; coord < 3; coord++) {
+                this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord]
+                        + deltaTime * deltaTime * ((1d / 2d - beta) * this.vertexAccelerations[3 * i + coord] + beta * newAcceleration[coord]);
+            }
+
+            // Update vertex velocity.
+            for(int coord = 0; coord < 3; coord++) {
+                this.vertexVelocities[3 * i + coord] += deltaTime * ((1d - gamma) * this.vertexAccelerations[3 * i + coord] + gamma * newAcceleration[coord]);
+                this.vertexVelocities[3 * i + coord] *= dampingFactor; // TODO - Replace this constant damping with something more realistic friction-based damping.
+            }
+
+            // Update vertex acceleration.
+            for(int coord = 0; coord < 3; coord++) {
+                this.vertexAccelerations[3 * i + coord] = newAcceleration[coord];
+            }
+        }
+        this.updateMesh();
+    }
+
+    private void doImplicitIntegrationStep(double deltaTime) {
+        
+        /*
+         * Calculate all requires mesh things here, following the paper:
+         * https://studios.disneyresearch.com/wp-content/uploads/2019/03/Discrete-Bending-Forces-and-Their-Jacobians-Paper.pdf
+         * This should eventually be moved to methods and fields where convenient.
+         */
+        int[] triangles = this.getMesh().triangles;
+        int numVertices = this.vertexPositions.Length;
+
+        // TODO - Create a system-wide length energy Hessian.
+        MatD forceHess = new MatD(numVertices * 3, numVertices * 3);
+        foreach(Edge edge in this.edges) {
+
+            // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
+            MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge.ve1, edge.ve2);
+            for(int i = 0; i < 3; i++) {
+                for(int j = 0; j < 3; j++) {
+
+                    // ddLengthEnergy_dv1_dv1.
+                    forceHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
+
+                    // ddLengthEnergy_dv2_dv2.
+                    forceHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
+
+                    // ddLengthEnergy_dv1_dv2.
+                    forceHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
+
+                    // ddLengthEnergy_dv2_dv1.
+                    forceHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                }
+            }
+        }
+
+        // Calculate lumped vertex mass (a third of the area of triangles that each vertex is part of).
+        // TODO - Look into adding constraints by making 1/mass === 0 for constrained variables (can be done per x, y, z of every vertex).
+        MatD inverseMassMatrix = new MatD(numVertices * 3, numVertices * 3); // Diagonal matrix with pairs of 3 equal 1/mass_i (for each x, y and z).
+        for(int i = 0; i < numVertices; i++) {
+            double vertexArea = 0d;
+            foreach(int triangleId in this.sortedVertexTriangles[i]) {
+                vertexArea += this.triangleAreas[triangleId];
+            }
+            vertexArea /= 3d;
+            double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
+            double inverseMass = 1d / mass;
+            inverseMassMatrix[3 * i, 3 * i] = inverseMass;
+            inverseMassMatrix[3 * i + 1, 3 * i + 1] = inverseMass;
+            inverseMassMatrix[3 * i + 2, 3 * i + 2] = inverseMass;
+        }
+
+
+
+
+        // Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
+        //VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
+        // TODO - vertexForces = vertexWindForce - vertexEnergyGradient; // TODO - THIS IS ESSENTIAL TO HAVE FORCES.
+        VecD vertexEnergyGradientD = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexForces = -vertexEnergyGradientD;
+
+        /*
+            * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
+            * Format: mat * delta_v = vec
+            * mat = I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x
+            * vec = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
+            */
+        MatD d_vertexForces_d_velocity = new MatD(numVertices * 3, numVertices * 3); // This is a zero matrix until some velocity based damping force will be implemented.
+        MatD d_vertexForces_d_pos = -forceHess; // This is the energy Hessian (switch sign from energy to force).
+        MatD identMat = new MatD(inverseMassMatrix.numRows, inverseMassMatrix.numColumns).addDiag(1.0);
+        MatD mat = identMat - deltaTime * inverseMassMatrix * d_vertexForces_d_velocity - deltaTime * deltaTime * inverseMassMatrix * d_vertexForces_d_pos;
+        VecD vec = deltaTime * inverseMassMatrix * (vertexForces + deltaTime * d_vertexForces_d_pos * this.vertexVelocities);
+        VecD deltaVelocity = this.sparseLinearSolve(mat, vec);
+        //print("mat: " + mat);
+        //print("vec: " + vec);
+        //print("deltaVelocity: " + deltaVelocity);
+
+        // Update vertex velocity.
+        this.vertexVelocities += deltaVelocity;
+
+        // Update vertex positions: pos(i + 1) = pos(i) + deltaTime * velocity(i + 1).
+        for(int i = 0; i < this.vertexPositions.Length; i++) {
+            for(int coord = 0; coord < 3; coord++) {
+                this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord];
+            }
+        }
+
+        this.updateMesh();
+    }
+
+    /*
+     * Updates the current mesh with the current vertices positions.
+     * After setting the new vertices, the mesh normals are recalculated.
+     */
+    private void updateMesh() {
+        Mesh mesh = this.getMesh();
+        Vector3[] meshVerts = mesh.vertices;
+        for(int i = 0; i < meshVerts.Length; i++) {
+            for(int coord = 0; coord < 3; coord++) {
+                meshVerts[i][coord] = (float) this.vertexPositions[i][coord];
+            }
+        }
+        mesh.vertices = meshVerts;
         mesh.RecalculateNormals();
     }
 
