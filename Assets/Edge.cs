@@ -20,6 +20,11 @@ public class Edge {
         this.vf2 = vf2;
         this.triangleId1 = triangleId1;
         this.triangleId2 = triangleId2;
+
+        if(ve1 == ve2 || ve1 == vf1 || ve1 == vf2 || ve2 == vf1 || ve2 == vf2
+                || (vf1 == vf2 && vf1 >= 0) || (triangleId1 == triangleId2 && triangleId1 >= 0)) {
+            throw new Exception("An edge cannot be defined using the same vertex twice. Edge: " + this);
+        }
     }
 
     public bool hasSideFlaps() {
