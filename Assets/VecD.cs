@@ -107,6 +107,24 @@ public class VecD {
         return (double[]) this.vector.Clone();
     }
 
+    public bool containsNaN() {
+        foreach(double d in this.vector) {
+            if(double.IsNaN(d)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public bool containsInf() {
+        foreach(double d in this.vector) {
+            if(double.IsInfinity(d)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public override string ToString() {
         string str = (this.vector.Length > 0 ? this.vector[0].ToString() : "");
         for(int i = 1; i < this.vector.Length; i++) {
