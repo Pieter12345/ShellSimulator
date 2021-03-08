@@ -817,16 +817,18 @@ public class Shell : MonoBehaviour {
         foreach(Edge edge in this.edges) {
 
             // Compute edge length energy gradient.
-            VecD edgeLengthEnergyGrad = this.kLength * this.getEdgeLengthEnergyGradient(vertices, edge.ve1, edge.ve2);
-            vertexEnergyGradient[3 * edge.ve1] += edgeLengthEnergyGrad[0];
-            vertexEnergyGradient[3 * edge.ve1 + 1] += edgeLengthEnergyGrad[1];
-            vertexEnergyGradient[3 * edge.ve1 + 2] += edgeLengthEnergyGrad[2];
-            vertexEnergyGradient[3 * edge.ve2] += edgeLengthEnergyGrad[3];
-            vertexEnergyGradient[3 * edge.ve2 + 1] += edgeLengthEnergyGrad[4];
-            vertexEnergyGradient[3 * edge.ve2 + 2] += edgeLengthEnergyGrad[5];
+            if(this.kLength != 0f) {
+                VecD edgeLengthEnergyGrad = this.kLength * this.getEdgeLengthEnergyGradient(vertices, edge.ve1, edge.ve2);
+                vertexEnergyGradient[3 * edge.ve1] += edgeLengthEnergyGrad[0];
+                vertexEnergyGradient[3 * edge.ve1 + 1] += edgeLengthEnergyGrad[1];
+                vertexEnergyGradient[3 * edge.ve1 + 2] += edgeLengthEnergyGrad[2];
+                vertexEnergyGradient[3 * edge.ve2] += edgeLengthEnergyGrad[3];
+                vertexEnergyGradient[3 * edge.ve2 + 1] += edgeLengthEnergyGrad[4];
+                vertexEnergyGradient[3 * edge.ve2 + 2] += edgeLengthEnergyGrad[5];
+            }
 
             // Compute edge bending energy gradient.
-            if(edge.hasSideFlaps()) {
+            if(edge.hasSideFlaps() && this.kBend != 0f) {
                 VecD edgeBendEnergyGrad = this.kBend * this.getBendingEnergyGradient(vertices, edge);
                 vertexEnergyGradient[3 * edge.ve1] += edgeBendEnergyGrad[0];
                 vertexEnergyGradient[3 * edge.ve1 + 1] += edgeBendEnergyGrad[1];
@@ -844,15 +846,17 @@ public class Shell : MonoBehaviour {
         }
 
         // Compute triangle area energy gradient.
-        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
-            int v1 = triangles[3 * triangleId];
-            int v2 = triangles[3 * triangleId + 1];
-            int v3 = triangles[3 * triangleId + 2];
-            VecD triangleAreaEnergyGrad = this.kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v1, v2, v3);
-            for(int coord = 0; coord < 3; coord++) {
-                vertexEnergyGradient[3 * v1 + coord] += triangleAreaEnergyGrad[coord];
-                vertexEnergyGradient[3 * v2 + coord] += triangleAreaEnergyGrad[3 + coord];
-                vertexEnergyGradient[3 * v3 + coord] += triangleAreaEnergyGrad[6 + coord];
+        if(this.kArea != 0f) {
+            for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+                int v1 = triangles[3 * triangleId];
+                int v2 = triangles[3 * triangleId + 1];
+                int v3 = triangles[3 * triangleId + 2];
+                VecD triangleAreaEnergyGrad = this.kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v1, v2, v3);
+                for(int coord = 0; coord < 3; coord++) {
+                    vertexEnergyGradient[3 * v1 + coord] += triangleAreaEnergyGrad[coord];
+                    vertexEnergyGradient[3 * v2 + coord] += triangleAreaEnergyGrad[3 + coord];
+                    vertexEnergyGradient[3 * v3 + coord] += triangleAreaEnergyGrad[6 + coord];
+                }
             }
         }
 
