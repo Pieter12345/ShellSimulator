@@ -28,9 +28,8 @@ public class Shell : MonoBehaviour {
     private List<Edge> edges;
 
     // Simulation update loop settings.
+    public TimeSteppingMethod timeSteppingMethod = TimeSteppingMethod.GRADIENT_DESCENT;
     private bool doUpdate = false;
-    public bool doGradientDescent = true;
-    private bool implicitIntegration = false;
     public double kGradientDescent;
     public double maxGradientDescentStep;
     public double timeScale = 1f;
@@ -301,13 +300,20 @@ public class Shell : MonoBehaviour {
         // Compute triangle normals and areas.
         this.recalcTriangleNormalsAndAreas(triangles, vertices);
 
-        // Update the vertices using discrete integration or gradient descent.
-        if(this.doGradientDescent) {
-            this.doGradientDescentStep();
-        } else if(!this.implicitIntegration) {
-            this.doExplititIntegrationNewmarkStep(deltaTime);
-        } else {
-            this.doImplicitIntegrationStep(deltaTime);
+        // Update the vertices using the chosen time stepping method.
+        switch(this.timeSteppingMethod) {
+            case TimeSteppingMethod.GRADIENT_DESCENT: {
+                this.doGradientDescentStep();
+                break;
+            }
+            case TimeSteppingMethod.EXPLICIT_NEWMARK: {
+                this.doExplititIntegrationNewmarkStep(deltaTime);
+                break;
+            }
+            case TimeSteppingMethod.IMPLICIT: {
+                this.doImplicitIntegrationStep(deltaTime);
+                break;
+            }
         }
         
 
@@ -608,15 +614,15 @@ public class Shell : MonoBehaviour {
         // Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
         //VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
         // TODO - vertexForces = vertexWindForce - vertexEnergyGradient; // TODO - THIS IS ESSENTIAL TO HAVE FORCES.
-        VecD vertexEnergyGradientD = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
-        VecD vertexForces = -vertexEnergyGradientD;
+        VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexForces = -vertexEnergyGradient;
 
         /*
-            * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
-            * Format: mat * delta_v = vec
-            * mat = I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x
-            * vec = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
-            */
+         * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
+         * Format: mat * delta_v = vec
+         * mat = I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x
+         * vec = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
+         */
         MatD d_vertexForces_d_velocity = new MatD(numVertices * 3, numVertices * 3); // This is a zero matrix until some velocity based damping force will be implemented.
         MatD d_vertexForces_d_pos = -forceHess; // This is the energy Hessian (switch sign from energy to force).
         MatD identMat = new MatD(inverseMassMatrix.numRows, inverseMassMatrix.numColumns).addDiag(1.0);
