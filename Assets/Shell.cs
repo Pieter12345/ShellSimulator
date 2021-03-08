@@ -871,53 +871,7 @@ public class Shell : MonoBehaviour {
             }
         }
 
-        // TODO - Add area and bending energy gradients. Strip out the logic that's no longer needed (since the edge list has been added).
-        // Compute vertex energy gradient array.
-        //for(int vertexInd = 0; vertexInd < this.vertexTriangles.Length; vertexInd++) {
-        //    for(int i = 0; i < this.vertexTriangles[vertexInd].Count; i++) {
-
-        //        // Get two possibly adjacent triangles in clockwise direction.
-        //        int triangleId = this.vertexTriangles[vertexInd][i];
-        //        int nextTriangleId = this.vertexTriangles[vertexInd][(i + 1) % this.vertexTriangles[vertexInd].Count];
-
-        //        // Get triangle vertices.
-        //        int triangleBaseInd1 = triangleId * 3;
-        //        int triangleBaseInd2 = nextTriangleId * 3;
-        //        int v11 = triangles[triangleBaseInd1];
-        //        int v12 = triangles[triangleBaseInd1 + 1];
-        //        int v13 = triangles[triangleBaseInd1 + 2];
-        //        int v21 = triangles[triangleBaseInd2];
-        //        int v22 = triangles[triangleBaseInd2 + 1];
-        //        int v23 = triangles[triangleBaseInd2 + 2];
-
-        //        // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
-        //        int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
-        //        int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
-
-        //        // Handle the edge, or both edges if they are not the same.
-        //        bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
-
-        //        if(edgeSharedByTriangles) {
-
-        //            // Calculate bending energy gradient.
-        //            if(kBend != 0f) {
-        //                vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
-        //                    vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
-        //            }
-        //        }
-
-        //        // Calculate the area energy gradient in the triangle.
-        //        if(kArea != 0f) {
-        //            if(vertexInd == v11) {
-        //                vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
-        //            } else if(vertexInd == v12) {
-        //                vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
-        //            } else {
-        //                vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
-        //            }
-        //        }
-        //    }
-        //}
+        // Return the result.
         return vertexEnergyGradient;
     }
 
