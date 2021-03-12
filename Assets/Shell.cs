@@ -753,72 +753,6 @@ public class Shell : MonoBehaviour {
         }
     }
 
-    private Vector3[] calcVertexEnergyGradient(int[] triangles, Vector3[] vertices) {
-
-        // Initialize vertex energy gradient array.
-        Vector3[] vertexEnergyGradient = new Vector3[vertices.Length];
-        for(int i = 0; i < vertexEnergyGradient.Length; i++) {
-            vertexEnergyGradient[i] = Vector3.zero;
-        }
-
-        // Compute vertex energy gradient array.
-        for(int vertexInd = 0; vertexInd < this.sortedVertexTriangles.Length; vertexInd++) {
-            for(int i = 0; i < this.sortedVertexTriangles[vertexInd].Count; i++) {
-
-                // Get two possibly adjacent triangles in clockwise direction.
-                int triangleId = this.sortedVertexTriangles[vertexInd][i];
-                int nextTriangleId = this.sortedVertexTriangles[vertexInd][(i + 1) % this.sortedVertexTriangles[vertexInd].Count];
-
-                // Get triangle vertices.
-                int triangleBaseInd1 = triangleId * 3;
-                int triangleBaseInd2 = nextTriangleId * 3;
-                int v11 = triangles[triangleBaseInd1];
-                int v12 = triangles[triangleBaseInd1 + 1];
-                int v13 = triangles[triangleBaseInd1 + 2];
-                int v21 = triangles[triangleBaseInd2];
-                int v22 = triangles[triangleBaseInd2 + 1];
-                int v23 = triangles[triangleBaseInd2 + 2];
-
-                // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
-                int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
-                int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
-
-                // Handle the edge, or both edges if they are not the same.
-                bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
-
-                // Calculate spring energy gradient in the edge.
-                vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexClockwiseInd1);
-
-                if(edgeSharedByTriangles) {
-
-                    // Calculate bending energy gradient.
-                    if(kBend != 0f) {
-                        vertexEnergyGradient[vertexInd] += kBend * this.getBendingEnergyGradient(
-                            vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
-                    }
-                } else {
-
-                    // Calculate spring energy gradient in the second edge.
-                    if(kLength != 0f) {
-                        vertexEnergyGradient[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexAntiClockwiseInd2);
-                    }
-                }
-
-                // Calculate the area energy gradient in the triangle.
-                if(kArea != 0f) {
-                    if(vertexInd == v11) {
-                        vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
-                    } else if(vertexInd == v12) {
-                        vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
-                    } else {
-                        vertexEnergyGradient[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
-                    }
-                }
-            }
-        }
-        return vertexEnergyGradient;
-    }
-
     private VecD calcVertexEnergyGradient(int[] triangles, Vec3D[] vertices) {
 
         // Initialize vertex energy gradient array.
@@ -875,98 +809,6 @@ public class Shell : MonoBehaviour {
         return vertexEnergyGradient;
     }
 
-    private Vector3[][] calcVertexEnergyHessian(int[] triangles, Vector3[] vertices) {
-
-        // Initialize vertex energy Hessian.
-        Vector3[][] vertexEnergyHess = new Vector3[vertices.Length][];
-        for(int i = 0; i < vertexEnergyHess.Length; i++) {
-            vertexEnergyHess[i] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
-        }
-
-        // Compute vertex energy Hessian.
-        for(int vertexInd = 0; vertexInd < this.sortedVertexTriangles.Length; vertexInd++) {
-            for(int i = 0; i < this.sortedVertexTriangles[vertexInd].Count; i++) {
-
-                // Get two possibly adjacent triangles in clockwise direction.
-                int triangleId = this.sortedVertexTriangles[vertexInd][i];
-                int nextTriangleId = this.sortedVertexTriangles[vertexInd][(i + 1) % this.sortedVertexTriangles[vertexInd].Count];
-
-                // Get triangle vertices.
-                int triangleBaseInd1 = triangleId * 3;
-                int triangleBaseInd2 = nextTriangleId * 3;
-                int v11 = triangles[triangleBaseInd1];
-                int v12 = triangles[triangleBaseInd1 + 1];
-                int v13 = triangles[triangleBaseInd1 + 2];
-                int v21 = triangles[triangleBaseInd2];
-                int v22 = triangles[triangleBaseInd2 + 1];
-                int v23 = triangles[triangleBaseInd2 + 2];
-
-                // Get the vertex indices of the other vertices that are connected to the possibly shared triangle edge.
-                int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
-                int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
-
-                // Handle the edge, or both edges if they are not the same.
-                bool edgeSharedByTriangles = (otherVertexClockwiseInd1 == otherVertexAntiClockwiseInd2);
-
-                // Calculate spring energy Hessian in the edge.
-                Vector3[] lengthHess = this.getEdgeLengthEnergyHess(vertices, vertexInd, otherVertexClockwiseInd1);
-                vertexEnergyHess[vertexInd][0] += kLength * lengthHess[0];
-                vertexEnergyHess[vertexInd][1] += kLength * lengthHess[1];
-                vertexEnergyHess[vertexInd][2] += kLength * lengthHess[2];
-
-                // TODO - Implement area and bending Hessian.
-                if(edgeSharedByTriangles) {
-
-                    // Calculate bending energy Hessian.
-                    //vertexEnergyHess[vertexInd] += kBend * this.getBendingEnergyGradient(
-                    //    vertices, triangleId, nextTriangleId, v11, v12, v13, v21, v22, v23, vertexInd, otherVertexClockwiseInd1);
-                } else {
-
-                    // Calculate spring energy Hessian in the second edge.
-                    //vertexEnergyHess[vertexInd] += kLength * this.getEdgeLengthEnergyGradient(vertices, vertexInd, otherVertexAntiClockwiseInd2);
-                }
-
-                // Calculate the area energy Hessian in the triangle.
-                if(vertexInd == v11) {
-                    //vertexEnergyHess[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v11, v12, v13);
-                } else if(vertexInd == v12) {
-                    //vertexEnergyHess[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v12, v13, v11);
-                } else {
-                    //vertexEnergyHess[vertexInd] += kArea * this.getTriangleAreaEnergyGradient(vertices, triangleId, v13, v11, v12);
-                }
-            }
-        }
-        return vertexEnergyHess;
-    }
-
-    private Vector3[] calcVertexWindForce(int[] triangles, Vector3[] vertices) {
-
-        // Initialize vertex wind force array.
-        Vector3[] vertexWindForce = new Vector3[vertices.Length];
-        for(int i = 0; i < vertexWindForce.Length; i++) {
-            vertexWindForce[i] = Vector3.zero;
-        }
-
-        // Compute vertex wind force array.
-        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
-            int triangleBaseIndex = triangleId * 3;
-            int v1 = triangles[triangleBaseIndex];
-            int v2 = triangles[triangleBaseIndex + 1];
-            int v3 = triangles[triangleBaseIndex + 2];
-
-            // Compute projection of the wind pressure vector on the triangle normal.
-            Vector3 triangleNormal = this.triangleNormals_old[triangleId];
-            float triangleArea = this.triangleAreas[triangleId];
-            Vector3 totalTriangleWindForce = Vector3.Dot(this.windPressure, triangleNormal) * triangleArea * triangleNormal;
-
-            // Add a third of the total triangle wind force to each of its vertices.
-            vertexWindForce[v1] += totalTriangleWindForce / 3f;
-            vertexWindForce[v2] += totalTriangleWindForce / 3f;
-            vertexWindForce[v3] += totalTriangleWindForce / 3f;
-        }
-        return vertexWindForce;
-    }
-
     /*
      * Calculates the wind force acting on each vertex.
      * Returns the wind force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
@@ -1002,7 +844,7 @@ public class Shell : MonoBehaviour {
         return vertexWindForce;
     }
 
-    private Vector3[][] calcVertexWindForceHessian(int[] triangles, Vector3[] vertices) {
+    private Vector3[][] calcVertexWindForceHessian_DEPRECATED(int[] triangles, Vector3[] vertices) {
 
         // Initialize vertex wind force Hessian.
         Vector3[][] vertexWindForceHess = new Vector3[vertices.Length][];
@@ -1076,45 +918,13 @@ public class Shell : MonoBehaviour {
         return vertexWindForceHess;
     }
 
-    private float getEdgeLength(int v1, int v2) {
-        Vector3[] vertices = this.getMesh().vertices;
-        Vector3 diff = vertices[v1] - vertices[v2];
-        return diff.magnitude;
-    }
-
-    private float getEdgeLengthEnergy(int v1, int v2) {
+    private float getEdgeLengthEnergy_DEPRECATED(int v1, int v2) {
         Vector3[] vertices = this.getMesh().vertices;
         Vector3 edge = vertices[v2] - vertices[v1]; // Vector from v1 to v2.
         Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
         float edgeLength = edge.magnitude;
         float undeformedEdgeLength = undeformedEdge.magnitude;
         return Mathf.Pow(1f - edgeLength / undeformedEdgeLength, 2) * undeformedEdgeLength;
-    }
-
-    /**
-     * Computes the edge length energy gradient of vertex v1, for the edge between vertices v1 and v2.
-     */
-    private Vector3 getEdgeLengthEnergyGradient(Vector3[] vertices, int v1, int v2) {
-        Vector3 edge = vertices[v2] - vertices[v1]; // Vector from v1 to v2.
-        Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
-        float edgeLength = edge.magnitude;
-        if(float.IsNaN(edgeLength)) {
-            return Vector3.zero; // Edge is zero-length, so the gradient is 0.
-        }
-        float undeformedEdgeLength = undeformedEdge.magnitude;
-        Vector3 dEdgeLength = (vertices[v1] - vertices[v2]) / edgeLength;
-        Vector3 result = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength;
-        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
-            print("NaN length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
-                    + " edgeLength: " + edgeLength);
-            return Vector3.zero;
-        }
-        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
-            print("Infinite length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
-                    + " edgeLength: " + edgeLength);
-            return Vector3.zero;
-        }
-        return result;
     }
 
     /**
@@ -1354,135 +1164,6 @@ public class Shell : MonoBehaviour {
     }
 
     /**
-     * Computes the edge length energy Hessian of vertex v1, for the edge between vertices v1 and v2.
-     */
-    private Vector3[] getEdgeLengthEnergyHess(Vector3[] vertices, int v1, int v2) {
-        /*
-         * EdgeLength (float):
-         *     sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
-         * 
-         * dEdgeLength_dv1x (float):
-         *     (v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2) = (v1x - v2x) / edgeLength
-         * 
-         * dEdgeLength_dv1 (Vector3):
-         *     (v1 - v2) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2) = (v1 - v2) / edgeLength
-         * 
-         * ddEdgeLength_dv1x_dv1y (float):
-         *    ((v1x - v2x) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
-         *    (edgeLength * (v1x - v2x)' - (v1x - v2x) * edgeLength') / edgeLength^2
-         *    (edgeLength * 0 - (v1x - v2x) * dEdgeLength.y) / edgeLength^2
-         *    (v2x - v1x) * dEdgeLength.y / edgeLength^2
-         *
-         * ddEdgeLength_dv1y_dv1x (float):
-         *    ((v1y - v2y) / sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2))' = ((v1x - v2x) / edgeLength)'
-         *    (edgeLength * (v1y - v2y)' - (v1y - v2y) * edgeLength') / edgeLength^2
-         *    (edgeLength * 0 - (v1y - v2y) * dEdgeLength.x) / edgeLength^2
-         *    (v2y - v1y) * dEdgeLength.x / edgeLength^2 = (v2y - v1y) * (v1x - v2x) / edgeLength / edgeLength^2 = (v2y - v1y) * (v1x - v2x) / edgeLength^3
-         * 
-         * ddEdgeLength_dv1x_dv1x (float):
-         *     ((v1x - v2x) / edgeLength)'
-         *     (edgeLength * (v1x - v2x)' - (v1x - v2x) * dEdgeLength.x) / edgeLength^2
-         *     (edgeLength - (v1x - v2x) * dEdgeLength.x) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
-         *         = (edgeLength - (v1x - v2x) * dEdgeLength.x) / edgeLength^2
-         *         = (edgeLength - (v1x - v2x) * (v1x - v2x) / edgeLength) / edgeLength^2
-         *         = (edgeLength^2 - (v1x - v2x)^2) / edgeLength^3
-         * 
-         * ddEdgeLength_dv1y_dv1y (float):
-         *     ((v1y - v2y) / edgeLength)'
-         *     (edgeLength * (v1y - v2y)' - (v1y - v2y) * dEdgeLength.y) / edgeLength^2
-         *     (edgeLength - (v1y - v2y) * dEdgeLength.y) / ((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
-         *     (edgeLength - (v1y - v2y) * dEdgeLength.y) / edgeLength^2
-         *     (edgeLength - (v1y - v2y) * (v1 - v2) / edgeLength) / edgeLength^2
-         *     (edgeLength^2 - (v1y - v2y)^2) / edgeLength^3
-         * 
-         * ddEdgeLength_dv1_dv1 (symmetric 3x3 matrix, Hessian):
-         *     | ddEdgeLength_dv1x_dv1x, ddEdgeLength_dv1y_dv1x, ddEdgeLength_dv1z_dv1x |
-         *     | ddEdgeLength_dv1x_dv1y, ddEdgeLength_dv1y_dv1y, ddEdgeLength_dv1z_dv1y |
-         *     | ddEdgeLength_dv1x_dv1z, ddEdgeLength_dv1y_dv1z, ddEdgeLength_dv1z_dv1z |
-         *     =
-         *     | edgeLength^2 - (v1x - v2x)^2, (v2y - v1y) * (v1x - v2x)   , (v2z - v1z) * (v1x - v2x) |
-         *     | (v2x - v1x) * (v1y - v2y)   , edgeLength^2 - (v2y - v1y)^2, (v2z - v1z) * (v1x - v2x) | / edgeLength^3
-         *     | (v2x - v1x) * (v1z - v2z)   , (v2y - v1y) * (v1z - v2z), edgeLength^2 - (v2z - v1z)^2 |
-         * 
-         * Length energy gradient (Vector3):
-         *     (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1
-         * 
-         * Length energy Hessian (3x3 matrix):
-         *     ((2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1)'
-         *     (2 * edgeLength / undeformedEdgeLength - 2)' * dEdgeLength_dv1 + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1
-         *     2 / undeformedEdgeLength * dEdgeLength_dv1 + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1
-         *     =
-         *     | 2 / undeformedEdgeLength * dEdgeLength_dv1x + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1x |
-         *     | 2 / undeformedEdgeLength * dEdgeLength_dv1y + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1y |
-         *     | 2 / undeformedEdgeLength * dEdgeLength_dv1z + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_dv1_dv1z |
-         */
-
-        Vector3 e_v1_v2 = vertices[v2] - vertices[v1];
-        Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
-        float edgeLength = e_v1_v2.magnitude;
-        if(float.IsNaN(edgeLength)) {
-            return new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
-        }
-        float undeformedEdgeLength = undeformedEdge.magnitude;
-        Vector3 dEdgeLength_dv1 = (vertices[v1] - vertices[v2]) / edgeLength;
-
-        float edgeLengthSquare = edgeLength * edgeLength;
-        float edgeLengthCube = edgeLengthSquare * edgeLength;
-        Vector3[] ddEdgeLength_dv1_dv1 = new Vector3[] {
-            new Vector3(edgeLengthSquare - e_v1_v2.x * e_v1_v2.x,                  - e_v1_v2.y * e_v1_v2.x,                  - e_v1_v2.z * e_v1_v2.x) / edgeLengthCube,
-            new Vector3(                 - e_v1_v2.x * e_v1_v2.y, edgeLengthSquare - e_v1_v2.y * e_v1_v2.y,                  - e_v1_v2.z * e_v1_v2.y) / edgeLengthCube,
-            new Vector3(                 - e_v1_v2.x * e_v1_v2.z,                  - e_v1_v2.y * e_v1_v2.z, edgeLengthSquare - e_v1_v2.z * e_v1_v2.z) / edgeLengthCube
-        };
-
-        // Calculate length energy Hessian. This matrix is symmetrical, so transposing it has no effect.
-        Vector3 a = 2 / undeformedEdgeLength * dEdgeLength_dv1;
-        float b = 2 * edgeLength / undeformedEdgeLength - 2;
-        Vector3[] lengthEnergyHess = new Vector3[] {
-            a + b * ddEdgeLength_dv1_dv1[0],
-            a + b * ddEdgeLength_dv1_dv1[1],
-            a + b * ddEdgeLength_dv1_dv1[2]
-        };
-        return lengthEnergyHess;
-    }
-
-    /**
-     * Computes the triangle area energy gradient of vertex v1, for the triangle defined by vertices v1, v2 and v3.
-     * Note that 1/3 of the area energy is used for v1 (the other two parts will be used for v2 and v3).
-     */
-    private Vector3 getTriangleAreaEnergyGradient(Vector3[] vertices, int triangleId, int v1, int v2, int v3) {
-
-        // Get two edges, where only one is dependent on vertex v1.
-        Vector3 edge21 = vertices[v1] - vertices[v2]; // dEdge21 / dv1 = {1, 1, 1}.
-        Vector3 edge23 = vertices[v3] - vertices[v2]; // dEdge23 / dv1 = {0, 0, 0}.
-
-        // Calculate the triangle area gradient.
-        if(this.triangleAreas[triangleId] == 0f) {
-            return Vector3.zero; // Area is 0 m^2, so the gradient is 0.
-        }
-        float crossProdLength = this.triangleAreas[triangleId] * 2f;
-        Vector3 dCrossProdLength = 1f / crossProdLength * new Vector3(
-                (edge21.x * edge23.z - edge23.x * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * edge23.y,
-                (edge21.y * edge23.z - edge23.y * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * -edge23.x,
-                (edge21.y * edge23.z - edge23.y * edge21.z) * -edge23.y + (edge21.x * edge23.z - edge23.x * edge21.z) * -edge23.x);
-        //Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
-        Vector3 dTriangleArea = dCrossProdLength / 2f; // Area of triangle is half the cross product length.
-
-        // Calculate the area energy gradient.
-        Vector3 result = (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
-        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
-            print("NaN area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
-                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
-            return Vector3.zero;
-        }
-        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
-            print("Infinite area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
-                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
-            return Vector3.zero;
-        }
-        return result;
-    }
-
-    /**
      * Computes the triangle area energy gradient for the triangle defined by vertices v1, v2 and v3.
      * Returns the gradient towards {v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z}.
      */
@@ -1516,7 +1197,7 @@ public class Shell : MonoBehaviour {
      * Computes the triangle area energy Hessian of vertex v1, for the triangle defined by vertices v1, v2 and v3.
      * Note that 1/3 of the area energy is used for v1 (the other two parts will be used for v2 and v3).
      */
-    private Vector3[] getTriangleAreaEnergyHessian(Vector3[] vertices, int triangleId, int v1, int v2, int v3) {
+    private Vector3[] getTriangleAreaEnergyHessian_DEPRECATED(Vector3[] vertices, int triangleId, int v1, int v2, int v3) {
 
         /*
          * Triangle energy gradient in v1 (Vector3):
@@ -1572,89 +1253,6 @@ public class Shell : MonoBehaviour {
         return result;
         */
         return null;
-    }
-
-    /**
-     * Computes the bending energy gradient of the adjacent triangles defined by vertices v1_ and v2_.
-     * Vertices ve1 and ve2 are the vertices that define the edge that is shared between the two triangles.
-     * Edge ve1 -> ve2 belongs to vertex v1_ and edge ve2 -> ve1 belongs to vertex v2_ (this matters for the direction of the normals).
-     */
-    private Vector3 getBendingEnergyGradient(Vector3[] vertices, int triangleId1, int triangleId2,
-            int v11, int v12, int v13, int v21, int v22, int v23, int ve1, int ve2) {
-
-        // Shared edge, clockwise for triangle 1, anti-clockwise for triangle 2.
-        Vector3 e1 = vertices[ve2] - vertices[ve1];
-        Vector3 e1_undeformed = this.originalVertices[ve2] - this.originalVertices[ve1];
-
-        // Edge in triangle 1 that does not include ve1.
-        Vector3 e2 = (v11 == ve1 ? vertices[v13] - vertices[v12] : (v12 == ve1 ? vertices[v11] - vertices[v13] : vertices[v12] - vertices[v11]));
-
-        // Edge in triangle 2 that does not include ve1.
-        Vector3 e3 = (v21 == ve1 ? vertices[v23] - vertices[v22] : (v22 == ve1 ? vertices[v21] - vertices[v23] : vertices[v22] - vertices[v21]));
-
-        // Return if any of the vertices overlap. This means that no triangle normals exist.
-        if(e1.magnitude == 0f || e2.magnitude == 0f || e3.magnitude == 0f) {
-            return Vector3.zero;
-        }
-
-        // Triangle normals.
-        Vector3 n1 = this.triangleNormals_old[triangleId1];
-        Vector3 n2 = this.triangleNormals_old[triangleId2];
-
-        // Calculate d_teta_d_ve1, based on rewriting d_teta_d_x1 in paper: http://ddg.math.uni-goettingen.de/pub/bendingCAGD.pdf
-        float dot_e1_norm_e2_norm = Vector3.Dot(e1.normalized, e2.normalized);
-        float dot_e1_norm_e3_norm = Vector3.Dot(e1.normalized, e3.normalized);
-        float dot_e1_norm_e2_norm_square = dot_e1_norm_e2_norm * dot_e1_norm_e2_norm;
-        float dot_e1_norm_e3_norm_square = dot_e1_norm_e3_norm * dot_e1_norm_e3_norm;
-        Vector3 d_teta_d_ve1 = -1 / e1.magnitude * (dot_e1_norm_e2_norm / Mathf.Sqrt(1f - dot_e1_norm_e2_norm_square) * n1
-                - dot_e1_norm_e3_norm / Mathf.Sqrt(1f - dot_e1_norm_e3_norm_square) * n2);
-        if(float.IsNaN(d_teta_d_ve1.x) || float.IsNaN(d_teta_d_ve1.y) || float.IsNaN(d_teta_d_ve1.z)
-                || float.IsInfinity(d_teta_d_ve1.x) || float.IsInfinity(d_teta_d_ve1.y) || float.IsInfinity(d_teta_d_ve1.z)) {
-            return Vector3.zero; // Triangle vertices are on a single line. Gradient is 0 here.
-        }
-
-        // Angle between triangle normals.
-        Vector3 v_triangle2_unshared = (v21 == ve1 ? vertices[v23] : (v22 == ve1 ? vertices[v21] : vertices[v22]));
-        float teta_e_sign = Mathf.Sign(Vector3.Dot(n1, v_triangle2_unshared - vertices[ve1])); // 1 if teta_e positive, -1 if negative.
-        float teta_e = Mathf.Acos(Vector3.Dot(n1, n2)) * teta_e_sign;
-        if(float.IsNaN(teta_e)) {
-            teta_e = Mathf.PI; // The triangles are on top of each other, which is both 180 and -180 degrees.
-        }
-
-        // Angle between undeformed triangle normals, or 0 when assuming a flat rest state for bending.
-        float teta_e_undeformed;
-        if(!this.useFlatUndeformedBendState) {
-
-            // Undeformed triangle normals. These don't have to be using the same edges, as long as they are clockwise as well (or have a minus sign).
-            Vector3 n1_undeformed = this.undeformedTriangleNormals[triangleId1];
-            Vector3 n2_undeformed = this.undeformedTriangleNormals[triangleId2];
-
-            // Angle between undeformed triangle normals.
-            Vector3 v_triangle2_undeformed_unshared = (v21 == ve1 ? this.originalVertices[v23] : (v22 == ve1 ? this.originalVertices[v21] : this.originalVertices[v22]));
-            float teta_e_undeformed_sign = Mathf.Sign(Vector3.Dot(n1_undeformed, v_triangle2_undeformed_unshared - this.originalVertices[ve1])); // 1 if teta_e_undeformed positive, -1 if negative.
-            teta_e_undeformed = Mathf.Acos(Vector3.Dot(n1_undeformed, n2_undeformed)) * teta_e_undeformed_sign;
-        } else {
-            teta_e_undeformed = 0f;
-        }
-
-        // bending energy gradient.
-        // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
-        float h_e_undeformed = (this.undeformedTriangleAreas[triangleId1] + this.undeformedTriangleAreas[triangleId2]) / e1_undeformed.magnitude / 3f;
-        float d_W_bending_energy_edge_d_teta_e = 2f * (teta_e - teta_e_undeformed) * e1_undeformed.magnitude / h_e_undeformed;
-
-        // Return the result.
-        Vector3 result = d_W_bending_energy_edge_d_teta_e * d_teta_d_ve1;
-        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
-            print("NaN bending gradient: " + result + " d_W_bending_energy_edge_d_teta_e: " + d_W_bending_energy_edge_d_teta_e
-                    + " d_teta_d_ve1: " + d_teta_d_ve1);
-            return Vector3.zero;
-        }
-        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
-            print("Infinite bending gradient: " + result + " d_W_bending_energy_edge_d_teta_e: " + d_W_bending_energy_edge_d_teta_e
-                    + " d_teta_d_ve1: " + d_teta_d_ve1);
-            return Vector3.zero;
-        }
-        return result;
     }
 
     /**
@@ -1732,7 +1330,7 @@ public class Shell : MonoBehaviour {
     /**
      * Makes the given Hessian positive definite by adding the identity matrix to it until it is positive definite.
      */
-    private static void makeHessPositiveDefinite(Vector3[] hess) {
+    private static void makeHessPositiveDefinite_DEPRECATED(Vector3[] hess) {
         if(hess[0].x <= 0) {
             float amount = 0.01f - hess[0].x; // 0.01f to ensure a positive non-zero value.
             hess[0].x += amount;
