@@ -7,13 +7,19 @@ public class Vec3D : VecD {
     public double x { get { return this[0]; } set { this[0] = value; } }
     public double y { get { return this[1]; } set { this[1] = value; } }
     public double z { get { return this[2]; } set { this[2] = value; } }
+
+    public static Vec3D zero { get { return new Vec3D(0, 0, 0); } }
     
     public Vec3D() : base(3) {
     }
     
     public Vec3D(double x, double y, double z) : base(x, y, z) {
     }
+
     public Vec3D(Vec3D vec) : base(vec.x, vec.y, vec.z) {
+    }
+
+    public Vec3D(Vector3 vec) : base(vec.x, vec.y, vec.z) {
     }
     
     public static Vec3D operator +(Vec3D v) => v;
@@ -68,5 +74,9 @@ public class Vec3D : VecD {
         this.y /= val;
         this.z /= val;
         return this;
+    }
+
+    public static Vec3D cross(Vec3D v1, Vec3D v2) {
+        return new Vec3D(v1.y * v2.z - v2.y * v1.z, -v1.x * v2.z + v2.x * v1.z, v1.x * v2.y - v2.x * v1.y);
     }
 }

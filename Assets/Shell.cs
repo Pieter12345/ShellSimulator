@@ -36,16 +36,15 @@ public class Shell : MonoBehaviour {
 
     // Cached vertex/triangle properties.
     private Vec3D[] triangleNormals;
-    private Vector3[] triangleNormals_old;
-    private Vector3[][] dTriangleNormals_dv1;
-    private Vector3[][] dTriangleNormals_dv2;
-    private Vector3[][] dTriangleNormals_dv3;
-    private Vector3[] undeformedTriangleNormals;
-    private float[] triangleAreas;
-    private Vector3[] dTriangleAreas_dv1;
-    private Vector3[] dTriangleAreas_dv2;
-    private Vector3[] dTriangleAreas_dv3;
-    private float[] undeformedTriangleAreas;
+    private Vec3D[][] dTriangleNormals_dv1;
+    private Vec3D[][] dTriangleNormals_dv2;
+    private Vec3D[][] dTriangleNormals_dv3;
+    private Vec3D[] undeformedTriangleNormals;
+    private double[] triangleAreas;
+    private Vec3D[] dTriangleAreas_dv1;
+    private Vec3D[] dTriangleAreas_dv2;
+    private Vec3D[] dTriangleAreas_dv3;
+    private double[] undeformedTriangleAreas;
 
     void Awake() {
         QualitySettings.vSyncCount = 0; // Disable V-sync.
@@ -129,32 +128,33 @@ public class Shell : MonoBehaviour {
             this.vertexAccelerations[i] = 0;
         }
         int numTriangles = triangles.Length;
-        this.triangleNormals_old = new Vector3[numTriangles];
         this.triangleNormals = new Vec3D[numTriangles];
-        this.dTriangleNormals_dv1 = new Vector3[numTriangles][];
-        this.dTriangleNormals_dv2 = new Vector3[numTriangles][];
-        this.dTriangleNormals_dv3 = new Vector3[numTriangles][];
-        this.triangleAreas = new float[numTriangles];
-        this.dTriangleAreas_dv1 = new Vector3[numTriangles];
-        this.dTriangleAreas_dv2 = new Vector3[numTriangles];
-        this.dTriangleAreas_dv3 = new Vector3[numTriangles];
-        this.undeformedTriangleNormals = new Vector3[numTriangles];
-        this.undeformedTriangleAreas = new float[numTriangles];
+        this.dTriangleNormals_dv1 = new Vec3D[numTriangles][];
+        this.dTriangleNormals_dv2 = new Vec3D[numTriangles][];
+        this.dTriangleNormals_dv3 = new Vec3D[numTriangles][];
+        this.triangleAreas = new double[numTriangles];
+        this.dTriangleAreas_dv1 = new Vec3D[numTriangles];
+        this.dTriangleAreas_dv2 = new Vec3D[numTriangles];
+        this.dTriangleAreas_dv3 = new Vec3D[numTriangles];
+        this.undeformedTriangleNormals = new Vec3D[numTriangles];
+        this.undeformedTriangleAreas = new double[numTriangles];
         for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
             int triangleBaseIndex = triangleId * 3;
             int v1 = triangles[triangleBaseIndex];
             int v2 = triangles[triangleBaseIndex + 1];
             int v3 = triangles[triangleBaseIndex + 2];
-            Vector3 crossProd = Vector3.Cross(this.originalVertices[v2] - this.originalVertices[v1], this.originalVertices[v3] - this.originalVertices[v1]);
-            float crossProdMag = crossProd.magnitude;
+            Vec3D crossProd = Vec3D.cross(
+                    new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1]),
+                    new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1]));
+            double crossProdMag = crossProd.magnitude;
 
             // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
-            if(float.IsNaN(crossProdMag)) {
-                this.undeformedTriangleNormals[triangleId] = Vector3.zero;
-                this.undeformedTriangleAreas[triangleId] = 0f;
+            if(double.IsNaN(crossProdMag)) {
+                this.undeformedTriangleNormals[triangleId] = Vec3D.zero;
+                this.undeformedTriangleAreas[triangleId] = 0;
             } else {
                 this.undeformedTriangleNormals[triangleId] = crossProd / crossProdMag;
-                this.undeformedTriangleAreas[triangleId] = crossProdMag / 2f; // Triangle area is half of the cross product of any two of its edges.
+                this.undeformedTriangleAreas[triangleId] = crossProdMag / 2d; // Triangle area is half of the cross product of any two of its edges.
             }
         }
 
@@ -287,10 +287,9 @@ public class Shell : MonoBehaviour {
         // Get the mesh.
         Mesh mesh = this.getMesh();
         int[] triangles = mesh.triangles;
-        Vector3[] vertices = mesh.vertices;
 
         // Compute triangle normals and areas.
-        this.recalcTriangleNormalsAndAreas(triangles, vertices);
+        this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
 
         // Update the vertices using the chosen time stepping method.
         switch(this.timeSteppingMethod) {
@@ -655,39 +654,37 @@ public class Shell : MonoBehaviour {
         return this.shellObj.GetComponent<MeshFilter>().mesh;
     }
 
-    private void recalcTriangleNormalsAndAreas(int[] triangles, Vector3[] vertices) {
+    private void recalcTriangleNormalsAndAreas(int[] triangles, Vec3D[] vertices) {
         for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
             int triangleBaseIndex = triangleId * 3;
             int v1 = triangles[triangleBaseIndex];
             int v2 = triangles[triangleBaseIndex + 1];
             int v3 = triangles[triangleBaseIndex + 2];
-            Vector3 e12 = vertices[v2] - vertices[v1];
-            Vector3 e13 = vertices[v3] - vertices[v1];
-            Vector3 cross_e12_e13 = Vector3.Cross(e12, e13);
-            float crossprod_length = cross_e12_e13.magnitude; // Length is the same, regardless of which edges are used.
+            Vec3D e12 = vertices[v2] - vertices[v1];
+            Vec3D e13 = vertices[v3] - vertices[v1];
+            Vec3D cross_e12_e13 = Vec3D.cross(e12, e13);
+            double crossprod_length = cross_e12_e13.magnitude; // Length is the same, regardless of which edges are used.
 
             // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
-            if(float.IsNaN(crossprod_length)) {
+            if(double.IsNaN(crossprod_length)) {
                 print("Encountered zero-area triangle.");
 
                 // The triangle area is 0 and the triangle has infinitely many normals in a circle (two edges parallel) or sphere (all vertices on the same point).
-                this.triangleNormals_old[triangleId] = Vector3.zero;
-                this.triangleNormals[triangleId] = new Vec3D(0, 0, 0);
-                this.triangleAreas[triangleId] = 0f;
+                this.triangleNormals[triangleId] = Vec3D.zero;
+                this.triangleAreas[triangleId] = 0;
 
                 // Technically, there are infinitely many options for the normal to change, and the area will almust always grow.
                 // This simplification might introduce a small error in one timestep, but only in this exact zero-area case.
-                this.dTriangleNormals_dv1[triangleId] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
-                this.dTriangleNormals_dv2[triangleId] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
-                this.dTriangleNormals_dv3[triangleId] = new Vector3[] {Vector3.zero, Vector3.zero, Vector3.zero};
-                this.dTriangleAreas_dv1[triangleId] = Vector3.zero;
-                this.dTriangleAreas_dv2[triangleId] = Vector3.zero;
-                this.dTriangleAreas_dv3[triangleId] = Vector3.zero;
+                this.dTriangleNormals_dv1[triangleId] = new Vec3D[] {Vec3D.zero, Vec3D.zero, Vec3D.zero};
+                this.dTriangleNormals_dv2[triangleId] = new Vec3D[] {Vec3D.zero, Vec3D.zero, Vec3D.zero};
+                this.dTriangleNormals_dv3[triangleId] = new Vec3D[] {Vec3D.zero, Vec3D.zero, Vec3D.zero};
+                this.dTriangleAreas_dv1[triangleId] = Vec3D.zero;
+                this.dTriangleAreas_dv2[triangleId] = Vec3D.zero;
+                this.dTriangleAreas_dv3[triangleId] = Vec3D.zero;
                 continue;
             }
-            this.triangleNormals_old[triangleId] = cross_e12_e13 / crossprod_length;
-            this.triangleNormals[triangleId] = new Vec3D(this.triangleNormals_old[triangleId][0], this.triangleNormals_old[triangleId][1], this.triangleNormals_old[triangleId][2]);
-            this.triangleAreas[triangleId] = crossprod_length / 2f; // Triangle area is half of the cross product of any two of its edges.
+            this.triangleNormals[triangleId] = cross_e12_e13 / crossprod_length;
+            this.triangleAreas[triangleId] = crossprod_length / 2d; // Triangle area is half of the cross product of any two of its edges.
 
             /*
              * Triangle normal partial derivatives:
@@ -701,34 +698,34 @@ public class Shell : MonoBehaviour {
              * d_cross_e1_e2_d_e1y = {e2z, 0, -e2x} // Vector3.
              * d_cross_e1_e2_d_e1z = {-e2y, -e2x, 0} // Vector3.
              */
-            Vector3 d_cross_e12_e13_length_d_e12 = 1f / crossprod_length * new Vector3(
+            Vec3D d_cross_e12_e13_length_d_e12 = 1d / crossprod_length * new Vec3D(
                     (e12.x * e13.z - e13.x * e12.z) * e13.z + (e12.x * e13.y - e13.x * e12.y) * e13.y,
                     (e12.y * e13.z - e13.y * e12.z) * e13.z + (e12.x * e13.y - e13.x * e12.y) * -e13.x,
                     (e12.y * e13.z - e13.y * e12.z) * -e13.y + (e12.x * e13.z - e13.x * e12.z) * -e13.x);
-            Vector3 d_cross_e12_e13_length_d_e13 = 1f / crossprod_length * new Vector3(
+            Vec3D d_cross_e12_e13_length_d_e13 = 1f / crossprod_length * new Vec3D(
                     (e12.y * e13.z - e13.y * e12.z) * 0      + (e12.x * e13.z - e13.x * e12.z) * -e12.z + (e12.x * e13.y - e13.x * e12.y) * -e12.y,
                     (e12.y * e13.z - e13.y * e12.z) * -e12.z + (e12.x * e13.z - e13.x * e12.z) * 0      + (e12.x * e13.y - e13.x * e12.y) * e12.x,
                     (e12.y * e13.z - e13.y * e12.z) * e12.y  + (e12.x * e13.z - e13.x * e12.z) * e12.x  + (e12.x * e13.y - e13.x * e12.y) * 0);
-            Vector3 d_cross_e12_e13_d_e12x = new Vector3(0f, e13.z, e13.y);
-            Vector3 d_cross_e12_e13_d_e12y = new Vector3(e13.z, 0f, -e13.x);
-            Vector3 d_cross_e12_e13_d_e12z = new Vector3(-e13.y, -e13.x, 0f);
-            Vector3 d_cross_e12_e13_d_e13x = new Vector3(0f, -e12.z, -e12.y);
-            Vector3 d_cross_e12_e13_d_e13y = new Vector3(-e12.z, 0f, e12.x);
-            Vector3 d_cross_e12_e13_d_e13z = new Vector3(e12.y, e12.x, 0f);
-            Vector3 d_n_d_e12x = (crossprod_length * d_cross_e12_e13_d_e12x - cross_e12_e13 * d_cross_e12_e13_length_d_e12.x) / (crossprod_length * crossprod_length);
-            Vector3 d_n_d_e12y = (crossprod_length * d_cross_e12_e13_d_e12y - cross_e12_e13 * d_cross_e12_e13_length_d_e12.y) / (crossprod_length * crossprod_length);
-            Vector3 d_n_d_e12z = (crossprod_length * d_cross_e12_e13_d_e12z - cross_e12_e13 * d_cross_e12_e13_length_d_e12.z) / (crossprod_length * crossprod_length);
-            Vector3 d_n_d_e13x = (crossprod_length * d_cross_e12_e13_d_e13x - cross_e12_e13 * d_cross_e12_e13_length_d_e13.x) / (crossprod_length * crossprod_length);
-            Vector3 d_n_d_e13y = (crossprod_length * d_cross_e12_e13_d_e13y - cross_e12_e13 * d_cross_e12_e13_length_d_e13.y) / (crossprod_length * crossprod_length);
-            Vector3 d_n_d_e13z = (crossprod_length * d_cross_e12_e13_d_e13z - cross_e12_e13 * d_cross_e12_e13_length_d_e13.z) / (crossprod_length * crossprod_length);
-            Vector3[] d_n_d_e12 = new Vector3[] {d_n_d_e12x, d_n_d_e12y, d_n_d_e12z};
-            Vector3[] d_n_d_e13 = new Vector3[] {d_n_d_e13x, d_n_d_e13y, d_n_d_e13z};
-            Vector3 d_e12_d_v1 = new Vector3(-1f, -1f, -1f);
-            Vector3 d_e12_d_v2 = new Vector3(1f, 1f, 1f);
-            Vector3 d_e13_d_v3 = new Vector3(1f, 1f, 1f);
-            this.dTriangleNormals_dv1[triangleId] = new Vector3[] {d_n_d_e12[0] * d_e12_d_v1.x, d_n_d_e12[1] * d_e12_d_v1.y, d_n_d_e12[2] * d_e12_d_v1.z};
-            this.dTriangleNormals_dv2[triangleId] = new Vector3[] {d_n_d_e12[0] * d_e12_d_v2.x, d_n_d_e12[1] * d_e12_d_v2.y, d_n_d_e12[2] * d_e12_d_v2.z};
-            this.dTriangleNormals_dv3[triangleId] = new Vector3[] {d_n_d_e13[0] * d_e13_d_v3.x, d_n_d_e13[1] * d_e13_d_v3.y, d_n_d_e13[2] * d_e13_d_v3.z};
+            Vec3D d_cross_e12_e13_d_e12x = new Vec3D(0f, e13.z, e13.y);
+            Vec3D d_cross_e12_e13_d_e12y = new Vec3D(e13.z, 0f, -e13.x);
+            Vec3D d_cross_e12_e13_d_e12z = new Vec3D(-e13.y, -e13.x, 0f);
+            Vec3D d_cross_e12_e13_d_e13x = new Vec3D(0f, -e12.z, -e12.y);
+            Vec3D d_cross_e12_e13_d_e13y = new Vec3D(-e12.z, 0f, e12.x);
+            Vec3D d_cross_e12_e13_d_e13z = new Vec3D(e12.y, e12.x, 0f);
+            Vec3D d_n_d_e12x = (crossprod_length * d_cross_e12_e13_d_e12x - cross_e12_e13 * d_cross_e12_e13_length_d_e12.x) / (crossprod_length * crossprod_length);
+            Vec3D d_n_d_e12y = (crossprod_length * d_cross_e12_e13_d_e12y - cross_e12_e13 * d_cross_e12_e13_length_d_e12.y) / (crossprod_length * crossprod_length);
+            Vec3D d_n_d_e12z = (crossprod_length * d_cross_e12_e13_d_e12z - cross_e12_e13 * d_cross_e12_e13_length_d_e12.z) / (crossprod_length * crossprod_length);
+            Vec3D d_n_d_e13x = (crossprod_length * d_cross_e12_e13_d_e13x - cross_e12_e13 * d_cross_e12_e13_length_d_e13.x) / (crossprod_length * crossprod_length);
+            Vec3D d_n_d_e13y = (crossprod_length * d_cross_e12_e13_d_e13y - cross_e12_e13 * d_cross_e12_e13_length_d_e13.y) / (crossprod_length * crossprod_length);
+            Vec3D d_n_d_e13z = (crossprod_length * d_cross_e12_e13_d_e13z - cross_e12_e13 * d_cross_e12_e13_length_d_e13.z) / (crossprod_length * crossprod_length);
+            Vec3D[] d_n_d_e12 = new Vec3D[] {d_n_d_e12x, d_n_d_e12y, d_n_d_e12z};
+            Vec3D[] d_n_d_e13 = new Vec3D[] {d_n_d_e13x, d_n_d_e13y, d_n_d_e13z};
+            Vec3D d_e12_d_v1 = new Vec3D(-1f, -1f, -1f);
+            Vec3D d_e12_d_v2 = new Vec3D(1f, 1f, 1f);
+            Vec3D d_e13_d_v3 = new Vec3D(1f, 1f, 1f);
+            this.dTriangleNormals_dv1[triangleId] = new Vec3D[] {d_n_d_e12[0] * d_e12_d_v1.x, d_n_d_e12[1] * d_e12_d_v1.y, d_n_d_e12[2] * d_e12_d_v1.z};
+            this.dTriangleNormals_dv2[triangleId] = new Vec3D[] {d_n_d_e12[0] * d_e12_d_v2.x, d_n_d_e12[1] * d_e12_d_v2.y, d_n_d_e12[2] * d_e12_d_v2.z};
+            this.dTriangleNormals_dv3[triangleId] = new Vec3D[] {d_n_d_e13[0] * d_e13_d_v3.x, d_n_d_e13[1] * d_e13_d_v3.y, d_n_d_e13[2] * d_e13_d_v3.z};
 
             /*
              * Triangle area partial derivatives:
@@ -738,15 +735,15 @@ public class Shell : MonoBehaviour {
              * dTriangleArea_dv2 = {d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12y / 2f, d_cross_e12_e13_length_d_e12z / 2f} .* d_e12_d_v2
              * dTriangleArea_dv3 = {d_cross_e12_e13_length_d_e13x / 2f, d_cross_e12_e13_length_d_e13y / 2f, d_cross_e12_e13_length_d_e13z / 2f} .* d_e13_d_v3
              */
-            this.dTriangleAreas_dv1[triangleId] = new Vector3(
+            this.dTriangleAreas_dv1[triangleId] = new Vec3D(
                     d_cross_e12_e13_length_d_e12.x * d_e12_d_v1.x,
                     d_cross_e12_e13_length_d_e12.y * d_e12_d_v1.y,
                     d_cross_e12_e13_length_d_e12.z * d_e12_d_v1.z) / 2f;
-            this.dTriangleAreas_dv2[triangleId] = new Vector3(
+            this.dTriangleAreas_dv2[triangleId] = new Vec3D(
                     d_cross_e12_e13_length_d_e12.x * d_e12_d_v2.x,
                     d_cross_e12_e13_length_d_e12.y * d_e12_d_v2.y,
                     d_cross_e12_e13_length_d_e12.z * d_e12_d_v2.z) / 2f;
-            this.dTriangleAreas_dv3[triangleId] = new Vector3(
+            this.dTriangleAreas_dv3[triangleId] = new Vec3D(
                     d_cross_e12_e13_length_d_e13.x * d_e13_d_v3.x,
                     d_cross_e12_e13_length_d_e13.y * d_e13_d_v3.y,
                     d_cross_e12_e13_length_d_e13.z * d_e13_d_v3.z) / 2f;
@@ -830,7 +827,7 @@ public class Shell : MonoBehaviour {
             if(triangleNormal == null) {
                 continue; // Triangle has a zero-area and no normal, so the projected wind force is zero as well.
             }
-            float triangleArea = this.triangleAreas[triangleId];
+            double triangleArea = this.triangleAreas[triangleId];
             VecD totalTriangleWindForce = VecD.dot(new VecD(this.windPressure), triangleNormal) * triangleArea * triangleNormal;
 
             // Add a third of the total triangle wind force to each of its vertices.
@@ -845,7 +842,7 @@ public class Shell : MonoBehaviour {
     }
 
     private Vector3[][] calcVertexWindForceHessian_DEPRECATED(int[] triangles, Vector3[] vertices) {
-
+        /* TODO - Remove code if no longer useful. Might be useful for new wind Hessian implementation.
         // Initialize vertex wind force Hessian.
         Vector3[][] vertexWindForceHess = new Vector3[vertices.Length][];
         for(int i = 0; i < vertexWindForceHess.Length; i++) {
@@ -885,7 +882,7 @@ public class Shell : MonoBehaviour {
              * dTotalTriangleWindForce_dv1y = da_dv1y * triangleArea * triangleNormal + a * dTriangleArea_dv1y * triangleNormal + a * triangleArea * d_triangleNormal_dv1y
              * dTotalTriangleWindForce_dv1z = da_dv1z * triangleArea * triangleNormal + a * dTriangleArea_dv1z * triangleNormal + a * triangleArea * d_triangleNormal_dv1z
              * 
-             */
+             * /
             float a = Vector3.Dot(this.windPressure, triangleNormal);
             // TODO - Validate that dTriangleNormal_dv1[0] is dTriangleNormal_x_dv1, or otherwise use first column.
             Vector3 da_dv1 = windPressure.x * dTriangleNormal_dv1[0] + windPressure.y * dTriangleNormal_dv1[1] + windPressure.z * dTriangleNormal_dv1[2];
@@ -916,6 +913,8 @@ public class Shell : MonoBehaviour {
             }
         }
         return vertexWindForceHess;
+        */
+        return null;
     }
 
     private float getEdgeLengthEnergy_DEPRECATED(int v1, int v2) {
