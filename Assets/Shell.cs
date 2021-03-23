@@ -56,8 +56,8 @@ public class Shell : MonoBehaviour {
     void Start() {
 
         // Initialize fields. Doing this overwrites the values set in Unity's inspector.
-        this.kLength = 0f;
-        this.kArea = 10f;
+        this.kLength = 10f;
+        this.kArea = 0f;
         this.kBend = 0f;
         this.kGradientDescent = 1f;
         this.maxGradientDescentStep = 0.01f;
@@ -305,6 +305,10 @@ public class Shell : MonoBehaviour {
                 this.doImplicitIntegrationStep(deltaTime);
                 break;
             }
+            case TimeSteppingMethod.OPTIMIZATION_INTEGRATOR: {
+                this.doOptimizationIntegratorStep(deltaTime);
+                break;
+            }
         }
         
 
@@ -457,8 +461,8 @@ public class Shell : MonoBehaviour {
 
     private void doGradientDescentStep() {
         int[] triangles = this.getMesh().triangles;
-        VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
-        VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
+        VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions);
         VecD step = this.kGradientDescent * (vertexWindForce - vertexEnergyGradient);
         for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
             if(!this.verticesMovementConstraints[vertexInd]) {
@@ -635,6 +639,146 @@ public class Shell : MonoBehaviour {
     }
 
     /*
+     * Perform a simulation step based on this Optimization Integrator paper: https://www.math.ucla.edu/~jteran/papers/GSSJT15.pdf
+     */
+    private void doOptimizationIntegratorStep(double deltaTime) {
+        // TODO - Implement.
+        /*
+         * Forces:
+         *     f = -d_fi_d_x where x are the vertex coordinates.
+         *  
+         * Forces equilibrium:
+         *     h(xNew) = massMatrix * (xNew - xOld - deltaTime * vOld) / deltaTime^2 + d_fi_d_x = 0
+         *     Goal: Obtain xNew, being the new vertex coordinates.
+         * 
+         * Energy E:
+         *     E(xNew) = 1 / (2 * deltaTime^2) * transpose(xNew - xOld - deltaTime * vOld) * massMatrix * (xNew - xOld - deltaTime * vOld) + fi // double
+         *         This value will never be needed, only its gradient h(x) and its Hessian h'(x).
+         * 
+         * Energy E gradient:
+         *     Approximation: Use constant mass within one step.
+         *     d_E(x)_dx = h(x) = massMatrix * (x - xOld - deltaTime * vOld) / deltaTime^2 + d_fi_dx // VecD
+         * 
+         * Energy E Hessian:
+         *     Approximation: Use constant mass within one step.
+         *     dd_E(x)_dx_dx = d_h(x)_dx = d_(massMatrix * (x - xOld - deltaTime * vOld) / deltaTime^2 + d_fi_d_x)_dx
+         *         = massMatrix / deltaTime^2 + dd_fi_dx_dx // MatD
+         * 
+         * 
+         */
+        
+        // Declare constants.
+        double terminationThreshold = 0.5d; // TODO - Set sensible value.
+        double kappa = 0.01d; // Value as proposed by Optimization Integrator paper.
+        double maxStepMagnitude = this.vertexPositions.Length * 0.001; // TODO - Set sensible value.
+        int numVertices = this.vertexPositions.Length;
+        int[] triangles = this.getMesh().triangles;
+
+        // Perform Newton's method, setting steps until the termination criterion has been met.
+        Vec3D[] newVertexPositions = new Vec3D[this.vertexPositions.Length]; // TODO - Use pos + deltaTime * velocity as initial guess.
+        for(int i = 0; i < this.vertexPositions.Length; i++) {
+            newVertexPositions[i] = this.vertexPositions[i].clone();
+        }
+        VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
+        int maxNumIterations = 1000;
+        int iteration = 0;
+        while(true) {
+
+            // Limit amount of iterations to prevent endless loops.
+            if(++iteration > maxNumIterations) {
+                print("Maximum number of iterations reached in Optimization Integrator update: " + maxNumIterations + ". Returning without taking a step.");
+                return;
+            }
+
+            // Get system-wide energy gradient.
+            VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
+
+            // Get E gradient.
+            VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
+                    new VecD(newVertexPositions) - new VecD(this.vertexPositions) - deltaTime * this.vertexVelocities)
+                    / (deltaTime * deltaTime) + energyGradient;
+
+            // Terminate when the termination criterion has been met.
+            double eGradientMagnitude = eGradient.magnitude;
+            //print("E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold + ")");
+            if(eGradientMagnitude < terminationThreshold) {
+                break;
+            }
+
+            // Assemble system-wide energy Hessian.
+            MatD energyHess = new MatD(numVertices * 3, numVertices * 3);
+            foreach(Edge edge in this.edges) {
+
+                // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
+                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(newVertexPositions, edge.ve1, edge.ve2);
+                for(int i = 0; i < 3; i++) {
+                    for(int j = 0; j < 3; j++) {
+
+                        // ddLengthEnergy_dv1_dv1.
+                        energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
+
+                        // ddLengthEnergy_dv2_dv2.
+                        energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
+
+                        // ddLengthEnergy_dv1_dv2.
+                        energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
+
+                        // ddLengthEnergy_dv2_dv1.
+                        energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                    }
+                }
+            }
+
+            // Get E Hessian.
+            MatD eHess = energyHess;
+            double deltaTimeSquare = deltaTime * deltaTime;
+            for(int i = 0; i < eHess.numRows; i++) {
+                eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
+            }
+
+            // Compute Newton step.
+            VecD step = -eGradient; // TODO - This is gradient descent. Rewrite to step = -inverse(eHess) * eGradient.
+
+            // Ensure that the step is in downhill direction.
+            // If a < b, then the step is suitable. Otherwise try -a < b. As a last resort, fall back to gradient descent.
+            double a = VecD.dot(step, eGradient);
+            double b = -kappa * step.magnitude * eGradient.magnitude;
+            if(a >= b) {
+                if(-a < b) {
+                    step = -step;
+                } else {
+                    step = -eGradient;
+                }
+            }
+
+            // Clamp max step magnitude.
+            double stepMagnitude = step.magnitude;
+            if(stepMagnitude > maxStepMagnitude) {
+                step = step / stepMagnitude * maxStepMagnitude;
+            }
+
+            // TODO - Choose step size alpha in direction delta_x using a line search.
+            double alpha = 0.01d;
+
+            // Take step: x += alpha * step.
+            for(int i = 0; i < newVertexPositions.Length; i++) {
+                newVertexPositions[i].x += alpha * step[3 * i];
+                newVertexPositions[i].y += alpha * step[3 * i + 1];
+                newVertexPositions[i].z += alpha * step[3 * i + 2];
+            }
+        }
+        
+        // Update vertex velocity.
+        this.vertexVelocities = (new VecD(newVertexPositions) - new VecD(this.vertexPositions)) / deltaTime;
+
+        // Update vertex positions.
+        this.vertexPositions = newVertexPositions;
+
+        // Update mesh.
+        this.updateMesh();
+    }
+
+    /*
      * Updates the current mesh with the current vertices positions.
      * After setting the new vertices, the mesh normals are recalculated.
      */
@@ -804,6 +948,27 @@ public class Shell : MonoBehaviour {
 
         // Return the result.
         return vertexEnergyGradient;
+    }
+
+    /**
+     * Calculate lumped vertex mass per vertex coordinate. This will return a vector in format: {m_v1x, m_v1y, m_v1z, m_v2x, ...}.
+     * Note that m_vix = m_viy = m_viz = m_vi for any vertex i.
+     */
+    private VecD getVertexCoordinateMasses() {
+        int numVertices = this.vertexPositions.Length;
+        VecD vertexCoordinateMasses = new VecD(numVertices * 3);
+        for(int i = 0; i < numVertices; i++) {
+            double vertexArea = 0d;
+            foreach(int triangleId in this.sortedVertexTriangles[i]) {
+                vertexArea += this.triangleAreas[triangleId];
+            }
+            vertexArea /= 3d;
+            double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
+            vertexCoordinateMasses[3 * i] = mass;
+            vertexCoordinateMasses[3 * i + 1] = mass;
+            vertexCoordinateMasses[3 * i + 2] = mass;
+        }
+        return vertexCoordinateMasses;
     }
 
     /*

@@ -1,5 +1,6 @@
 ﻿public enum TimeSteppingMethod {
     GRADIENT_DESCENT,
     EXPLICIT_NEWMARK,
-    IMPLICIT
+    IMPLICIT,
+    OPTIMIZATION_INTEGRATOR
 }

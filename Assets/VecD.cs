@@ -133,11 +133,24 @@ public class VecD {
         return base.ToString() + "{" + str + "}";
     }
 
+    public VecD clone() {
+        return new VecD((double[]) this.vector.Clone());
+    }
+
     public static double dot(VecD v1, VecD v2) {
         ensureVectorsSameLength(v1, v2);
         double ret = 0;
         for(int i = 0; i < v1.length; i++) {
             ret += v1[i] * v2[i];
+        }
+        return ret;
+    }
+
+    public static VecD multiplyElementWise(VecD v1, VecD v2) {
+        ensureVectorsSameLength(v1, v2);
+        VecD ret = new VecD((double[]) v1.vector.Clone());
+        for(int i = 0; i < ret.length; i++) {
+            ret[i] *= v2[i];
         }
         return ret;
     }

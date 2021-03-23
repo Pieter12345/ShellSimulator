@@ -76,6 +76,10 @@ public class Vec3D : VecD {
         return this;
     }
 
+    public new Vec3D clone() {
+        return new Vec3D(this);
+    }
+
     public static Vec3D cross(Vec3D v1, Vec3D v2) {
         return new Vec3D(v1.y * v2.z - v2.y * v1.z, -v1.x * v2.z + v2.x * v1.z, v1.x * v2.y - v2.x * v1.y);
     }
