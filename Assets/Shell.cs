@@ -493,8 +493,8 @@ public class Shell : MonoBehaviour {
         
         // Calculate vertex energy gradient array and vertex wind force array.
         int[] triangles = this.getMesh().triangles;
-        VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
-        VecD vertexWindForce = this.calcVertexWindForce(triangles, this.vertexPositions);
+        VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions);
 
         // Perform Newmark Time Stepping (ODE integration).
         double gamma = 0.5d;
@@ -602,7 +602,7 @@ public class Shell : MonoBehaviour {
         // Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
         //VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
         // TODO - vertexForces = vertexWindForce - vertexEnergyGradient; // TODO - THIS IS ESSENTIAL TO HAVE FORCES.
-        VecD vertexEnergyGradient = this.calcVertexEnergyGradient(triangles, this.vertexPositions);
+        VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
         VecD vertexForces = -vertexEnergyGradient;
 
         /*
@@ -750,7 +750,7 @@ public class Shell : MonoBehaviour {
         }
     }
 
-    private VecD calcVertexEnergyGradient(int[] triangles, Vec3D[] vertices) {
+    private VecD getSystemEnergyGradient(int[] triangles, Vec3D[] vertices) {
 
         // Initialize vertex energy gradient array.
         VecD vertexEnergyGradient = new VecD(vertices.Length * 3);
@@ -810,7 +810,7 @@ public class Shell : MonoBehaviour {
      * Calculates the wind force acting on each vertex.
      * Returns the wind force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
      */
-    private VecD calcVertexWindForce(int[] triangles, VecD[] vertices) {
+    private VecD getVertexWindForce(int[] triangles, VecD[] vertices) {
 
         // Initialize vertex wind force array.
         VecD vertexWindForce = new VecD(vertices.Length * 3);
@@ -841,7 +841,7 @@ public class Shell : MonoBehaviour {
         return vertexWindForce;
     }
 
-    private Vector3[][] calcVertexWindForceHessian_DEPRECATED(int[] triangles, Vector3[] vertices) {
+    private Vector3[][] getVertexWindForceHessian_DEPRECATED(int[] triangles, Vector3[] vertices) {
         /* TODO - Remove code if no longer useful. Might be useful for new wind Hessian implementation.
         // Initialize vertex wind force Hessian.
         Vector3[][] vertexWindForceHess = new Vector3[vertices.Length][];
