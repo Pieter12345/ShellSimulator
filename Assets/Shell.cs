@@ -670,7 +670,7 @@ public class Shell : MonoBehaviour {
         // Declare constants.
         double terminationThreshold = 0.5d; // TODO - Set sensible value.
         double kappa = 0.01d; // Value as proposed by Optimization Integrator paper.
-        double maxStepMagnitude = this.vertexPositions.Length * 0.001; // TODO - Set sensible value.
+        double maxStepMagnitude = this.vertexPositions.Length * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
         int numVertices = this.vertexPositions.Length;
         int[] triangles = this.getMesh().triangles;
 
@@ -692,6 +692,16 @@ public class Shell : MonoBehaviour {
 
             // Get system-wide energy gradient.
             VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
+
+            // Set energy gradient to zero for constrained vertices.
+            // This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
+            for(int i = 0; i < this.verticesMovementConstraints.Length; i++) {
+                if(this.verticesMovementConstraints[i]) {
+                    energyGradient[3 * i] = 0;
+                    energyGradient[3 * i + 1] = 0;
+                    energyGradient[3 * i + 2] = 0;
+                }
+            }
 
             // Get E gradient.
             VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
