@@ -693,20 +693,26 @@ public class Shell : MonoBehaviour {
             // Get system-wide energy gradient.
             VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
 
-            // Set energy gradient to zero for constrained vertices.
+            // Get wind force.
+            VecD windForce = this.getVertexWindForce(triangles, newVertexPositions);
+
+            // Set energy gradient and wind force to zero for constrained vertices.
             // This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
             for(int i = 0; i < this.verticesMovementConstraints.Length; i++) {
                 if(this.verticesMovementConstraints[i]) {
                     energyGradient[3 * i] = 0;
                     energyGradient[3 * i + 1] = 0;
                     energyGradient[3 * i + 2] = 0;
+                    windForce[3 * i] = 0;
+                    windForce[3 * i + 1] = 0;
+                    windForce[3 * i + 2] = 0;
                 }
             }
 
             // Get E gradient.
             VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
                     new VecD(newVertexPositions) - new VecD(this.vertexPositions) - deltaTime * this.vertexVelocities)
-                    / (deltaTime * deltaTime) + energyGradient;
+                    / (deltaTime * deltaTime) + energyGradient - windForce;
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;
