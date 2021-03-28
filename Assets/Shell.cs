@@ -716,11 +716,13 @@ public class Shell : MonoBehaviour {
             }
 
             // Assemble system-wide energy Hessian.
+            // TODO - Represent this using triples instead of a full matrix.
             MatD energyHess = new MatD(numVertices * 3, numVertices * 3);
             foreach(Edge edge in this.edges) {
 
                 // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
                 MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(newVertexPositions, edge.ve1, edge.ve2);
+                // TODO - Make the length energy Hessian positive definite.
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
 
@@ -738,6 +740,34 @@ public class Shell : MonoBehaviour {
                     }
                 }
             }
+            for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId += 3) {
+                int v1 = triangles[triangleId];
+                int v2 = triangles[triangleId + 1];
+                int v3 = triangles[triangleId + 2];
+                MatD areaEnergyHess = this.getTriangleAreaEnergyHessian(newVertexPositions, triangleId, v1, v2, v3);
+                // TODO - Make the area energy Hessian positive definite.
+                for(int i = 0; i < 3; i++) {
+                    for(int j = 0; j < 3; j++) {
+
+                        // ddAreaEnergy_dvi_dvi.
+                        energyHess[v1 * 3 + i, v1 * 3 + j] = areaEnergyHess[i, j];
+                        energyHess[v2 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 3, j + 3];
+                        energyHess[v3 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 6, j + 6];
+
+                        // ddAreaEnergy_dv1_dv2 & ddAreaEnergy_dv2_dv1.
+                        energyHess[v1 * 3 + i, v2 * 3 + j] = areaEnergyHess[i, j + 3];
+                        energyHess[v2 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 3, j];
+
+                        // ddAreaEnergy_dv1_dv3 & ddAreaEnergy_dv3_dv1.
+                        energyHess[v1 * 3 + i, v3 * 3 + j] = areaEnergyHess[i, j + 6];
+                        energyHess[v3 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 6, j];
+
+                        // ddAreaEnergy_dv2_dv3 & ddAreaEnergy_dv3_dv2.
+                        energyHess[v2 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 3, j + 6];
+                        energyHess[v3 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 6, j + 3];
+                    }
+                }
+            }
 
             // Get E Hessian.
             MatD eHess = energyHess;
@@ -747,7 +777,8 @@ public class Shell : MonoBehaviour {
             }
 
             // Compute Newton step.
-            VecD step = -eGradient; // TODO - This is gradient descent. Rewrite to step = -inverse(eHess) * eGradient.
+            // TODO - Rewrite to step = -inverse(eHess) * eGradient, being equivalent to eHess * step = eGradient (use sparse direct solver).
+            VecD step = -eGradient;
 
             // Ensure that the step is in downhill direction.
             // If a < b, then the step is suitable. Otherwise try -a < b. As a last resort, fall back to gradient descent.
@@ -1365,6 +1396,84 @@ public class Shell : MonoBehaviour {
         VecD d_triangleArea_dv1v2v3 = d_crossProdLength_dv1v2v3 / 2d;
         VecD d_triangleEnergy_dv1v2v3 = (2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d) * d_triangleArea_dv1v2v3;
         return d_triangleEnergy_dv1v2v3;
+    }
+
+    /*
+     * Computes the triangle area energy Hessian for the triangle defined by vertices v1, v2 and v3.
+     * Returns the 9x9 Hessian towards all combinations of {v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z}.
+     */
+    private MatD getTriangleAreaEnergyHessian(Vec3D[] vertices, int triangleId, int v1Ind, int v2Ind, int v3Ind) {
+        // TODO - Test this implementation and protect against possible infinite/NaN cases if necessary.
+        
+        // TODO - This is a copy from the energy gradient code. Combine this in a way to prevent double calculations.
+        // Return if the area is zero.
+        if(this.triangleAreas[triangleId] == 0d) {
+            return new MatD(9, 9); // Area is 0 m^2.
+        }
+        
+        // Get triangle vertices.
+        Vec3D v1 = vertices[v1Ind];
+        Vec3D v2 = vertices[v2Ind];
+        Vec3D v3 = vertices[v3Ind];
+
+        // Compute triangle energy gradient. See thesis notes for derivation.
+        double crossProdLength = this.triangleAreas[triangleId] * 2d;
+        VecD a = new VecD(0          , v3.z - v2.z, v2.y - v3.y, 0                        , v2.z - v3.z + v1.z - v2.z, v2.y - v1.y + v3.y - v2.y, 0          , v2.z - v1.z, v1.y - v2.y);
+        VecD b = new VecD(v2.z - v3.z, 0          , v3.x - v2.x, v2.z - v1.z + v3.z - v2.z, 0                        , v2.x - v3.x + v1.x - v2.x, v1.z - v2.z, 0          , v2.x - v1.x);
+        VecD c = new VecD(v3.y - v2.y, v2.x - v3.x, 0          , v2.y - v3.y + v1.y - v2.y, v2.x - v1.x + v3.x - v2.x, 0                        , v2.y - v1.y, v1.x - v2.x, 0          );
+        double d = ((v1.y - v2.y) * (v3.z - v2.z) - (v3.y - v2.y) * (v1.z - v2.z));
+        double e = ((v2.x - v1.x) * (v3.z - v2.z) + (v3.x - v2.x) * (v1.z - v2.z));
+        double f = ((v1.x - v2.x) * (v3.y - v2.y) - (v3.x - v2.x) * (v1.y - v2.y));
+        VecD d_crossProdLength_dv1v2v3 = (d * a + e * b + f * c) / crossProdLength;
+        VecD d_triangleArea_dv1v2v3 = d_crossProdLength_dv1v2v3 / 2d;
+        //VecD d_triangleEnergy_dv1v2v3 = (2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d) * d_triangleArea_dv1v2v3;
+        // TODO - Copied gradient code ends here (See TODO above).
+
+        // Compute triangle energy Hessian.
+        // hess[i, j] = (crossProdLength * (a[i] * a[j] + d_a[j]_di * d + b[i] * b[j] + d_b[j]_di * e + c[i] * c[j] + d_c[j]_di * f) - (d * a[j] + e * b[j] + f * c[j]) * d_crossProdLength_di) / crossProdLength^2 / 2
+        MatD areaEnergyHessian = new MatD(9, 9);
+        MatD d_a_dv1v2v3 = new MatD(new double[,] {
+            {0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv1x
+			{0,  0,  0, 0,  0, -1, 0,  0,  1}, // d_a_dv1y
+			{0,  0,  0, 0,  1,  0, 0, -1,  0}, // d_a_dv1z
+			{0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv2x
+			{0,  0,  1, 0,  0,  0, 0,  0, -1}, // d_a_dv2y
+			{0, -1,  0, 0,  0,  0, 0,  1,  0}, // d_a_dv2z
+			{0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv3x
+			{0,  0, -1, 0,  0,  1, 0,  0,  0}, // d_a_dv3y
+			{0,  1,  0, 0, -1,  0, 0,  0,  0}  // d_a_dv3z
+        });
+        MatD d_b_dv1v2v3 = new MatD(new double[,] {
+            { 0, 0,  0,  0, 0,  1,  0, 0, -1}, // d_b_dv1x
+			{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv1y
+			{ 0, 0,  0, -1, 0,  0,  1, 0,  0}, // d_b_dv1z
+			{ 0, 0, -1,  0, 0,  0,  0, 0,  1}, // d_b_dv2x
+			{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv2y
+			{ 1, 0,  0,  0, 0,  0, -1, 0,  0}, // d_b_dv2z
+			{ 0, 0,  1,  0, 0, -1,  0, 0,  0}, // d_b_dv3x
+			{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv3y
+			{-1, 0,  0,  1, 0,  0,  0, 0,  0}  // d_b_dv3z
+        });
+        MatD d_c_dv1v2v3 = new MatD(new double[,] {
+            { 0,  0, 0,  0, -1, 0,  0,  1, 0}, // d_c_dv1x
+			{ 0,  0, 0,  1,  0, 0, -1,  0, 0}, // d_c_dv1y
+			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}, // d_c_dv1z
+			{ 0,  1, 0,  0,  0, 0,  0, -1, 0}, // d_c_dv2x
+			{-1,  0, 0,  0,  0, 0,  1,  0, 0}, // d_c_dv2y
+			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}, // d_c_dv2z
+			{ 0, -1, 0,  0,  1, 0,  0,  0, 0}, // d_c_dv3x
+			{ 1,  0, 0, -1,  0, 0,  0,  0, 0}, // d_c_dv3y
+			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}  // d_c_dv3z
+        });
+        for(int i = 0; i < areaEnergyHessian.numRows; i++) {
+            for(int j = 0; j < areaEnergyHessian.numColumns; j++) {
+                areaEnergyHessian[i, j] = (
+                        (a[i] * a[j] + d_a_dv1v2v3[j, i] * d + b[i] * b[j] + d_b_dv1v2v3[j, i] * e + c[i] * c[j] + d_b_dv1v2v3[j, i] * f)
+                        - (d * a[j] + e * b[j] + f * c[j]) * d_crossProdLength_dv1v2v3[i] / crossProdLength
+                        ) / crossProdLength / 2d;
+            }
+        }
+        return areaEnergyHessian;
     }
 
     /**
