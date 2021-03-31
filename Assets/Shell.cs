@@ -728,7 +728,7 @@ public class Shell : MonoBehaviour {
 
                 // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
                 MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(newVertexPositions, edge.ve1, edge.ve2);
-                // TODO - Make the length energy Hessian positive definite.
+                makeHessPositiveDefinite(lengthEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
 
@@ -751,7 +751,7 @@ public class Shell : MonoBehaviour {
                 int v2 = triangles[triangleId + 1];
                 int v3 = triangles[triangleId + 2];
                 MatD areaEnergyHess = this.getTriangleAreaEnergyHessian(newVertexPositions, triangleId, v1, v2, v3);
-                // TODO - Make the area energy Hessian positive definite.
+                makeHessPositiveDefinite(areaEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
 
@@ -1617,31 +1617,36 @@ public class Shell : MonoBehaviour {
     }
 
     /**
-     * Makes the given Hessian positive definite by adding the identity matrix to it until it is positive definite.
+     * Makes the given Hessian positive definite by adding a multiple of the identity matrix to it.
      */
-    private static void makeHessPositiveDefinite_DEPRECATED(Vector3[] hess) {
-        if(hess[0].x <= 0) {
-            float amount = 0.01f - hess[0].x; // 0.01f to ensure a positive non-zero value.
-            hess[0].x += amount;
-            hess[1].y += amount;
-            hess[2].z += amount;
+    private static void makeHessPositiveDefinite(MatD hess) {
+        if(hess.numRows != hess.numColumns) {
+            throw new Exception("Given matrix is not a square matrix.");
         }
-        float subRowOneFromTwoAmount = hess[1].x / hess[0].x;
-        float subRowOneFromThreeAmount = hess[2].x / hess[0].x;
-        float hess11 = hess[1].y - subRowOneFromTwoAmount * hess[0].y;
-        if(hess11 <= 0) {
-            float amount = 0.01f - hess11; // 0.01f to ensure a positive non-zero value.
-            hess[0].x += amount;
-            hess[1].y += amount;
-            hess[2].z += amount;
+        MatD mat = hess.Clone();
+        double diagIncrement = 0;
+        for(int i = 0; i < mat.numRows; i++) {
+
+            // Make pivot positive.
+            if(mat[i, i] <= 0) {
+                double inc = -mat[i, i];
+                if(inc == 0d) {
+                    inc = 0.0001d; // Add small delta to ensure a positive non-zero value.
+                }
+                diagIncrement += inc;
+                mat.addDiag(inc);
+            }
+
+            // Sweep lower rows.
+            for(int row = i + 1; row < mat.numRows; row++) {
+                double factor = mat[row, i] / mat[i, i];
+                for(int col = 0; col < mat.numColumns; col++) {
+                    mat[row, col] -= factor * mat[i, col];
+                }
+            }
         }
-        float subRowTwoFromThreeAmount = hess[2].y / hess[1].y;
-        float hess22 = hess[2].z - subRowOneFromThreeAmount * hess[0].z - subRowTwoFromThreeAmount * hess[1].z;
-        if(hess22 <= 0) {
-            float amount = 0.01f - hess22; // 0.01f to ensure a positive non-zero value.
-            hess[0].x += amount;
-            hess[1].y += amount;
-            hess[2].z += amount;
+        if(diagIncrement != 0d) {
+            hess.addDiag(diagIncrement);
         }
     }
 
