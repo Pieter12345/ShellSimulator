@@ -1407,68 +1407,6 @@ public class Shell : MonoBehaviour {
     }
 
     /**
-     * Computes the triangle area energy Hessian of vertex v1, for the triangle defined by vertices v1, v2 and v3.
-     * Note that 1/3 of the area energy is used for v1 (the other two parts will be used for v2 and v3).
-     */
-    private Vector3[] getTriangleAreaEnergyHessian_DEPRECATED(Vector3[] vertices, int triangleId, int v1, int v2, int v3) {
-
-        /*
-         * Triangle energy gradient in v1 (Vector3):
-         *     (2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea_dv1
-         *     = 2 * triangleArea / undeformedTriangleArea * dTriangleArea_dv1 - 2 * dTriangleArea_dv1
-         *     = 2 / undeformedTriangleArea * triangleArea * dTriangleArea_dv1 - 2 * dTriangleArea_dv1
-         * 
-         * Assumption: The triangle Hessian in v1 only depends on the gradient in v1, and not on the gradients in v2 and v3.
-         * 
-         * Triangle energy Hessian (3x3 matrix):
-         *     | ddTriangleAreaEnergy_dv1x_dv1x, ddTriangleAreaEnergy_dv1x_dv1y, ddTriangleAreaEnergy_dv1x_dv1z |
-         *     | ddTriangleAreaEnergy_dv1y_dv1x, ddTriangleAreaEnergy_dv1y_dv1y, ddTriangleAreaEnergy_dv1y_dv1z |
-         *     | ddTriangleAreaEnergy_dv1z_dv1x, ddTriangleAreaEnergy_dv1z_dv1y, ddTriangleAreaEnergy_dv1z_dv1z |
-         * 
-         * ddTriangleAreaEnergy_dv1x_dv1x = d((2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea_dv1x) / dv1x
-         *     = 2 * dTriangleArea_dv1x / undeformedTriangleArea * dTriangleArea_dv1x + (2 * triangleArea / undeformedTriangleArea - 2) * ddTriangleArea_dv1x_dv1x
-         * ddTriangleAreaEnergy_dv1x_dv1y = d((2 * triangleArea / undeformedTriangleArea - 2) * dTriangleArea_dv1x) / dv1y
-         *     = 2 * dTriangleArea_dv1y / undeformedTriangleArea * dTriangleArea_dv1x + (2 * triangleArea / undeformedTriangleArea - 2) * ddTriangleArea_dv1x_dv1y
-         * 
-         * Cache ddTriangleArea_dv1_dv1 if this is used in bending energy as well? Doesn't look like it. Or if in the caching code more variables are available already.
-         * 
-         * 
-         */
-        // TODO - Implement.
-        /*
-        // Get two edges, where only one is dependent on vertex v1.
-        Vector3 edge21 = vertices[v1] - vertices[v2]; // dEdge21 / dv1 = {1, 1, 1}.
-        Vector3 edge23 = vertices[v3] - vertices[v2]; // dEdge23 / dv1 = {0, 0, 0}.
-
-        // Calculate the triangle area gradient.
-        if(this.triangleAreas[triangleId] == 0f) {
-            return Vector3.zero; // Area is 0 m^2, so the gradient is 0.
-        }
-        float crossProdLength = this.triangleAreas[triangleId] * 2f;
-        Vector3 dCrossProdLength = 1f / crossProdLength * new Vector3(
-                (edge21.x * edge23.z - edge23.x * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * edge23.y,
-                (edge21.y * edge23.z - edge23.y * edge21.z) * edge23.z + (edge21.x * edge23.y - edge23.x * edge21.y) * -edge23.x,
-                (edge21.y * edge23.z - edge23.y * edge21.z) * -edge23.y + (edge21.x * edge23.z - edge23.x * edge21.z) * -edge23.x);
-        Vector3 dTriangleArea = dCrossProdLength / 6f; // Area of triangle is half the cross product length, and we only look at a third.
-
-        // Calculate the area energy gradient.
-        Vector3 result = (2 * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2) * dTriangleArea;
-        if(float.IsNaN(result.x) || float.IsNaN(result.y) || float.IsNaN(result.z)) {
-            print("NaN area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
-                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
-            return Vector3.zero;
-        }
-        if(float.IsInfinity(result.x) || float.IsInfinity(result.y) || float.IsInfinity(result.z)) {
-            print("Infinite area gradient: " + result + " triangleArea: " + this.triangleAreas[triangleId]
-                    + " dTriangleArea: " + dTriangleArea + " crossProdLength: " + crossProdLength);
-            return Vector3.zero;
-        }
-        return result;
-        */
-        return null;
-    }
-
-    /**
      * Computes the bending energy gradient of the given edge. This gradient is taken towards the edge-defining vertices ve1 and ve2, as well
      * as the vertices vf1 and vf2, completing triangles 1 and 2 connected to the edge respectively.
      * The return values are the bending energy gradient towards: {ve1x. ve1y, ve1z, ve2x. ve2y, ve2z, vf1x. vf1y, vf1z, vf2x. vf2y, vf2z}.
