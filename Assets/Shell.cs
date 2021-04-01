@@ -1097,7 +1097,7 @@ public class Shell : MonoBehaviour {
      * Computes the edge length energy Hessian of the edge between vertices v1 and v2, towards {v1x, v1y, v1z, v2x, v2y, v2z}.
      * The result is a 6x6 matrix containing all combinations of double partial derivatives towards {v1x, v1y, v1z, v2x, v2y, v2z}.
      */
-    private MatD getEdgeLengthEnergyHess(VecD[] vertices, int v1, int v2) {
+    private MatD getEdgeLengthEnergyHess(Vec3D[] vertices, int v1, int v2) {
         /*
          * edgeLength (float):
          *     sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
@@ -1240,7 +1240,7 @@ public class Shell : MonoBehaviour {
          */
 
         // TODO - This is a copy from the energy gradient code. Combine this in a way to prevent double calculations.
-        VecD edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+        Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
         double edgeLength = edge.magnitude;
         if(double.IsNaN(edgeLength)) {
             return new MatD(new double[,] {
