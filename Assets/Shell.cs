@@ -1053,13 +1053,13 @@ public class Shell : MonoBehaviour {
         return vertexWindForce;
     }
 
-    private float getEdgeLengthEnergy_DEPRECATED(int v1, int v2) {
-        Vector3[] vertices = this.getMesh().vertices;
-        Vector3 edge = vertices[v2] - vertices[v1]; // Vector from v1 to v2.
-        Vector3 undeformedEdge = this.originalVertices[v2] - this.originalVertices[v1];
-        float edgeLength = edge.magnitude;
-        float undeformedEdgeLength = undeformedEdge.magnitude;
-        return Mathf.Pow(1f - edgeLength / undeformedEdgeLength, 2) * undeformedEdgeLength;
+    private double getEdgeLengthEnergy_DEPRECATED(Vec3D[] vertexPositions, int v1, int v2) {
+        Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+        Vec3D undeformedEdge = new Vec3D(this.originalVertices[v2] - this.originalVertices[v1]);
+        double edgeLength = edge.magnitude;
+        double undeformedEdgeLength = undeformedEdge.magnitude;
+        double a = 1d - edgeLength / undeformedEdgeLength;
+        return a * a * undeformedEdgeLength;
     }
 
     /**
