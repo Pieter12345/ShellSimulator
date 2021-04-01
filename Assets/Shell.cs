@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -745,6 +746,35 @@ public class Shell : MonoBehaviour {
                         energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
                     }
                 }
+
+                // The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
+                if(edge.hasSideFlaps()) {
+                    MatD bendEnergyHess = this.getEdgeBendEnergyHess(newVertexPositions, edge);
+                    makeHessPositiveDefinite(bendEnergyHess);
+                    for(int i = 0; i < 3; i++) {
+                        for(int j = 0; j < 3; j++) {
+                            energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i, j];
+                            energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i, j + 3];
+                            energyHess[edge.ve1 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i, j + 6];
+                            energyHess[edge.ve1 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i, j + 9];
+                        
+                            energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i + 3, j];
+                            energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i + 3, j + 3];
+                            energyHess[edge.ve2 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i + 3, j + 6];
+                            energyHess[edge.ve2 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i + 3, j + 9];
+                        
+                            energyHess[edge.vf1 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i + 6, j];
+                            energyHess[edge.vf1 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i + 6, j + 3];
+                            energyHess[edge.vf1 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i + 6, j + 6];
+                            energyHess[edge.vf1 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i + 6, j + 9];
+                        
+                            energyHess[edge.vf2 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i + 9, j];
+                            energyHess[edge.vf2 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i + 9, j + 3];
+                            energyHess[edge.vf2 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i + 9, j + 6];
+                            energyHess[edge.vf2 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i + 9, j + 9];
+                        }
+                    }
+                }
             }
             for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId += 3) {
                 int v1 = triangles[triangleId];
@@ -962,7 +992,7 @@ public class Shell : MonoBehaviour {
 
             // Compute edge bending energy gradient.
             if(edge.hasSideFlaps() && this.kBend != 0f) {
-                VecD edgeBendEnergyGrad = this.kBend * this.getBendingEnergyGradient(vertices, edge);
+                VecD edgeBendEnergyGrad = this.kBend * this.getEdgeBendEnergyGradient(vertices, edge);
                 vertexEnergyGradient[3 * edge.ve1] += edgeBendEnergyGrad[0];
                 vertexEnergyGradient[3 * edge.ve1 + 1] += edgeBendEnergyGrad[1];
                 vertexEnergyGradient[3 * edge.ve1 + 2] += edgeBendEnergyGrad[2];
@@ -1411,7 +1441,7 @@ public class Shell : MonoBehaviour {
      * as the vertices vf1 and vf2, completing triangles 1 and 2 connected to the edge respectively.
      * The return values are the bending energy gradient towards: {ve1x. ve1y, ve1z, ve2x. ve2y, ve2z, vf1x. vf1y, vf1z, vf2x. vf2y, vf2z}.
      */
-    private VecD getBendingEnergyGradient(Vec3D[] vertices, Edge edge) {
+    private VecD getEdgeBendEnergyGradient(Vec3D[] vertices, Edge edge) {
 
         // Define required constants.
         double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude;
@@ -1476,6 +1506,203 @@ public class Shell : MonoBehaviour {
 
         // Return the bending energy gradient.
         return d_fi_d_teta * d_teta_d_ve1ve2vf1vf2;
+    }
+
+    /**
+     * Computes the bending energy Hessian of the given edge. This Hessian is taken towards the edge-defining vertices ve1 and ve2, as well
+     * as the vertices vf1 and vf2, completing triangles 1 and 2 connected to the edge respectively.
+     * The returned Hessian contains partial derivatives in rows and columns in order: {ve1x. ve1y, ve1z, ve2x. ve2y, ve2z, vf1x. vf1y, vf1z, vf2x. vf2y, vf2z}.
+     */
+    private MatD getEdgeBendEnergyHess(Vec3D[] vertices, Edge edge) {
+
+        // Define required constants.
+        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude;
+        // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
+        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
+        double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
+
+        // Get triangle normals.
+        Vec3D n1 = this.triangleNormals[edge.triangleId1];
+        Vec3D n2 = this.triangleNormals[edge.triangleId2];
+
+        // Return if at least one of the triangles has a zero area and no normal.
+        if(n1 == null || n2 == null) {
+            return new MatD(12, 12);
+        }
+        
+        // Calculate hinge angle.
+        double teta_e_sign = Mathf.Sign((float) VecD.dot(n1, vertices[edge.vf2] - vertices[edge.ve1])); // 1 if teta_e positive, -1 if negative.
+        double dot_n1_n2 = VecD.dot(n1, n2);
+        double teta_e = -Mathf.Acos((float) (dot_n1_n2 > 1d ? 1d : (dot_n1_n2 < -1d ? -1d : dot_n1_n2))) * teta_e_sign; // Limit the dot product of the normals at 1 (fix precision errors).
+
+        // TODO - Remove this check if it can't happen. Check what happens for non-existing normals though.
+        if(double.IsNaN(teta_e)) {
+            print("NaN teta_e. sign: " + teta_e_sign + ", dot(n1, n2): " + VecD.dot(n1, n2));
+            // teta_e = Mathf.PI; // The triangles are on top of each other, which is both 180 and -180 degrees.
+            return new MatD(12, 12);
+        }
+        
+        // Calculate energy derivative towards hinge angle teta.
+        double d_fi_d_teta = 2d * (teta_e - teta_e_undeformed) * undeformedEdgeLength / h_e_undeformed;
+
+        // Return if the energy gradient is zero.
+        if(d_fi_d_teta == 0d) {
+            return new MatD(12, 12);
+        }
+
+        // Define variables following paper: https://studios.disneyresearch.com/wp-content/uploads/2019/03/Discrete-Bending-Forces-and-Their-Jacobians-Paper.pdf.
+        Vec3D e0 = vertices[edge.ve2] - vertices[edge.ve1]; // Middle horizontal edge.
+        Vec3D t1_e1 = vertices[edge.vf1] - vertices[edge.ve2]; // Top right edge.
+        Vec3D t1_e2 = vertices[edge.vf1] - vertices[edge.ve1]; // Top left edge.
+        Vec3D t2_e1 = vertices[edge.vf2] - vertices[edge.ve2]; // Bottom right edge.
+        Vec3D t2_e2 = vertices[edge.vf2] - vertices[edge.ve1]; // Bottom left edge.
+
+        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2.magnitude)));
+        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1.magnitude)));
+        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2.magnitude)));
+        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1.magnitude)));
+
+        double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0.magnitude;
+        double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1.magnitude;
+        double t1_h2 = 2d * this.triangleAreas[edge.triangleId1] / t1_e2.magnitude;
+        double t2_h0 = 2d * this.triangleAreas[edge.triangleId2] / e0.magnitude;
+        double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1.magnitude;
+        double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2.magnitude;
+        
+        double t1_omega_00 = 1 / (t1_h0 * t1_h0);
+        double t1_omega_01 = 1 / (t1_h0 * t1_h1);
+        double t1_omega_02 = 1 / (t1_h0 * t1_h2);
+        double t1_omega_10 = t1_omega_01;
+        double t1_omega_11 = 1 / (t1_h1 * t1_h1);
+        double t1_omega_12 = 1 / (t1_h1 * t1_h2);
+        double t1_omega_20 = t1_omega_02;
+        double t1_omega_21 = t1_omega_12;
+        double t1_omega_22 = 1 / (t1_h2 * t1_h2);
+        double t2_omega_00 = 1 / (t2_h0 * t2_h0);
+        double t2_omega_01 = 1 / (t2_h0 * t2_h1);
+        double t2_omega_02 = 1 / (t2_h0 * t2_h2);
+        double t2_omega_10 = t2_omega_01;
+        double t2_omega_11 = 1 / (t2_h1 * t2_h1);
+        double t2_omega_12 = 1 / (t2_h1 * t2_h2);
+        double t2_omega_20 = t2_omega_02;
+        double t2_omega_21 = t2_omega_12;
+        double t2_omega_22 = 1 / (t2_h2 * t2_h2);
+        
+        Vec3D t1_e0_normal = Vec3D.cross(e0.unit, n1); // "m_0" in paper.
+        Vec3D t1_e1_normal = Vec3D.cross(t1_e1.unit, n1); // "m_1" in paper.
+        Vec3D t1_e2_normal = Vec3D.cross(t1_e2.unit, n1); // "m_2" in paper.
+        Vec3D t2_e0_normal = Vec3D.cross(e0.unit, n2); // "~m_0" in paper.
+        Vec3D t2_e1_normal = Vec3D.cross(t2_e1.unit, n2); // "~m_1" in paper.
+        Vec3D t2_e2_normal = Vec3D.cross(t2_e2.unit, n2); // "~m_2" in paper.
+
+        MatD t1_M0 = MatD.fromVecMultiplication(n1, t1_e0_normal);
+        MatD t1_M1 = MatD.fromVecMultiplication(n1, t1_e1_normal);
+        MatD t1_M2 = MatD.fromVecMultiplication(n1, t1_e2_normal);
+        MatD t2_M0 = MatD.fromVecMultiplication(n2, t2_e0_normal);
+        MatD t2_M1 = MatD.fromVecMultiplication(n2, t2_e1_normal);
+        MatD t2_M2 = MatD.fromVecMultiplication(n2, t2_e2_normal);
+        
+        MatD t1_Q0 = t1_omega_00 * t1_M0;
+        MatD t1_Q1 = t1_omega_01 * t1_M1;
+        MatD t1_Q2 = t1_omega_02 * t1_M2;
+        MatD t2_Q0 = t2_omega_00 * t2_M0;
+        MatD t2_Q1 = t2_omega_01 * t2_M1;
+        MatD t2_Q2 = t2_omega_02 * t2_M2;
+
+        double e0_magnitude = e0.magnitude;
+        MatD t1_N0 = t1_M0 / (e0_magnitude * e0_magnitude);
+        MatD t2_N0 = t2_M0 / (e0_magnitude * e0_magnitude);
+        
+        MatD t1_P10 = t1_omega_10 * Mathf.Cos(t1_alpha1) * t1_M0.transpose;
+        MatD t1_P20 = t1_omega_20 * Mathf.Cos(t1_alpha2) * t1_M0.transpose;
+        MatD t1_P12 = t1_omega_12 * Mathf.Cos(t1_alpha1) * t1_M2.transpose;
+        MatD t1_P21 = t1_omega_21 * Mathf.Cos(t1_alpha2) * t1_M1.transpose;
+        MatD t1_P11 = t1_omega_11 * Mathf.Cos(t1_alpha1) * t1_M1.transpose;
+        MatD t1_P22 = t1_omega_22 * Mathf.Cos(t1_alpha2) * t1_M2.transpose;
+        MatD t2_P10 = t2_omega_10 * Mathf.Cos(t2_alpha1) * t2_M0.transpose;
+        MatD t2_P20 = t2_omega_20 * Mathf.Cos(t2_alpha2) * t2_M0.transpose;
+        MatD t2_P12 = t2_omega_12 * Mathf.Cos(t2_alpha1) * t2_M2.transpose;
+        MatD t2_P21 = t2_omega_21 * Mathf.Cos(t2_alpha2) * t2_M1.transpose;
+        MatD t2_P11 = t2_omega_11 * Mathf.Cos(t2_alpha1) * t2_M1.transpose;
+        MatD t2_P22 = t2_omega_22 * Mathf.Cos(t2_alpha2) * t2_M2.transpose;
+
+        // Construct 3x3 building blocks for the teta Hessian.
+        MatD teta_hess_00 = -getMatPlusTransposedMat(t1_Q0);
+        MatD teta_hess_33 = -getMatPlusTransposedMat(t2_Q0);
+        MatD teta_hess_11 = getMatPlusTransposedMat(t1_P11) - t1_N0 + getMatPlusTransposedMat(t2_P11) - t2_N0;
+        MatD teta_hess_22 = getMatPlusTransposedMat(t1_P22) - t1_N0 + getMatPlusTransposedMat(t2_P22) - t2_N0;
+        MatD teta_hess_10 = getMatPlusTransposedMat(t1_P10) - t1_Q1;
+        MatD teta_hess_20 = getMatPlusTransposedMat(t1_P20) - t1_Q2;
+        MatD teta_hess_13 = getMatPlusTransposedMat(t2_P10) - t2_Q1;
+        MatD teta_hess_23 = getMatPlusTransposedMat(t2_P20) - t2_Q2;
+        MatD teta_hess_12 = t1_P12 + t1_P21.transpose + t1_N0 + t2_P12 + t2_P21.transpose + t2_N0;
+        MatD teta_hess_03 = new MatD(3, 3);
+
+        // Construct teta Hessian.
+        MatD teta_hess = new MatD(12, 12);
+        for(int row = 0; row < 3; row++) {
+            for(int col = 0; col < 3; col++) {
+
+                // Set Hessian diagonal building blocks.
+                teta_hess[row, col] = teta_hess_00[row, col];
+                teta_hess[row + 3, col + 3] = teta_hess_11[row, col];
+                teta_hess[row + 6, col + 6] = teta_hess_22[row, col];
+                teta_hess[row + 9, col + 9] = teta_hess_33[row, col];
+
+                // Set remaining symmetric non-diagonal building blocks.
+                teta_hess[row + 3, col] = teta_hess_10[row, col];
+                teta_hess[row, col + 3] = teta_hess_10[col, row];
+                
+                teta_hess[row + 6, col] = teta_hess_20[row, col];
+                teta_hess[row, col + 6] = teta_hess_20[col, row];
+                
+                teta_hess[row + 3, col + 9] = teta_hess_13[row, col];
+                teta_hess[row + 9, col + 3] = teta_hess_13[col, row];
+                
+                teta_hess[row + 6, col + 9] = teta_hess_23[row, col];
+                teta_hess[row + 9, col + 6] = teta_hess_23[col, row];
+                
+                teta_hess[row + 3, col + 6] = teta_hess_12[row, col];
+                teta_hess[row + 6, col + 3] = teta_hess_12[col, row];
+                
+                teta_hess[row, col + 9] = teta_hess_03[row, col];
+                teta_hess[row + 9, col] = teta_hess_03[col, row];
+            }
+        }
+
+        // Calculate derivatives of teta towards all 4 vertices.
+        VecD d_teta_d_ve1 = Mathf.Cos(t1_alpha2) / t1_h1 * n1 + Mathf.Cos(t2_alpha2) / t2_h1 * n2;
+        VecD d_teta_d_ve2 = Mathf.Cos(t1_alpha1) / t1_h2 * n1 + Mathf.Cos(t2_alpha1) / t2_h2 * n2;
+        VecD d_teta_d_vf1 = -n1 / t1_h0;
+        VecD d_teta_d_vf2 = -n2 / t2_h0;
+        
+        // Assemble hinge angle gradient.
+        VecD d_teta_d_ve1ve2vf1vf2 = new VecD(d_teta_d_ve1, d_teta_d_ve2, d_teta_d_vf1, d_teta_d_vf2);
+
+        //// Calculate the bending energy gradient.
+        //VecD bendEnergyGrad = d_fi_d_teta * d_teta_d_ve1ve2vf1vf2;
+
+        // Calculate bending energy Hessian.
+        /*
+         * bendEnergyHess(fi) = fi' * Hess(teta) + fi'' * grad_teta_trans * grad_teta
+         * Discrete shells bending energy: fi_i(teta_i) = ||e|| / h_e_undeformed * (teta_i - teta_e_undeformed)^2
+         * fi' = d_fi_d_teta = ||e|| / h_e_undeformed * 2 * (teta - teta_e_undeformed)
+         * fi'' = dd_fi_d_teta_d_teta = ||e|| / h_e_undeformed * 2
+         */
+        return d_fi_d_teta * teta_hess + 2d * undeformedEdgeLength / h_e_undeformed * MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2);
+    }
+
+    private static MatD getMatPlusTransposedMat(MatD mat) {
+        if(mat.numRows != mat.numColumns) {
+            throw new Exception("Given matrix is not a square matrix.");
+        }
+        MatD ret = new MatD(mat.numRows, mat.numColumns);
+        for(int row = 0; row < mat.numRows; row++) {
+            for(int col = 0; col < mat.numColumns; col++) {
+                ret[row, col] = mat[col, row] + mat[row, col];
+            }
+        }
+        return ret;
     }
 
     /**

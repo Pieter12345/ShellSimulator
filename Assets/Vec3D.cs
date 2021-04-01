@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,6 +8,15 @@ public class Vec3D : VecD {
     public double x { get { return this[0]; } set { this[0] = value; } }
     public double y { get { return this[1]; } set { this[1] = value; } }
     public double z { get { return this[2]; } set { this[2] = value; } }
+    public Vec3D unit {
+        get {
+            double magnitude = this.magnitude;
+            if(magnitude == 0d) {
+                throw new ArithmeticException("Cannot get unit vector from a zero-length vector.");
+            }
+            return this / magnitude;
+        }
+    }
 
     public static Vec3D zero { get { return new Vec3D(0, 0, 0); } }
     

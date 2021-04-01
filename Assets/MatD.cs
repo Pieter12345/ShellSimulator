@@ -6,6 +6,17 @@ public class MatD {
     
     public int numRows { get { return matrix.GetLength(0); } }
     public int numColumns { get { return matrix.GetLength(1); } }
+    public MatD transpose {
+        get {
+            MatD ret = new MatD(this.numColumns, this.numRows);
+            for(int row = 0; row < ret.numRows; row++) {
+                for(int col = 0; col < ret.numColumns; col++) {
+                    ret[row, col] = this[col, row];
+                }
+            }
+            return ret;
+        }
+    }
 
     public MatD(int rows, int columns) {
         this.matrix = new double[rows, columns];
@@ -194,5 +205,18 @@ public class MatD {
             str += ", " + this.matrix[row, i];
         }
         return str;
+    }
+
+    /*
+     * Constructs a matrix from column vector v1 multiplied with row vector v2.
+     */
+    public static MatD fromVecMultiplication(VecD v1, VecD v2) {
+        MatD mat = new MatD(v1.length, v2.length);
+        for(int row = 0; row < mat.numRows; row++) {
+            for(int col = 0; col < mat.numColumns; col++) {
+                mat[row, col] = v1[row] * v2[col];
+            }
+        }
+        return mat;
     }
 }
