@@ -154,6 +154,28 @@ public class MatD {
         }
     }
 
+    public bool containsNaN() {
+        for(int row = 0; row < this.numRows; row++) {
+            for(int col = 0; col < this.numColumns; col++) {
+                if(double.IsNaN(this[row, col])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public bool containsInf() {
+        for(int row = 0; row < this.numRows; row++) {
+            for(int col = 0; col < this.numColumns; col++) {
+                if(double.IsInfinity(this[row, col])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public MatD Clone() {
         return new MatD((double[,]) this.matrix.Clone());
     }

@@ -1629,9 +1629,9 @@ public class Shell : MonoBehaviour {
 
             // Make pivot positive.
             if(mat[i, i] <= 0) {
-                double inc = -mat[i, i];
+                double inc = -mat[i, i] * 1.0001d; // Add small delta to ensure a positive non-zero value. Multiply to prevent rounding to 0.
                 if(inc == 0d) {
-                    inc = 0.0001d; // Add small delta to ensure a positive non-zero value.
+                    inc = 0.0001d; // Set small delta to ensure a positive non-zero value.
                 }
                 diagIncrement += inc;
                 mat.addDiag(inc);
@@ -1661,7 +1661,7 @@ public class Shell : MonoBehaviour {
         alglib.sparsecreate(mat.numRows, mat.numColumns, out algMat);
         for(int row = 0; row < mat.numRows; row++) {
             for(int col = 0; col < mat.numColumns; col++) {
-                if(mat[row, col] != 0) {
+                if(mat[row, col] != 0d) {
                     alglib.sparseset(algMat, row, col, mat[row, col]);
                 }
             }
