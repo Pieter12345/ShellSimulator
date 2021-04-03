@@ -20,6 +20,7 @@ public class Shell : MonoBehaviour {
     private List<int>[] sortedVertexTriangles;
     private List<Edge> edges;
     private Vector3[] originalVertices; // Vertices in undeformed state.
+    private double undeformedEdgeLengthFactor = 1d; // Factor to multiple all undeformed edge lengths with to make artificial edge-constrained sails non-flat.
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
     private Vec3D[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
@@ -73,6 +74,7 @@ public class Shell : MonoBehaviour {
             //mesh = MeshHelper.createTriangleMesh(5, 5, 0);
             //mesh = MeshHelper.createSquareMesh(5, 5, 1);
             mesh = MeshHelper.createTriangleMesh(5, 5, 3); // 5 subdivisions leads to 561 vertices and 3072 triangles.
+            this.undeformedEdgeLengthFactor = 1.1d;
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
         }
@@ -145,8 +147,8 @@ public class Shell : MonoBehaviour {
             int v2 = triangles[triangleBaseIndex + 1];
             int v3 = triangles[triangleBaseIndex + 2];
             Vec3D crossProd = Vec3D.cross(
-                    new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1]),
-                    new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1]));
+                    (new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1])) * this.undeformedEdgeLengthFactor,
+                    (new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1])) * this.undeformedEdgeLengthFactor);
             double crossProdMag = crossProd.magnitude;
 
             // Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
@@ -1087,7 +1089,7 @@ public class Shell : MonoBehaviour {
         Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
         Vec3D undeformedEdge = new Vec3D(this.originalVertices[v2] - this.originalVertices[v1]);
         double edgeLength = edge.magnitude;
-        double undeformedEdgeLength = undeformedEdge.magnitude;
+        double undeformedEdgeLength = undeformedEdge.magnitude * this.undeformedEdgeLengthFactor;
         double a = 1d - edgeLength / undeformedEdgeLength;
         return a * a * undeformedEdgeLength;
     }
@@ -1102,7 +1104,7 @@ public class Shell : MonoBehaviour {
         if(double.IsNaN(edgeLength)) {
             return new VecD(0, 0, 0, 0, 0, 0); // Edge is zero-length, so the gradient is 0.
         }
-        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude;
+        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude * this.undeformedEdgeLengthFactor;
         Vec3D dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
         Vec3D dEdgeLength_dv2 = -dEdgeLength_dv1;
         VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
@@ -1282,7 +1284,7 @@ public class Shell : MonoBehaviour {
                 {0, 0, 0, 0, 0, 0}
             });
         }
-        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude;
+        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude * this.undeformedEdgeLengthFactor;
         VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
         VecD dEdgeLength_dv2 = -dEdgeLength_dv1;
         VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
@@ -1444,7 +1446,7 @@ public class Shell : MonoBehaviour {
     private VecD getEdgeBendEnergyGradient(Vec3D[] vertices, Edge edge) {
 
         // Define required constants.
-        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude;
+        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude * this.undeformedEdgeLengthFactor;
         // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
         double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
         double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
@@ -1516,7 +1518,7 @@ public class Shell : MonoBehaviour {
     private MatD getEdgeBendEnergyHess(Vec3D[] vertices, Edge edge) {
 
         // Define required constants.
-        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude;
+        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude * this.undeformedEdgeLengthFactor;
         // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
         double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
         double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
