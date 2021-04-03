@@ -978,6 +978,39 @@ public class Shell : MonoBehaviour {
         }
     }
 
+    private double getSystemEnergy(int[] triangles, Vec3D[] vertices) {
+
+        // Initialize system energy.
+        double systemEnergy = 0d;
+
+        // Compute edge length and bending energy.
+        foreach(Edge edge in this.edges) {
+
+            // Compute edge length energy.
+            if(this.kLength != 0f) {
+                systemEnergy += this.kLength * this.getEdgeLengthEnergy(vertices, edge.ve1, edge.ve2);
+            }
+
+            // Compute edge bending energy.
+            if(edge.hasSideFlaps() && this.kBend != 0f) {
+                systemEnergy += this.kBend * this.getEdgeBendEnergy(vertices, edge);
+            }
+        }
+
+        // Compute triangle area energy.
+        if(this.kArea != 0f) {
+            for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+                int v1 = triangles[3 * triangleId];
+                int v2 = triangles[3 * triangleId + 1];
+                int v3 = triangles[3 * triangleId + 2];
+                systemEnergy += this.kArea * this.getTriangleAreaEnergy(vertices, triangleId, v1, v2, v3);
+            }
+        }
+
+        // Return the result.
+        return systemEnergy;
+    }
+
     private VecD getSystemEnergyGradient(int[] triangles, Vec3D[] vertices) {
 
         // Initialize vertex energy gradient array.
@@ -1103,7 +1136,7 @@ public class Shell : MonoBehaviour {
         return gravityForce;
     }
 
-    private double getEdgeLengthEnergy_DEPRECATED(Vec3D[] vertexPositions, int v1, int v2) {
+    private double getEdgeLengthEnergy(Vec3D[] vertexPositions, int v1, int v2) {
         Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
         Vec3D undeformedEdge = new Vec3D(this.originalVertices[v2] - this.originalVertices[v1]);
         double edgeLength = edge.magnitude;
@@ -1348,6 +1381,22 @@ public class Shell : MonoBehaviour {
         return lengthEnergyHess;
     }
 
+    private double getTriangleAreaEnergy(Vec3D[] vertexPositions, int triangleId, int v1Ind, int v2Ind, int v3Ind) {
+        
+        // Get triangle area and undeformed triangle area.
+        double triangleArea = this.triangleAreas[triangleId];
+        double undeformedTriangleArea = this.undeformedTriangleAreas[triangleId];
+
+        // Return zero if a zero undeformed area was found.
+        if(undeformedTriangleArea == 0d) {
+            return 0d;
+        }
+
+        // Calculate triangle energy.
+        double a = 1d - triangleArea / undeformedTriangleArea;
+        return a * a * undeformedTriangleArea;
+    }
+
     /**
      * Computes the triangle area energy gradient for the triangle defined by vertices v1, v2 and v3.
      * Returns the gradient towards {v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z}.
@@ -1454,6 +1503,32 @@ public class Shell : MonoBehaviour {
             }
         }
         return areaEnergyHessian;
+    }
+
+    private double getEdgeBendEnergy(Vec3D[] vertexPositions, Edge edge) {
+
+        // Define required constants.
+        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude * this.undeformedEdgeLengthFactor;
+        // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
+        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
+        double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
+
+        // Get triangle normals.
+        Vec3D n1 = this.triangleNormals[edge.triangleId1];
+        Vec3D n2 = this.triangleNormals[edge.triangleId2];
+
+        // Return if at least one of the triangles has a zero area and no normal.
+        if(n1 == null || n2 == null) {
+            return 0d;
+        }
+        
+        // Calculate hinge angle.
+        double teta_e_sign = Mathf.Sign((float) VecD.dot(n1, vertexPositions[edge.vf2] - vertexPositions[edge.ve1])); // 1 if teta_e positive, -1 if negative.
+        double dot_n1_n2 = VecD.dot(n1, n2);
+        double teta_e = -Mathf.Acos((float) (dot_n1_n2 > 1d ? 1d : (dot_n1_n2 < -1d ? -1d : dot_n1_n2))) * teta_e_sign; // Limit the dot product of the normals at 1 (fix precision errors).
+
+        double a = teta_e - teta_e_undeformed;
+        return a * a * undeformedEdgeLength / h_e_undeformed;
     }
 
     /**
