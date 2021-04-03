@@ -35,6 +35,7 @@ public class Shell : MonoBehaviour {
     public double timeScale = 1f;
     public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
+    public double gravityConstant = 9.81d;
 
     // Cached vertex/triangle properties.
     private Vec3D[] triangleNormals;
@@ -466,7 +467,9 @@ public class Shell : MonoBehaviour {
         int[] triangles = this.getMesh().triangles;
         VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
         VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions);
-        VecD step = this.kGradientDescent * (vertexWindForce - vertexEnergyGradient);
+        VecD vertexCoordMasses = this.getVertexCoordinateMasses();
+        VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
+        VecD step = this.kGradientDescent * (vertexWindForce + gravityForce - vertexEnergyGradient);
         for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
             if(!this.verticesMovementConstraints[vertexInd]) {
                 VecD stepVec = new VecD(step[3 * vertexInd], step[3 * vertexInd + 1], step[3 * vertexInd + 2]);
@@ -699,23 +702,25 @@ public class Shell : MonoBehaviour {
             // Get wind force.
             VecD windForce = this.getVertexWindForce(triangles, newVertexPositions);
 
+            // Get gravity force.
+            VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
+
             // Set energy gradient and wind force to zero for constrained vertices.
             // This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
             for(int i = 0; i < this.verticesMovementConstraints.Length; i++) {
                 if(this.verticesMovementConstraints[i]) {
-                    energyGradient[3 * i] = 0;
-                    energyGradient[3 * i + 1] = 0;
-                    energyGradient[3 * i + 2] = 0;
-                    windForce[3 * i] = 0;
-                    windForce[3 * i + 1] = 0;
-                    windForce[3 * i + 2] = 0;
+                    for(int coord = 0; coord < 3; coord++) {
+                        energyGradient[3 * i + coord] = 0;
+                        windForce[3 * i + coord] = 0;
+                        gravityForce[3 * i + coord] = 0;
+                    }
                 }
             }
 
             // Get E gradient.
             VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
                     new VecD(newVertexPositions) - new VecD(this.vertexPositions) - deltaTime * this.vertexVelocities)
-                    / (deltaTime * deltaTime) + energyGradient - windForce;
+                    / (deltaTime * deltaTime) + energyGradient - windForce - gravityForce;
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;
@@ -1083,6 +1088,19 @@ public class Shell : MonoBehaviour {
             }
         }
         return vertexWindForce;
+    }
+
+    /*
+     * Calculates the gravity force acting on each vertex.
+     * Expects the vertex coordinate masses to be in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+     * Returns the gravity force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+     */
+    private VecD getVertexGravityForce(VecD vertexCoordMasses) {
+        VecD gravityForce = new VecD(vertexCoordMasses.length);
+        for(int yCoord = 1; yCoord < vertexCoordMasses.length; yCoord += 3) {
+            gravityForce[yCoord] = -vertexCoordMasses[yCoord] * this.gravityConstant;
+        }
+        return gravityForce;
     }
 
     private double getEdgeLengthEnergy_DEPRECATED(Vec3D[] vertexPositions, int v1, int v2) {
