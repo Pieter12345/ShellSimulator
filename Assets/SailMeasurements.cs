@@ -5,9 +5,11 @@ using UnityEngine;
 
 public class SailMeasurements {
     
+    public Vec3D[] vertexPositions { get; }
     public Vec3D[] measurements { get; }
 
-    public SailMeasurements(Vec3D[] measurements) {
+    public SailMeasurements(Vec3D[] vertexPositions, Vec3D[] measurements) {
+        this.vertexPositions = (Vec3D[]) vertexPositions.Clone();
         this.measurements = (Vec3D[]) measurements.Clone();
     }
 
@@ -21,7 +23,14 @@ public class SailMeasurements {
         FileStream fs = (File.Exists(filePath) ? File.OpenWrite(filePath) : File.Create(filePath));
         BinaryWriter writer = new BinaryWriter(fs);
 
-        writer.Write((int) this.measurements.Length);
+        writer.Write((int) this.vertexPositions.Length);
+
+        foreach(Vec3D pos in this.vertexPositions) {
+            writer.Write((double) pos.x);
+            writer.Write((double) pos.y);
+            writer.Write((double) pos.z);
+        }
+
         foreach(Vec3D pos in this.measurements) {
             if(pos != null) {
                 writer.Write(true);
@@ -41,6 +50,12 @@ public class SailMeasurements {
         BinaryReader reader = new BinaryReader(fs);
 
         int numVertices = reader.ReadInt32();
+
+        Vec3D[] vertexPositions = new Vec3D[numVertices];
+        for(int i = 0; i < numVertices; i++) {
+            vertexPositions[i] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
+        }
+
         Vec3D[] measurements = new Vec3D[numVertices];
         for(int i = 0; i < numVertices; i++) {
             if(reader.ReadBoolean()) {
@@ -49,6 +64,6 @@ public class SailMeasurements {
                 measurements[i] = null;
             }
         }
-        return new SailMeasurements(measurements);
+        return new SailMeasurements(vertexPositions, measurements);
     }
 }

@@ -1881,7 +1881,7 @@ public class Shell : MonoBehaviour {
             this.measurementsGenerateFactor = 1f;
         }
         int numMeasurements = (int) (this.vertexPositions.Length * this.measurementsGenerateFactor);
-        new SailMeasurements(MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile("measurements");
+        new SailMeasurements(this.vertexPositions, MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile("measurements");
     }
 
     public void onLoadSailMeasurementsButtonPress() {
