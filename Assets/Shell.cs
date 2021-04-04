@@ -79,37 +79,32 @@ public class Shell : MonoBehaviour {
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
         }
+
+        // Set the mesh renderer.
         MeshRenderer meshRenderer = this.shellObj.GetComponent<MeshRenderer>();
         meshRenderer.sharedMaterial = new Material(Shader.Find("Custom/StandardTwoSides"));
+
+        // Load the mesh.
+        this.loadMesh(mesh);
+
+        // Set the shell position.
+        this.shellObj.transform.position = new Vector3(0, 1, 0);
+    }
+
+    private void loadMesh(Mesh mesh) {
+        print("Loading mesh with " + mesh.vertices.Length + " vertices and " + mesh.triangles.Length + " triangles.");
+
+        // Set the mesh in the mesh filter.
         MeshFilter meshFilter = this.shellObj.GetComponent<MeshFilter>();
-        print("Mesh loaded with " + mesh.vertices.Length + " vertices and " + mesh.triangles.Length + " triangles.");
+        meshFilter.mesh = mesh;
 
         // Store undeformed vertices.
         this.originalVertices = (Vector3[]) mesh.vertices.Clone();
-
-        // Perform mesh deformation and translation (this should be replaced with some meaningful force/deformation).
-        Vector3[] verts = mesh.vertices;
-
-        //verts[0].x += 2.5f;
-        //verts[0].y += 2.5f;
-        //verts[0].z -= 5f;
-        //verts[1].y += 1f;
-        //verts[1].x += 1f;
-        //verts[1].z += 1f;
-
-        mesh.vertices = verts;
-        mesh.RecalculateNormals();
-
-        // Add the mesh to the mesh filter.
-        meshFilter.mesh = mesh;
 
         // Get mesh variables for convenience.
         int[] triangles = mesh.triangles;
         Vector3[] vertices = mesh.vertices;
         int numVertices = mesh.vertexCount;
-
-        // Set shell position.
-        this.shellObj.transform.position = new Vector3(0, 1, 0);
 
         // Create clockwise sorted triangle list per vertex.
         this.sortedVertexTriangles = MeshUtils.getSortedVertexTriangles(triangles, numVertices);
@@ -1858,5 +1853,32 @@ public class Shell : MonoBehaviour {
         alglib.linlsqrsolvesparse(solverObj, algMat, vec.asDoubleArray());
         alglib.linlsqrresults(solverObj, out x, out report);
         return new VecD(x);
+    }
+
+    public void onSaveSailShapeButtonPress() {
+        Mesh mesh = this.getMesh();
+        new SailConfiguration(this.vertexPositions, mesh.triangles).storeToFile("sail");
+    }
+
+    public void onLoadSailShapeButtonPress() {
+        SailConfiguration sailConfiguration = SailConfiguration.loadFromFile("sail");
+        Mesh mesh = this.getMesh();
+        mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
+        mesh.triangles = sailConfiguration.triangles;
+        mesh.normals = new Vector3[sailConfiguration.vertexPositions.Length];
+        mesh.RecalculateNormals();
+        this.loadMesh(mesh);
+    }
+
+    private static Vector3[] vecToVec(Vec3D[] vec) {
+        Vector3[] ret = new Vector3[vec.Length];
+        for(int i = 0; i < vec.Length; i++) {
+            ret[i] = vecToVec(vec[i]);
+        }
+        return ret;
+    }
+
+    private static Vector3 vecToVec(Vec3D vec) {
+        return new Vector3((float) vec.x, (float) vec.y, (float) vec.z);
     }
 }

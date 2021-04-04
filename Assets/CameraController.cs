@@ -12,6 +12,8 @@ public class CameraController : MonoBehaviour {
     private float minRotationX = 10f; // 0 = down.
     private float maxRotationX = 170f; // 180 = up.
 
+    private bool isLeftMouseBtnDown = false;
+
     void Update() {
 
         // Get mouse input.
@@ -38,12 +40,15 @@ public class CameraController : MonoBehaviour {
         Vector3 normalizedInputVelocity = this.getNormalizedInputVelocity();
         this.transform.Translate(normalizedInputVelocity * Time.deltaTime * this.movementSpeed);
 
-        // Handle cursor capture.
+        // Handle cursor capture. Capture on left mouse button release to allow UI buttons to function.
         if(Input.GetKeyDown(KeyCode.Escape)) {
             Cursor.lockState = CursorLockMode.None;
         }
-        if(Input.GetMouseButtonDown(0)) {
-            Cursor.lockState = CursorLockMode.Locked;
+        if(this.isLeftMouseBtnDown != Input.GetMouseButton(0)) {
+            this.isLeftMouseBtnDown = !this.isLeftMouseBtnDown;
+            if(!this.isLeftMouseBtnDown) { // On left mouse button release.
+                Cursor.lockState = CursorLockMode.Locked;
+            }
         }
     }
 
