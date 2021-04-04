@@ -49,6 +49,9 @@ public class Shell : MonoBehaviour {
     private Vec3D[] dTriangleAreas_dv3;
     private double[] undeformedTriangleAreas;
 
+    public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
+    private Vec3D[] measurements = null; // Measurements. One element for each vertex, null meaning that there is no measurement for that vertex.
+
     void Awake() {
         QualitySettings.vSyncCount = 0; // Disable V-sync.
         Application.targetFrameRate = 100; // Set max framerate.
@@ -1868,6 +1871,22 @@ public class Shell : MonoBehaviour {
         mesh.normals = new Vector3[sailConfiguration.vertexPositions.Length];
         mesh.RecalculateNormals();
         this.loadMesh(mesh);
+    }
+
+    public void onSaveSailMeasurementsButtonPress() {
+        Mesh mesh = this.getMesh();
+        if(this.measurementsGenerateFactor < 0f) {
+            this.measurementsGenerateFactor = 0f;
+        } else if(this.measurementsGenerateFactor > 1f) {
+            this.measurementsGenerateFactor = 1f;
+        }
+        int numMeasurements = (int) (this.vertexPositions.Length * this.measurementsGenerateFactor);
+        new SailMeasurements(MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile("measurements");
+    }
+
+    public void onLoadSailMeasurementsButtonPress() {
+        SailMeasurements sailMeasurements = SailMeasurements.loadFromFile("measurements");
+        this.measurements = sailMeasurements.measurements;
     }
 
     private static Vector3[] vecToVec(Vec3D[] vec) {

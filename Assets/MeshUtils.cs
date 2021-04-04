@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -127,5 +128,19 @@ public class MeshUtils {
             }
         }
         return edges;
+    }
+
+    public static Vec3D[] generateMeasurements(Vec3D[] vertexPositions, int numMeasurements) {
+        if(numMeasurements > vertexPositions.Length) {
+            throw new Exception("Cannot take more measurements than the amount of vertex positions.");
+        }
+
+        // Sample measurements following a heuristic to get a fairly good spread over the mesh while still being deterministic.
+        Vec3D[] measurements = new Vec3D[vertexPositions.Length];
+        int inc = vertexPositions.Length / numMeasurements;
+        for(int i = 0; i < vertexPositions.Length; i += inc) {
+            measurements[i] = vertexPositions[i].clone();
+        }
+        return measurements;
     }
 }
