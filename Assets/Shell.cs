@@ -674,13 +674,13 @@ public class Shell : MonoBehaviour {
         // Declare constants.
         double terminationThreshold = 0.5d; // TODO - Set sensible value.
         double kappa = 0.01d; // Value as proposed by Optimization Integrator paper.
-        double maxStepMagnitude = this.vertexPositions.Length * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
         int numVertices = this.vertexPositions.Length;
+        double maxStepMagnitude = numVertices * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
         int[] triangles = this.getMesh().triangles;
 
         // Perform Newton's method, setting steps until the termination criterion has been met.
-        Vec3D[] newVertexPositions = new Vec3D[this.vertexPositions.Length]; // TODO - Use pos + deltaTime * velocity as initial guess.
-        for(int i = 0; i < this.vertexPositions.Length; i++) {
+        Vec3D[] newVertexPositions = new Vec3D[numVertices]; // TODO - Use pos + deltaTime * velocity as initial guess.
+        for(int i = 0; i < numVertices; i++) {
             newVertexPositions[i] = this.vertexPositions[i].clone();
         }
         VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
@@ -703,14 +703,29 @@ public class Shell : MonoBehaviour {
             // Get gravity force.
             VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
-            // Set energy gradient and wind force to zero for constrained vertices.
+            // Get measurement penalty gradient.
+            // Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
+            // Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
+            double kPenalty = 1d;
+            VecD penaltyEnergyGradient = new VecD(3 * numVertices);
+            for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+                if(this.measurements[vertexInd] != null) {
+                    for(int coord = 0; coord < 3; coord++) {
+                        penaltyEnergyGradient[3 * vertexInd + coord] =
+                            kPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+                    }
+                }
+            }
+
+            // Set forces to zero for constrained vertices.
             // This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
-            for(int i = 0; i < this.verticesMovementConstraints.Length; i++) {
+            for(int i = 0; i < numVertices; i++) {
                 if(this.verticesMovementConstraints[i]) {
                     for(int coord = 0; coord < 3; coord++) {
                         energyGradient[3 * i + coord] = 0;
                         windForce[3 * i + coord] = 0;
                         gravityForce[3 * i + coord] = 0;
+                        penaltyEnergyGradient[3 * i + coord] = 0;
                     }
                 }
             }
@@ -718,7 +733,7 @@ public class Shell : MonoBehaviour {
             // Get E gradient.
             VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
                     new VecD(newVertexPositions) - new VecD(this.vertexPositions) - deltaTime * this.vertexVelocities)
-                    / (deltaTime * deltaTime) + energyGradient - windForce - gravityForce;
+                    / (deltaTime * deltaTime) + energyGradient + penaltyEnergyGradient - windForce - gravityForce;
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;

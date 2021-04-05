@@ -15,6 +15,15 @@ public class VecD {
             return Math.Sqrt(sum);
         }
     }
+    public double sum {
+        get {
+            double sum = 0;
+            for(int i = 0; i < this.vector.Length; i++) {
+                sum += this.vector[i];
+            }
+            return sum;
+        }
+    }
 
     public VecD(int size) {
         this.vector = new double[size];
