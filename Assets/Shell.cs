@@ -708,11 +708,13 @@ public class Shell : MonoBehaviour {
             // Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
             double kPenalty = 1d;
             VecD penaltyEnergyGradient = new VecD(3 * numVertices);
-            for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-                if(this.measurements[vertexInd] != null) {
-                    for(int coord = 0; coord < 3; coord++) {
-                        penaltyEnergyGradient[3 * vertexInd + coord] =
-                            kPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+            if(this.measurements != null) {
+                for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+                    if(this.measurements[vertexInd] != null) {
+                        for(int coord = 0; coord < 3; coord++) {
+                            penaltyEnergyGradient[3 * vertexInd + coord] =
+                                kPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+                        }
                     }
                 }
             }
