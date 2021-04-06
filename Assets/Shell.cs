@@ -754,8 +754,9 @@ public class Shell : MonoBehaviour {
             }
 
             // Compute Newton step.
-            // TODO - Rewrite to step = -inverse(eHess) * eGradient, being equivalent to eHess * step = eGradient (use sparse direct solver).
-            VecD step = -eGradient;
+            // step = -inverse(eHess) * eGradient === eHess * step = -eGradient
+            //VecD step = -eGradient;
+            VecD step = this.sparseDirectSolve(eHess, -eGradient);
 
             // Ensure that the step is in downhill direction.
             // If a < b, then the step is suitable. Otherwise try -a < b. As a last resort, fall back to gradient descent.
@@ -1879,6 +1880,15 @@ public class Shell : MonoBehaviour {
         alglib.linlsqrsolvesparse(solverObj, algMat, vec.asDoubleArray());
         alglib.linlsqrresults(solverObj, out x, out report);
         return new VecD(x);
+    }
+
+    /*
+     * Solves the given linear equation using a sparse direct solver.
+     * Equation: mat * x = vec
+     * Returns vector x.
+     */
+    private VecD sparseDirectSolve(MatD mat, VecD vec) {
+        return ParDiSoLib.sparseDirectSymmetricSolve(mat, vec);
     }
 
     public void onSaveSailShapeButtonPress() {
