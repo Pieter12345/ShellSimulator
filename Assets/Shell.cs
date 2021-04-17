@@ -37,6 +37,7 @@ public class Shell : MonoBehaviour {
     public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
     public double gravityConstant = 9.81d;
+    public double kPenalty = 1d;
 
     // Cached vertex/triangle properties.
     private Vec3D[] triangleNormals;
@@ -708,14 +709,13 @@ public class Shell : MonoBehaviour {
             // Get measurement penalty gradient.
             // Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
             // Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
-            double kPenalty = 1d;
             VecD penaltyEnergyGradient = new VecD(3 * numVertices);
             if(this.measurements != null) {
                 for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
                     if(this.measurements[vertexInd] != null) {
                         for(int coord = 0; coord < 3; coord++) {
                             penaltyEnergyGradient[3 * vertexInd + coord] =
-                                kPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+                                this.kPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
                         }
                     }
                 }
