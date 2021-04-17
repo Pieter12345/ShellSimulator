@@ -1831,30 +1831,113 @@ public class Shell : MonoBehaviour {
         if(hess.numRows != hess.numColumns) {
             throw new Exception("Given matrix is not a square matrix.");
         }
-        MatD mat = hess.Clone();
-        double diagIncrement = 0;
-        for(int i = 0; i < mat.numRows; i++) {
 
-            // Make pivot positive.
-            if(mat[i, i] <= 0) {
-                double inc = -mat[i, i] * 1.0001d; // Add small delta to ensure a positive non-zero value. Multiply to prevent rounding to 0.
-                if(inc == 0d) {
-                    inc = 0.0001d; // Set small delta to ensure a positive non-zero value.
-                }
-                diagIncrement += inc;
-                mat.addDiag(inc);
-            }
+        // TODO - Remove old implementation if the new implementation works properly.
+        //MatD mat = hess.Clone();
+        //double diagIncrement = 0;
+        //for(int i = 0; i < mat.numRows; i++) {
 
-            // Sweep lower rows.
-            for(int row = i + 1; row < mat.numRows; row++) {
-                double factor = mat[row, i] / mat[i, i];
-                for(int col = 0; col < mat.numColumns; col++) {
-                    mat[row, col] -= factor * mat[i, col];
-                }
+        //    // Make pivot positive.
+        //    if(mat[i, i] <= 0) {
+        //        double inc = -mat[i, i] * 1.0001d; // Add small delta to ensure a positive non-zero value. Multiply to prevent rounding to 0.
+        //        if(inc == 0d) {
+        //            inc = 0.0001d; // Set small delta to ensure a positive non-zero value.
+        //        }
+        //        diagIncrement += inc;
+        //        mat.addDiag(inc);
+        //    }
+
+        //    // Sweep lower rows.
+        //    for(int row = i + 1; row < mat.numRows; row++) {
+        //        double factor = mat[row, i] / mat[i, i];
+        //        for(int col = 0; col < mat.numColumns; col++) {
+        //            mat[row, col] -= factor * mat[i, col];
+        //        }
+        //    }
+        //}
+        //if(diagIncrement != 0d) {
+        //    hess.addDiag(diagIncrement);
+        //}
+
+        // Convert Hessian to float to prevent precision errors causing the eigen decomposition to yield invalid eigenvectors.
+        for(int row = 0; row < hess.numRows; row++) {
+            for(int col = 0; col < hess.numColumns; col++) {
+                hess[row, col] = (float) hess[row, col];
             }
         }
-        if(diagIncrement != 0d) {
-            hess.addDiag(diagIncrement);
+
+        double minEigenValue = 0.1d;
+
+        MathNet.Numerics.LinearAlgebra.Matrix<double> mat = MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(hess.asDoubleArray());
+        MathNet.Numerics.LinearAlgebra.Factorization.Evd<double> eigValDecomp = mat.Evd();
+        MathNet.Numerics.LinearAlgebra.Vector<System.Numerics.Complex> eigenValues = eigValDecomp.EigenValues;
+        MathNet.Numerics.LinearAlgebra.Matrix<double> eigenVectors = eigValDecomp.EigenVectors;
+        //print("Hess: " + hess);
+        for(int i = 0; i < eigenValues.Count; i++) {
+            //print("Eigenvalue: " + eigenValues[i]);
+            if(eigenValues[i].Imaginary != 0d) {
+                print("Imaginary eigenvalue found: " + eigenValues[i]);
+
+                // Return the identity matrix as fallback.
+                for(int row = 0; row < hess.numRows; row++) {
+                    for(int col = 0; col < hess.numColumns; col++) {
+                        mat[row, col] = (row == col ? 1d : 0d);
+                    }
+                }
+                return;
+                //throw new Exception("Imaginary eigenvalue found: " + eigenValues[i]);
+            }
+            if(eigenValues[i].Real < minEigenValue) {
+
+                // Get eigen vector.
+                VecD eigenVector = new VecD(eigenVectors.RowCount);
+                for(int j = 0; j < eigenVectors.RowCount; j++) {
+                    eigenVector[j] = eigenVectors[j, i];
+                }
+                //print("EigenValues[" + i + "]: " + eigenValues[i] + ", Eigenvec: " + eigenVector);
+
+                // Create vec * vec' matrix.
+                MatD eigVecMat = MatD.fromVecMultiplication(eigenVector, eigenVector);
+                //print("EigVecMat: " + eigVecMat);
+
+                // Add multiple of the vec * vec' matrix to the Hessian to make the corresponding eigenvalue positive.
+                double factor = -eigenValues[i].Real + minEigenValue; // Add small delta to ensure a positive non-zero value.
+                //print("Factor: " + factor);
+                //if(factor < minEigenValue) {
+                //    print("Applying rounding fix. Factor: " + factor);
+                //    factor = minEigenValue;
+                //}
+                if(factor + eigenValues[i].Real <= 0d) {
+                    print("Factor is not high enough. Rounding error? Resulting eigenvalue: " + (factor + eigenValues[i].Real));
+                }
+                hess.add(eigVecMat.mul(factor));
+
+                //mat = MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(hess.asDoubleArray());
+                //eigValDecomp = mat.Evd();
+                //eigenValues = eigValDecomp.EigenValues;
+                //eigenVectors = eigValDecomp.EigenVectors;
+            }
+        }
+        //print("Hess (after): " + hess);
+
+        // TODO - Remove test below after validating that it always succeeds.
+        mat = MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(hess.asDoubleArray());
+        eigValDecomp = mat.Evd();
+        eigenValues = eigValDecomp.EigenValues;
+        eigenVectors = eigValDecomp.EigenVectors;
+        for(int i = 0; i < eigenValues.Count; i++) {
+            if(eigenValues[i].Real <= 0d) {
+                print("Negative eigenvalue! eigenValues[" + i + "] = " + eigenValues[i] + " Matrix: " + hess);
+
+                // Return the identity matrix as fallback.
+                for(int row = 0; row < hess.numRows; row++) {
+                    for(int col = 0; col < hess.numColumns; col++) {
+                        mat[row, col] = (row == col ? 1d : 0d);
+                    }
+                }
+                return;
+                //throw new Exception("Negative eigenvalue! eigenValues[" + i + "] = " + eigenValues[i] + " Matrix: " + hess);
+            }
         }
     }
 

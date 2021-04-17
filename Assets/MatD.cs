@@ -186,6 +186,9 @@ public class MatD {
         }
         return false;
     }
+    public double[,] asDoubleArray() {
+        return (double[,]) this.matrix.Clone();
+    }
 
     public MatD Clone() {
         return new MatD((double[,]) this.matrix.Clone());
