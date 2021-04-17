@@ -38,6 +38,7 @@ public class Shell : MonoBehaviour {
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
     public double gravityConstant = 9.81d;
     public double kPenalty = 1d;
+    private double lastLineSearchAlpha = 1d;
 
     // Cached vertex/triangle properties.
     private Vec3D[] triangleNormals;
@@ -800,7 +801,8 @@ public class Shell : MonoBehaviour {
             }
 
             // Take steps with decreasing alpha until sufficient decrease has been achieved.
-            double alpha = 1d;
+            double alpha = this.lastLineSearchAlpha;
+            double bestAlpha = double.NaN;
             double c = 1d;
             Stopwatch stopWatch2 = Stopwatch.StartNew();
             while(true) {
@@ -848,18 +850,30 @@ public class Shell : MonoBehaviour {
 
                 // Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
                 if(newEGradient.magnitude <= eGradient.magnitude) {// + c * alpha * (eHess * step).sum) {
+
+                    // Alpha is suitable, but there might be a higher value of alpha that is still suitable. Increase alpha and store the current best alpha.
+                    bestAlpha = alpha;
+                    alpha *= 2;
+                } else if(!double.IsNaN(bestAlpha)) {
+
+                    // A best alpha was set, but a higher value of alpha didn't make it. Return the best value.
+                    alpha = bestAlpha;
                     print("Terminating with alpha: " + alpha);
                     break;
-                }
-                alpha /= 2d;
+                } else {
 
-                // Just take the step if alpha gets too small.
-                if(alpha <= 0.0001d) {
-                    alpha = 0.0001d;
-                    print("Alpha is getting too small. Setting alpha: " + alpha);
-                    break;
+                    // Alpha is too high to be suitable. Decrease alpha.
+                    alpha /= 2d;
+
+                    // Just take the step if alpha gets too small.
+                    if(alpha <= 0.0001d) {
+                        alpha = 0.0001d;
+                        print("Alpha is getting too small. Setting alpha: " + alpha);
+                        break;
+                    }
                 }
             }
+            this.lastLineSearchAlpha = alpha;
 
             // Take step: x += alpha * step.
             for(int i = 0; i < newVertexPositions.Length; i++) {
