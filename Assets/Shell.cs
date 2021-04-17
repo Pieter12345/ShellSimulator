@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
 
 public class Shell : MonoBehaviour {
@@ -686,11 +687,16 @@ public class Shell : MonoBehaviour {
         VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
         int maxNumIterations = 1000;
         int iteration = 0;
+        long maxTimeSpentInLoopMs = 10000;
+        Stopwatch stopWatch = Stopwatch.StartNew();
         while(true) {
 
             // Limit amount of iterations to prevent endless loops.
-            if(++iteration > maxNumIterations) {
-                print("Maximum number of iterations reached in Optimization Integrator update: " + maxNumIterations + ". Returning without taking a step.");
+            iteration++;
+            if(stopWatch.ElapsedMilliseconds > maxTimeSpentInLoopMs) {
+            //if(++iteration > maxNumIterations) {
+                //print("Maximum number of iterations reached in Optimization Integrator update: " + maxNumIterations + ". Returning without taking a step.");
+                print("Maximum time reached in Optimization Integrator update after " + iteration + " iterations. Returning without taking a step.");
                 return;
             }
 
