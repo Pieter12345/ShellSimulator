@@ -647,7 +647,6 @@ public class Shell : MonoBehaviour {
      * Perform a simulation step based on this Optimization Integrator paper: https://www.math.ucla.edu/~jteran/papers/GSSJT15.pdf
      */
     private void doOptimizationIntegratorStep(double deltaTime) {
-        // TODO - Implement.
         /*
          * Forces:
          *     f = -d_fi_d_x where x are the vertex coordinates.
@@ -668,34 +667,31 @@ public class Shell : MonoBehaviour {
          *     Approximation: Use constant mass within one step.
          *     dd_E(x)_dx_dx = d_h(x)_dx = d_(massMatrix * (x - xOld - deltaTime * vOld) / deltaTime^2 + d_fi_d_x)_dx
          *         = massMatrix / deltaTime^2 + dd_fi_dx_dx // MatD
-         * 
-         * 
          */
         
         // Declare constants.
         double terminationThreshold = 0.5d; // TODO - Set sensible value.
         double kappa = 0.01d; // Value as proposed by Optimization Integrator paper.
         int numVertices = this.vertexPositions.Length;
-        double maxStepMagnitude = numVertices * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
+        double maxStepMagnitude = 1000d; //numVertices * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
         int[] triangles = this.getMesh().triangles;
 
         // Perform Newton's method, setting steps until the termination criterion has been met.
+        VecD vertexPositionsFlat = new VecD(this.vertexPositions);
         Vec3D[] newVertexPositions = new Vec3D[numVertices]; // TODO - Use pos + deltaTime * velocity as initial guess.
         for(int i = 0; i < numVertices; i++) {
             newVertexPositions[i] = this.vertexPositions[i].clone();
         }
+        //this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions); // TODO - Call this when the initial guess changes.
         VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
-        int maxNumIterations = 1000;
         int iteration = 0;
         long maxTimeSpentInLoopMs = 10000;
         Stopwatch stopWatch = Stopwatch.StartNew();
         while(true) {
 
-            // Limit amount of iterations to prevent endless loops.
+            // Limit amount of time spent to prevent endless loops.
             iteration++;
             if(stopWatch.ElapsedMilliseconds > maxTimeSpentInLoopMs) {
-            //if(++iteration > maxNumIterations) {
-                //print("Maximum number of iterations reached in Optimization Integrator update: " + maxNumIterations + ". Returning without taking a step.");
                 print("Maximum time reached in Optimization Integrator update after " + iteration + " iterations. Returning without taking a step.");
                 return;
             }
@@ -740,7 +736,7 @@ public class Shell : MonoBehaviour {
 
             // Get E gradient.
             VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
-                    new VecD(newVertexPositions) - new VecD(this.vertexPositions) - deltaTime * this.vertexVelocities)
+                    new VecD(newVertexPositions) - vertexPositionsFlat - deltaTime * this.vertexVelocities)
                     / (deltaTime * deltaTime) + energyGradient + penaltyEnergyGradient - windForce - gravityForce;
 
             // Terminate when the termination criterion has been met.
@@ -768,6 +764,15 @@ public class Shell : MonoBehaviour {
             //VecD step = -eGradient;
             VecD step = this.sparseDirectSolve(eHess, -eGradient);
 
+            // Prevent constrained vertices from moving.
+            for(int i = 0; i < numVertices; i++) {
+                if(this.verticesMovementConstraints[i]) {
+                    for(int coord = 0; coord < 3; coord++) {
+                        step[3 * i + coord] = 0;
+                    }
+                }
+            }
+
             // Ensure that the step is in downhill direction.
             // If a < b, then the step is suitable. Otherwise try -a < b. As a last resort, fall back to gradient descent.
             double a = VecD.dot(step, eGradient);
@@ -786,8 +791,75 @@ public class Shell : MonoBehaviour {
                 step = step / stepMagnitude * maxStepMagnitude;
             }
 
-            // TODO - Choose step size alpha in direction delta_x using a line search.
-            double alpha = 0.01d;
+            // Choose step size alpha in direction delta_x using a line search.
+
+            // Define new vertex positions for the line search, starting at the current new vertex positions.
+            Vec3D[] newNewVertexPositions = new Vec3D[numVertices];
+            for(int i = 0; i < numVertices; i++) {
+                newNewVertexPositions[i] = new Vec3D();
+            }
+
+            // Take steps with decreasing alpha until sufficient decrease has been achieved.
+            double alpha = 1d;
+            double c = 1d;
+            Stopwatch stopWatch2 = Stopwatch.StartNew();
+            while(true) {
+                if(stopWatch2.ElapsedMilliseconds > 10000) {
+                    print("Spent too long in line search. Breaking with alpha = " + alpha);
+                    break;
+                }
+
+                // Take step: x += alpha * step.
+                for(int i = 0; i < newNewVertexPositions.Length; i++) {
+                    newNewVertexPositions[i].x = newVertexPositions[i].x + alpha * step[3 * i];
+                    newNewVertexPositions[i].y = newVertexPositions[i].y + alpha * step[3 * i + 1];
+                    newNewVertexPositions[i].z = newVertexPositions[i].z + alpha * step[3 * i + 2];
+                }
+
+                // Get E gradient after the step.
+                this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
+                VecD newEnergyGradient = this.getSystemEnergyGradient(triangles, newNewVertexPositions);
+                VecD newWindForce = this.getVertexWindForce(triangles, newVertexPositions);
+                VecD newGravityForce = this.getVertexGravityForce(vertexCoordMasses);
+                VecD newPenaltyEnergyGradient = new VecD(3 * numVertices);
+                if(this.measurements != null) {
+                    for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+                        if(this.measurements[vertexInd] != null) {
+                            for(int coord = 0; coord < 3; coord++) {
+                                newPenaltyEnergyGradient[3 * vertexInd + coord] =
+                                    this.kPenalty * 2d * (newNewVertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+                            }
+                        }
+                    }
+                }
+                for(int i = 0; i < numVertices; i++) {
+                    if(this.verticesMovementConstraints[i]) {
+                        for(int coord = 0; coord < 3; coord++) {
+                            newEnergyGradient[3 * i + coord] = 0;
+                            newWindForce[3 * i + coord] = 0;
+                            newGravityForce[3 * i + coord] = 0;
+                            newPenaltyEnergyGradient[3 * i + coord] = 0;
+                        }
+                    }
+                }
+                VecD newEGradient = VecD.multiplyElementWise(vertexCoordMasses,
+                        new VecD(newNewVertexPositions) - vertexPositionsFlat - deltaTime * this.vertexVelocities)
+                        / (deltaTime * deltaTime) + newEnergyGradient + newPenaltyEnergyGradient - newWindForce - newGravityForce;
+
+                // Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
+                if(newEGradient.magnitude <= eGradient.magnitude) {// + c * alpha * (eHess * step).sum) {
+                    print("Terminating with alpha: " + alpha);
+                    break;
+                }
+                alpha /= 2d;
+
+                // Just take the step if alpha gets too small.
+                if(alpha <= 0.0001d) {
+                    alpha = 0.0001d;
+                    print("Alpha is getting too small. Setting alpha: " + alpha);
+                    break;
+                }
+            }
 
             // Take step: x += alpha * step.
             for(int i = 0; i < newVertexPositions.Length; i++) {
@@ -798,7 +870,7 @@ public class Shell : MonoBehaviour {
         }
         
         // Update vertex velocity.
-        this.vertexVelocities = (new VecD(newVertexPositions) - new VecD(this.vertexPositions)) / deltaTime;
+        this.vertexVelocities = (new VecD(newVertexPositions) - vertexPositionsFlat) / deltaTime;
 
         // Update vertex positions.
         this.vertexPositions = newVertexPositions;

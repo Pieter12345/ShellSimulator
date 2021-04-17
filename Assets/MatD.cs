@@ -57,7 +57,7 @@ public class MatD {
     public static MatD operator /(MatD m, double v) => new MatD(m.numRows, m.numColumns).add(m).div(v);
 
     public MatD add(MatD m) {
-        ensureMatricesSameLength(this, m);
+        ensureMatricesSameDimensions(this, m);
         for(int i = 0; i < this.numRows; i++) {
             for(int j = 0; j < this.numColumns; j++) {
                 this.matrix[i, j] += m.matrix[i, j];
@@ -67,7 +67,7 @@ public class MatD {
     }
 
     public MatD sub(MatD m) {
-        ensureMatricesSameLength(this, m);
+        ensureMatricesSameDimensions(this, m);
         for(int i = 0; i < this.numRows; i++) {
             for(int j = 0; j < this.numColumns; j++) {
                 this.matrix[i, j] -= m.matrix[i, j];
@@ -158,7 +158,7 @@ public class MatD {
         return this;
     }
 
-    private static void ensureMatricesSameLength(MatD m1, MatD m2) {
+    private static void ensureMatricesSameDimensions(MatD m1, MatD m2) {
         if(m1.numRows != m2.numRows || m1.numColumns != m2.numColumns) {
             throw new ArithmeticException("Cannot perform binary operation on different size matrices. Dimensions:"
                 + " (" + m1.numRows + " x " + m1.numColumns + ") and (" + m2.numRows + " x " + m2.numColumns + ").");
