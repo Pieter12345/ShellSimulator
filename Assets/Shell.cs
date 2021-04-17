@@ -747,6 +747,8 @@ public class Shell : MonoBehaviour {
             double eGradientMagnitude = eGradient.magnitude;
             //print("E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold + ")");
             if(eGradientMagnitude < terminationThreshold) {
+                stopWatch.Stop();
+                print("Finished on iteration: " + iteration + " after " + stopWatch.ElapsedMilliseconds + "ms.");
                 break;
             }
 
