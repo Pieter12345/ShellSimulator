@@ -118,6 +118,16 @@ public class Shell : MonoBehaviour {
         // Cache mesh edges.
         this.edges = MeshUtils.getEdges(this.sortedVertexTriangles, triangles);
 
+        // Set undeformed edge lengths.
+        foreach(Edge edge in this.edges) {
+            edge.undeformedLength = (new VecD(this.originalVertices[edge.ve2]) - new VecD(this.originalVertices[edge.ve1])).magnitude;
+
+            // Apply undeformed edge length factor on inner edges.
+            if(edge.hasSideFlaps()) {
+                edge.undeformedLength *= this.undeformedEdgeLengthFactor;
+            }
+        }
+
         // Initialize additional vertex and triangle data.
         this.vertexPositions = new Vec3D[numVertices];
         this.verticesMovementConstraints = new bool[numVertices];
@@ -572,7 +582,7 @@ public class Shell : MonoBehaviour {
         foreach(Edge edge in this.edges) {
 
             // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-            MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge.ve1, edge.ve2);
+            MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge);
             for(int i = 0; i < 3; i++) {
                 for(int j = 0; j < 3; j++) {
 
@@ -1019,7 +1029,7 @@ public class Shell : MonoBehaviour {
 
             // Compute edge length energy.
             if(this.kLength != 0f) {
-                systemEnergy += this.kLength * this.getEdgeLengthEnergy(vertices, edge.ve1, edge.ve2);
+                systemEnergy += this.kLength * this.getEdgeLengthEnergy(vertices, edge);
             }
 
             // Compute edge bending energy.
@@ -1052,7 +1062,7 @@ public class Shell : MonoBehaviour {
 
             // Compute edge length energy gradient.
             if(this.kLength != 0f) {
-                VecD edgeLengthEnergyGrad = this.kLength * this.getEdgeLengthEnergyGradient(vertices, edge.ve1, edge.ve2);
+                VecD edgeLengthEnergyGrad = this.kLength * this.getEdgeLengthEnergyGradient(vertices, edge);
                 vertexEnergyGradient[3 * edge.ve1] += edgeLengthEnergyGrad[0];
                 vertexEnergyGradient[3 * edge.ve1 + 1] += edgeLengthEnergyGrad[1];
                 vertexEnergyGradient[3 * edge.ve1 + 2] += edgeLengthEnergyGrad[2];
@@ -1106,7 +1116,7 @@ public class Shell : MonoBehaviour {
         foreach(Edge edge in this.edges) {
 
             // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-            MatD lengthEnergyHess = this.kLength * this.getEdgeLengthEnergyHess(vertexPositions, edge.ve1, edge.ve2);
+            MatD lengthEnergyHess = this.kLength * this.getEdgeLengthEnergyHess(vertexPositions, edge);
             makeHessPositiveDefinite(lengthEnergyHess);
             for(int i = 0; i < 3; i++) {
                 for(int j = 0; j < 3; j++) {
@@ -1254,31 +1264,29 @@ public class Shell : MonoBehaviour {
         return gravityForce;
     }
 
-    private double getEdgeLengthEnergy(Vec3D[] vertexPositions, int v1, int v2) {
-        Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
-        Vec3D undeformedEdge = new Vec3D(this.originalVertices[v2] - this.originalVertices[v1]);
-        double edgeLength = edge.magnitude;
-        double undeformedEdgeLength = undeformedEdge.magnitude * this.undeformedEdgeLengthFactor;
-        double a = 1d - edgeLength / undeformedEdgeLength;
-        return a * a * undeformedEdgeLength;
+    private double getEdgeLengthEnergy(Vec3D[] vertexPositions, Edge edge) {
+        Vec3D e = vertexPositions[edge.ve2] - vertexPositions[edge.ve1]; // Vector from v1 to v2.
+        double edgeLength = e.magnitude;
+        double a = 1d - edgeLength / edge.undeformedLength;
+        return a * a * edge.undeformedLength;
     }
 
     /**
      * Computes the edge length energy gradient of the edge between vertices v1 and v2, towards {v1x, v1y, v1z, v2x, v2y, v2z}.
      * The result is a vector of length 6.
      */
-    private VecD getEdgeLengthEnergyGradient(Vec3D[] vertexPositions, int v1, int v2) {
-        Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
-        double edgeLength = edge.magnitude;
+    private VecD getEdgeLengthEnergyGradient(Vec3D[] vertexPositions, Edge edge) {
+        int v1 = edge.ve1;
+        int v2 = edge.ve2;
+        Vec3D e = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+        double edgeLength = e.magnitude;
         if(double.IsNaN(edgeLength)) {
             return new VecD(0, 0, 0, 0, 0, 0); // Edge is zero-length, so the gradient is 0.
         }
-        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude * this.undeformedEdgeLengthFactor;
         Vec3D dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
         Vec3D dEdgeLength_dv2 = -dEdgeLength_dv1;
         VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
 
-        VecD result = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1v2;
         for(int i = 0; i < result.length; i++) {
             if(double.IsNaN(result[i])) {
                 print("NaN length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
@@ -1292,13 +1300,14 @@ public class Shell : MonoBehaviour {
             }
         }
         return result;
+        VecD result = (2 * edgeLength / edge.undeformedLength - 2) * dEdgeLength_dv1v2;
     }
 
     /**
      * Computes the edge length energy Hessian of the edge between vertices v1 and v2, towards {v1x, v1y, v1z, v2x, v2y, v2z}.
      * The result is a 6x6 matrix containing all combinations of double partial derivatives towards {v1x, v1y, v1z, v2x, v2y, v2z}.
      */
-    private MatD getEdgeLengthEnergyHess(Vec3D[] vertices, int v1, int v2) {
+    private MatD getEdgeLengthEnergyHess(Vec3D[] vertices, Edge edge) {
         /*
          * edgeLength (float):
          *     sqrt((v2x - v1x)^2 + (v2y - v1y)^2 + (v2z - v1z)^2)
@@ -1441,8 +1450,10 @@ public class Shell : MonoBehaviour {
          */
 
         // TODO - This is a copy from the energy gradient code. Combine this in a way to prevent double calculations.
-        Vec3D edge = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
-        double edgeLength = edge.magnitude;
+        int v1 = edge.ve1;
+        int v2 = edge.ve2;
+        Vec3D e = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
+        double edgeLength = e.magnitude;
         if(double.IsNaN(edgeLength)) {
             return new MatD(new double[,] {
                 {0, 0, 0, 0, 0, 0},
@@ -1453,21 +1464,20 @@ public class Shell : MonoBehaviour {
                 {0, 0, 0, 0, 0, 0}
             });
         }
-        double undeformedEdgeLength = (this.originalVertices[v2] - this.originalVertices[v1]).magnitude * this.undeformedEdgeLengthFactor;
         VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
         VecD dEdgeLength_dv2 = -dEdgeLength_dv1;
         VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
 
-        VecD dEdgeEnergy_dv1v2 = (2 * edgeLength / undeformedEdgeLength - 2) * dEdgeLength_dv1v2;
+        VecD dEdgeEnergy_dv1v2 = (2 * edgeLength / edge.undeformedLength - 2) * dEdgeLength_dv1v2;
         // TODO - Copied gradient code ends here (See TODO above).
 
         // Calculate edge length Hessian.
         double edgeLengthSquare = edgeLength * edgeLength;
         double edgeLengthCube = edgeLengthSquare * edgeLength;
         MatD ddEdgeLength_dv1_dv1 = new MatD(new double[,] {
-            {edgeLengthSquare - edge[0] * edge[0],                  - edge[1] * edge[0],                  - edge[2] * edge[0]},
-            {                 - edge[0] * edge[1], edgeLengthSquare - edge[1] * edge[1],                  - edge[2] * edge[1]},
-            {                 - edge[0] * edge[2],                  - edge[1] * edge[2], edgeLengthSquare - edge[2] * edge[2]}
+            {edgeLengthSquare - e[0] * e[0],                  - e[1] * e[0],                  - e[2] * e[0]},
+            {                 - e[0] * e[1], edgeLengthSquare - e[1] * e[1],                  - e[2] * e[1]},
+            {                 - e[0] * e[2],                  - e[1] * e[2], edgeLengthSquare - e[2] * e[2]}
         }) / edgeLengthCube;
         
         MatD ddEdgeLength_dv1_dv2 = ddEdgeLength_dv1_dv1.Clone();
@@ -1490,10 +1500,10 @@ public class Shell : MonoBehaviour {
         // Calculate length energy Hessian.
         // ddLengthEnergy_di_dj = 2 / undeformedEdgeLength * dEdgeLength_dj * dEdgeLength_di + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_di_dj
         MatD lengthEnergyHess = new MatD(6, 6);
-        double a = (2 * edgeLength / undeformedEdgeLength - 2);
+        double a = (2 * edgeLength / edge.undeformedLength - 2);
         for(int i = 0; i < 6; i++) {
             for(int j = 0; j < 6; j++) {
-                lengthEnergyHess[i, j] = 2 / undeformedEdgeLength * dEdgeLength_dv1v2[i] * dEdgeLength_dv1v2[j] + a * edgeLengthHess[i, j];
+                lengthEnergyHess[i, j] = 2 / edge.undeformedLength * dEdgeLength_dv1v2[i] * dEdgeLength_dv1v2[j] + a * edgeLengthHess[i, j];
             }
         }
         return lengthEnergyHess;
@@ -1626,9 +1636,8 @@ public class Shell : MonoBehaviour {
     private double getEdgeBendEnergy(Vec3D[] vertexPositions, Edge edge) {
 
         // Define required constants.
-        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude * this.undeformedEdgeLengthFactor;
         // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
-        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
+        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / edge.undeformedLength / 3d;
         double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
 
         // Get triangle normals.
@@ -1646,7 +1655,7 @@ public class Shell : MonoBehaviour {
         double teta_e = -Mathf.Acos((float) (dot_n1_n2 > 1d ? 1d : (dot_n1_n2 < -1d ? -1d : dot_n1_n2))) * teta_e_sign; // Limit the dot product of the normals at 1 (fix precision errors).
 
         double a = teta_e - teta_e_undeformed;
-        return a * a * undeformedEdgeLength / h_e_undeformed;
+        return a * a * edge.undeformedLength / h_e_undeformed;
     }
 
     /**
@@ -1657,9 +1666,8 @@ public class Shell : MonoBehaviour {
     private VecD getEdgeBendEnergyGradient(Vec3D[] vertices, Edge edge) {
 
         // Define required constants.
-        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude * this.undeformedEdgeLengthFactor;
         // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
-        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
+        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / edge.undeformedLength / 3d;
         double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
 
         // Get triangle normals.
@@ -1684,7 +1692,7 @@ public class Shell : MonoBehaviour {
         }
         
         // Calculate energy derivative towards hinge angle teta.
-        double d_fi_d_teta = 2d * (teta_e - teta_e_undeformed) * undeformedEdgeLength / h_e_undeformed;
+        double d_fi_d_teta = 2d * (teta_e - teta_e_undeformed) * edge.undeformedLength / h_e_undeformed;
 
         // Return if the energy gradient is zero.
         if(d_fi_d_teta == 0d) {
@@ -1729,9 +1737,8 @@ public class Shell : MonoBehaviour {
     private MatD getEdgeBendEnergyHess(Vec3D[] vertices, Edge edge) {
 
         // Define required constants.
-        double undeformedEdgeLength = (this.originalVertices[edge.ve2] - this.originalVertices[edge.ve1]).magnitude * this.undeformedEdgeLengthFactor;
         // h_e_undeformed is a third of the average triangle height, where the height is twice the triangle area divided by the triangle width.
-        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / undeformedEdgeLength / 3d;
+        double h_e_undeformed = (this.undeformedTriangleAreas[edge.triangleId1] + this.undeformedTriangleAreas[edge.triangleId2]) / edge.undeformedLength / 3d;
         double teta_e_undeformed = 0; // TODO - Add option to use a non-flat rest state depending on the useFlatUndeformedBendState field.
 
         // Get triangle normals.
@@ -1756,7 +1763,7 @@ public class Shell : MonoBehaviour {
         }
         
         // Calculate energy derivative towards hinge angle teta.
-        double d_fi_d_teta = 2d * (teta_e - teta_e_undeformed) * undeformedEdgeLength / h_e_undeformed;
+        double d_fi_d_teta = 2d * (teta_e - teta_e_undeformed) * edge.undeformedLength / h_e_undeformed;
 
         // Return if the energy gradient is zero.
         if(d_fi_d_teta == 0d) {
@@ -1902,7 +1909,7 @@ public class Shell : MonoBehaviour {
          * fi' = d_fi_d_teta = ||e|| / h_e_undeformed * 2 * (teta - teta_e_undeformed)
          * fi'' = dd_fi_d_teta_d_teta = ||e|| / h_e_undeformed * 2
          */
-        return d_fi_d_teta * teta_hess + 2d * undeformedEdgeLength / h_e_undeformed * MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2);
+        return d_fi_d_teta * teta_hess + 2d * edge.undeformedLength / h_e_undeformed * MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2);
     }
 
     private static MatD getMatPlusTransposedMat(MatD mat) {
