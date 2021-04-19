@@ -742,7 +742,6 @@ public class Shell : MonoBehaviour {
             double eGradientMagnitude = eGradient.magnitude;
             //print("E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold + ")");
             if(eGradientMagnitude < terminationThreshold) {
-                stopWatch.Stop();
                 print("Finished on iteration: " + iteration + " after " + stopWatch.ElapsedMilliseconds + "ms.");
                 break;
             }
@@ -802,9 +801,9 @@ public class Shell : MonoBehaviour {
             double alpha = this.lastLineSearchAlpha;
             double bestAlpha = double.NaN;
             double c = 1d;
-            Stopwatch stopWatch2 = Stopwatch.StartNew();
+            long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
             while(true) {
-                if(stopWatch2.ElapsedMilliseconds > 10000) {
+                if(stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime > 10000) {
                     print("Spent too long in line search. Breaking with alpha = " + alpha);
                     break;
                 }
@@ -856,7 +855,7 @@ public class Shell : MonoBehaviour {
 
                     // A best alpha was set, but a higher value of alpha didn't make it. Return the best value.
                     alpha = bestAlpha;
-                    print("Terminating with alpha: " + alpha);
+                    print("Terminating with alpha: " + alpha + " after " + (stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime) + "ms.");
                     break;
                 } else {
 
