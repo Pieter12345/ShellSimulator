@@ -42,14 +42,8 @@ public class Shell : MonoBehaviour {
 
     // Cached vertex/triangle properties.
     private Vec3D[] triangleNormals;
-    private Vec3D[][] dTriangleNormals_dv1;
-    private Vec3D[][] dTriangleNormals_dv2;
-    private Vec3D[][] dTriangleNormals_dv3;
     private Vec3D[] undeformedTriangleNormals;
     private double[] triangleAreas;
-    private Vec3D[] dTriangleAreas_dv1;
-    private Vec3D[] dTriangleAreas_dv2;
-    private Vec3D[] dTriangleAreas_dv3;
     private double[] undeformedTriangleAreas;
 
     public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
@@ -144,13 +138,7 @@ public class Shell : MonoBehaviour {
         }
         int numTriangles = triangles.Length;
         this.triangleNormals = new Vec3D[numTriangles];
-        this.dTriangleNormals_dv1 = new Vec3D[numTriangles][];
-        this.dTriangleNormals_dv2 = new Vec3D[numTriangles][];
-        this.dTriangleNormals_dv3 = new Vec3D[numTriangles][];
         this.triangleAreas = new double[numTriangles];
-        this.dTriangleAreas_dv1 = new Vec3D[numTriangles];
-        this.dTriangleAreas_dv2 = new Vec3D[numTriangles];
-        this.dTriangleAreas_dv3 = new Vec3D[numTriangles];
         this.undeformedTriangleNormals = new Vec3D[numTriangles];
         this.undeformedTriangleAreas = new double[numTriangles];
         for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
@@ -941,81 +929,10 @@ public class Shell : MonoBehaviour {
                 // The triangle area is 0 and the triangle has infinitely many normals in a circle (two edges parallel) or sphere (all vertices on the same point).
                 this.triangleNormals[triangleId] = Vec3D.zero;
                 this.triangleAreas[triangleId] = 0;
-
-                // Technically, there are infinitely many options for the normal to change, and the area will almust always grow.
-                // This simplification might introduce a small error in one timestep, but only in this exact zero-area case.
-                this.dTriangleNormals_dv1[triangleId] = new Vec3D[] {Vec3D.zero, Vec3D.zero, Vec3D.zero};
-                this.dTriangleNormals_dv2[triangleId] = new Vec3D[] {Vec3D.zero, Vec3D.zero, Vec3D.zero};
-                this.dTriangleNormals_dv3[triangleId] = new Vec3D[] {Vec3D.zero, Vec3D.zero, Vec3D.zero};
-                this.dTriangleAreas_dv1[triangleId] = Vec3D.zero;
-                this.dTriangleAreas_dv2[triangleId] = Vec3D.zero;
-                this.dTriangleAreas_dv3[triangleId] = Vec3D.zero;
                 continue;
             }
             this.triangleNormals[triangleId] = cross_e12_e13 / crossprod_length;
             this.triangleAreas[triangleId] = crossprod_length / 2d; // Triangle area is half of the cross product of any two of its edges.
-
-            /*
-             * Triangle normal partial derivatives:
-             * e1 === e12 and e2 === e13 and crossprod_length === cross_e1_e2_length.
-             * n = cross_e1_e2 / cross_e1_e2_length = {e1y * e2z - e2y * e1z, e1x * e2z - e2x * e1z, e1x * e2y - e2x * e1y} / cross_e1_e2_length // Vector3.
-             * d_n_d_e1 = {d_n_d_e1x, d_n_d_e1y, d_n_d_e1z} // 3x3 matrix.
-             * d_n_d_e1x = (cross_e1_e2_length * d_cross_e1_e2_d_e1x - cross_e1_e2 * d_cross_e1_e2_length_d_e1x) / cross_e1_e2_length^2 // Vector3.
-             * d_n_d_e1y = (cross_e1_e2_length * d_cross_e1_e2_d_e1y - cross_e1_e2 * d_cross_e1_e2_length_d_e1y) / cross_e1_e2_length^2 // Vector3.
-             * d_n_d_e1z = (cross_e1_e2_length * d_cross_e1_e2_d_e1z - cross_e1_e2 * d_cross_e1_e2_length_d_e1z) / cross_e1_e2_length^2 // Vector3.
-             * d_cross_e1_e2_d_e1x = {0, e2z, e2y} // Vector3.
-             * d_cross_e1_e2_d_e1y = {e2z, 0, -e2x} // Vector3.
-             * d_cross_e1_e2_d_e1z = {-e2y, -e2x, 0} // Vector3.
-             */
-            Vec3D d_cross_e12_e13_length_d_e12 = 1d / crossprod_length * new Vec3D(
-                    (e12.x * e13.z - e13.x * e12.z) * e13.z + (e12.x * e13.y - e13.x * e12.y) * e13.y,
-                    (e12.y * e13.z - e13.y * e12.z) * e13.z + (e12.x * e13.y - e13.x * e12.y) * -e13.x,
-                    (e12.y * e13.z - e13.y * e12.z) * -e13.y + (e12.x * e13.z - e13.x * e12.z) * -e13.x);
-            Vec3D d_cross_e12_e13_length_d_e13 = 1f / crossprod_length * new Vec3D(
-                    (e12.y * e13.z - e13.y * e12.z) * 0      + (e12.x * e13.z - e13.x * e12.z) * -e12.z + (e12.x * e13.y - e13.x * e12.y) * -e12.y,
-                    (e12.y * e13.z - e13.y * e12.z) * -e12.z + (e12.x * e13.z - e13.x * e12.z) * 0      + (e12.x * e13.y - e13.x * e12.y) * e12.x,
-                    (e12.y * e13.z - e13.y * e12.z) * e12.y  + (e12.x * e13.z - e13.x * e12.z) * e12.x  + (e12.x * e13.y - e13.x * e12.y) * 0);
-            Vec3D d_cross_e12_e13_d_e12x = new Vec3D(0f, e13.z, e13.y);
-            Vec3D d_cross_e12_e13_d_e12y = new Vec3D(e13.z, 0f, -e13.x);
-            Vec3D d_cross_e12_e13_d_e12z = new Vec3D(-e13.y, -e13.x, 0f);
-            Vec3D d_cross_e12_e13_d_e13x = new Vec3D(0f, -e12.z, -e12.y);
-            Vec3D d_cross_e12_e13_d_e13y = new Vec3D(-e12.z, 0f, e12.x);
-            Vec3D d_cross_e12_e13_d_e13z = new Vec3D(e12.y, e12.x, 0f);
-            Vec3D d_n_d_e12x = (crossprod_length * d_cross_e12_e13_d_e12x - cross_e12_e13 * d_cross_e12_e13_length_d_e12.x) / (crossprod_length * crossprod_length);
-            Vec3D d_n_d_e12y = (crossprod_length * d_cross_e12_e13_d_e12y - cross_e12_e13 * d_cross_e12_e13_length_d_e12.y) / (crossprod_length * crossprod_length);
-            Vec3D d_n_d_e12z = (crossprod_length * d_cross_e12_e13_d_e12z - cross_e12_e13 * d_cross_e12_e13_length_d_e12.z) / (crossprod_length * crossprod_length);
-            Vec3D d_n_d_e13x = (crossprod_length * d_cross_e12_e13_d_e13x - cross_e12_e13 * d_cross_e12_e13_length_d_e13.x) / (crossprod_length * crossprod_length);
-            Vec3D d_n_d_e13y = (crossprod_length * d_cross_e12_e13_d_e13y - cross_e12_e13 * d_cross_e12_e13_length_d_e13.y) / (crossprod_length * crossprod_length);
-            Vec3D d_n_d_e13z = (crossprod_length * d_cross_e12_e13_d_e13z - cross_e12_e13 * d_cross_e12_e13_length_d_e13.z) / (crossprod_length * crossprod_length);
-            Vec3D[] d_n_d_e12 = new Vec3D[] {d_n_d_e12x, d_n_d_e12y, d_n_d_e12z};
-            Vec3D[] d_n_d_e13 = new Vec3D[] {d_n_d_e13x, d_n_d_e13y, d_n_d_e13z};
-            Vec3D d_e12_d_v1 = new Vec3D(-1f, -1f, -1f);
-            Vec3D d_e12_d_v2 = new Vec3D(1f, 1f, 1f);
-            Vec3D d_e13_d_v3 = new Vec3D(1f, 1f, 1f);
-            this.dTriangleNormals_dv1[triangleId] = new Vec3D[] {d_n_d_e12[0] * d_e12_d_v1.x, d_n_d_e12[1] * d_e12_d_v1.y, d_n_d_e12[2] * d_e12_d_v1.z};
-            this.dTriangleNormals_dv2[triangleId] = new Vec3D[] {d_n_d_e12[0] * d_e12_d_v2.x, d_n_d_e12[1] * d_e12_d_v2.y, d_n_d_e12[2] * d_e12_d_v2.z};
-            this.dTriangleNormals_dv3[triangleId] = new Vec3D[] {d_n_d_e13[0] * d_e13_d_v3.x, d_n_d_e13[1] * d_e13_d_v3.y, d_n_d_e13[2] * d_e13_d_v3.z};
-
-            /*
-             * Triangle area partial derivatives:
-             * e1 === e12 and e2 === e13 and crossprod_length === cross_e1_e2_length.
-             * triangleArea = crossprod_length / 2f
-             * dTriangleArea_dv1 = {d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12z / 2f} .* d_e12_d_v1
-             * dTriangleArea_dv2 = {d_cross_e12_e13_length_d_e12x / 2f, d_cross_e12_e13_length_d_e12y / 2f, d_cross_e12_e13_length_d_e12z / 2f} .* d_e12_d_v2
-             * dTriangleArea_dv3 = {d_cross_e12_e13_length_d_e13x / 2f, d_cross_e12_e13_length_d_e13y / 2f, d_cross_e12_e13_length_d_e13z / 2f} .* d_e13_d_v3
-             */
-            this.dTriangleAreas_dv1[triangleId] = new Vec3D(
-                    d_cross_e12_e13_length_d_e12.x * d_e12_d_v1.x,
-                    d_cross_e12_e13_length_d_e12.y * d_e12_d_v1.y,
-                    d_cross_e12_e13_length_d_e12.z * d_e12_d_v1.z) / 2f;
-            this.dTriangleAreas_dv2[triangleId] = new Vec3D(
-                    d_cross_e12_e13_length_d_e12.x * d_e12_d_v2.x,
-                    d_cross_e12_e13_length_d_e12.y * d_e12_d_v2.y,
-                    d_cross_e12_e13_length_d_e12.z * d_e12_d_v2.z) / 2f;
-            this.dTriangleAreas_dv3[triangleId] = new Vec3D(
-                    d_cross_e12_e13_length_d_e13.x * d_e13_d_v3.x,
-                    d_cross_e12_e13_length_d_e13.y * d_e13_d_v3.y,
-                    d_cross_e12_e13_length_d_e13.z * d_e13_d_v3.z) / 2f;
         }
     }
 
