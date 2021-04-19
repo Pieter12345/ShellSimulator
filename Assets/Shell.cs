@@ -1149,20 +1149,20 @@ public class Shell : MonoBehaviour {
             int v2 = triangles[triangleBaseIndex + 1];
             int v3 = triangles[triangleBaseIndex + 2];
 
-            // Compute projection of the wind pressure vector on the triangle normal.
+            // Compute a third of the projection of the wind pressure vector on the triangle normal.
+            // The factor of a third is caused by the triangle wind force being divided over the 3 vertices of that triangle.
             VecD triangleNormal = this.triangleNormals[triangleId];
             if(triangleNormal == null) {
                 continue; // Triangle has a zero-area and no normal, so the projected wind force is zero as well.
             }
             double triangleArea = this.triangleAreas[triangleId];
-            VecD totalTriangleWindForce = VecD.dot(new VecD(this.windPressure), triangleNormal) * triangleArea * triangleNormal;
+            VecD triangleVertexWindForce = (VecD.dot(new VecD(this.windPressure), triangleNormal) * triangleArea / 3d) * triangleNormal;
 
             // Add a third of the total triangle wind force to each of its vertices.
-            VecD totalTriangleWindForcePart = totalTriangleWindForce / 3d;
             for(int coord = 0; coord < 3; coord++) {
-                vertexWindForce[3 * v1 + coord] += totalTriangleWindForcePart[coord];
-                vertexWindForce[3 * v2 + coord] += totalTriangleWindForcePart[coord];
-                vertexWindForce[3 * v3 + coord] += totalTriangleWindForcePart[coord];
+                vertexWindForce[3 * v1 + coord] += triangleVertexWindForce[coord];
+                vertexWindForce[3 * v2 + coord] += triangleVertexWindForce[coord];
+                vertexWindForce[3 * v3 + coord] += triangleVertexWindForce[coord];
             }
         }
         return vertexWindForce;
