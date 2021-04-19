@@ -736,12 +736,13 @@ public class Shell : MonoBehaviour {
 
             // Get E gradient.
             VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
-                    new VecD(newVertexPositions) - vertexPositionsFlat - deltaTime * this.vertexVelocities)
+                    new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities))
                     / (deltaTime * deltaTime) + energyGradient + penaltyEnergyGradient - windForce - gravityForce;
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;
-            //print("E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold + ")");
+            print("E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold
+                    + ", totalLoopTimeElapsed: " + stopWatch.ElapsedMilliseconds + ")");
             if(eGradientMagnitude < terminationThreshold) {
                 print("Finished on iteration: " + iteration + " after " + stopWatch.ElapsedMilliseconds + "ms.");
                 break;
@@ -751,7 +752,14 @@ public class Shell : MonoBehaviour {
             // TODO - Represent this using triples instead of a full matrix.
             MatD energyHess = this.getSystemEnergyHessian(newVertexPositions, triangles);
 
-            // Get E Hessian.
+            // Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
+            /**
+             * Get E Hessian.
+             * This is a simplified version without measurements penalty and wind force.
+             * The gravity force is not dependent on the positions, so the gravity Hessian is a zero matrix.
+             * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
+             * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
+             */
             MatD eHess = energyHess;
             double deltaTimeSquare = deltaTime * deltaTime;
             for(int i = 0; i < eHess.numRows; i++) {
@@ -774,20 +782,21 @@ public class Shell : MonoBehaviour {
 
             // Ensure that the step is in downhill direction.
             // If a < b, then the step is suitable. Otherwise try -a < b. As a last resort, fall back to gradient descent.
+            double stepMagnitude = step.magnitude;
             double a = VecD.dot(step, eGradient);
-            double b = -kappa * step.magnitude * eGradient.magnitude;
+            double b = -kappa * stepMagnitude * eGradientMagnitude;
             if(a >= b) {
                 if(-a < b) {
                     step = -step;
                 } else {
                     step = -eGradient;
+                    stepMagnitude = eGradientMagnitude;
                 }
             }
 
             // Clamp max step magnitude.
-            double stepMagnitude = step.magnitude;
             if(stepMagnitude > maxStepMagnitude) {
-                step = step / stepMagnitude * maxStepMagnitude;
+                step.mul(maxStepMagnitude / stepMagnitude); // Equivalent of: step = step / stepMagnitude * maxStepMagnitude;
             }
 
             // Choose step size alpha in direction delta_x using a line search.
@@ -843,8 +852,8 @@ public class Shell : MonoBehaviour {
                     }
                 }
                 VecD newEGradient = VecD.multiplyElementWise(vertexCoordMasses,
-                        new VecD(newNewVertexPositions) - vertexPositionsFlat - deltaTime * this.vertexVelocities)
-                        / (deltaTime * deltaTime) + newEnergyGradient + newPenaltyEnergyGradient - newWindForce - newGravityForce;
+                        new VecD(newNewVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)).div(deltaTimeSquare)
+                                .add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce);
 
                 // Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
                 if(newEGradient.magnitude <= eGradient.magnitude) {// + c * alpha * (eHess * step).sum) {
@@ -882,7 +891,7 @@ public class Shell : MonoBehaviour {
         }
         
         // Update vertex velocity.
-        this.vertexVelocities = (new VecD(newVertexPositions) - vertexPositionsFlat) / deltaTime;
+        this.vertexVelocities = (new VecD(newVertexPositions).sub(vertexPositionsFlat)) / deltaTime;
 
         // Update vertex positions.
         this.vertexPositions = newVertexPositions;
