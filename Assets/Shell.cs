@@ -1042,27 +1042,29 @@ public class Shell : MonoBehaviour {
         foreach(Edge edge in this.edges) {
 
             // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-            MatD lengthEnergyHess = this.kLength * this.getEdgeLengthEnergyHess(vertexPositions, edge);
-            makeHessPositiveDefinite(lengthEnergyHess);
-            for(int i = 0; i < 3; i++) {
-                for(int j = 0; j < 3; j++) {
+            if(this.kLength != 0d) {
+                MatD lengthEnergyHess = this.kLength * this.getEdgeLengthEnergyHess(vertexPositions, edge);
+                makeHessPositiveDefinite(lengthEnergyHess);
+                for(int i = 0; i < 3; i++) {
+                    for(int j = 0; j < 3; j++) {
 
-                    // ddLengthEnergy_dv1_dv1.
-                    energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
+                        // ddLengthEnergy_dv1_dv1.
+                        energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
 
-                    // ddLengthEnergy_dv2_dv2.
-                    energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
+                        // ddLengthEnergy_dv2_dv2.
+                        energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
 
-                    // ddLengthEnergy_dv1_dv2.
-                    energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
+                        // ddLengthEnergy_dv1_dv2.
+                        energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
 
-                    // ddLengthEnergy_dv2_dv1.
-                    energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                        // ddLengthEnergy_dv2_dv1.
+                        energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                    }
                 }
             }
 
             // The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
-            if(edge.hasSideFlaps()) {
+            if(this.kBend != 0d && edge.hasSideFlaps()) {
                 MatD bendEnergyHess = this.kBend * this.getEdgeBendEnergyHess(vertexPositions, edge);
                 makeHessPositiveDefinite(bendEnergyHess);
                 for(int i = 0; i < 3; i++) {
@@ -1090,31 +1092,33 @@ public class Shell : MonoBehaviour {
                 }
             }
         }
-        for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId += 3) {
-            int v1 = triangles[triangleId];
-            int v2 = triangles[triangleId + 1];
-            int v3 = triangles[triangleId + 2];
-            MatD areaEnergyHess = this.kArea * this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3);
-            makeHessPositiveDefinite(areaEnergyHess);
-            for(int i = 0; i < 3; i++) {
-                for(int j = 0; j < 3; j++) {
+        if(this.kArea != 0d) {
+            for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId += 3) {
+                int v1 = triangles[triangleId];
+                int v2 = triangles[triangleId + 1];
+                int v3 = triangles[triangleId + 2];
+                MatD areaEnergyHess = this.kArea * this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3);
+                makeHessPositiveDefinite(areaEnergyHess);
+                for(int i = 0; i < 3; i++) {
+                    for(int j = 0; j < 3; j++) {
 
-                    // ddAreaEnergy_dvi_dvi.
-                    energyHess[v1 * 3 + i, v1 * 3 + j] = areaEnergyHess[i, j];
-                    energyHess[v2 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 3, j + 3];
-                    energyHess[v3 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 6, j + 6];
+                        // ddAreaEnergy_dvi_dvi.
+                        energyHess[v1 * 3 + i, v1 * 3 + j] = areaEnergyHess[i, j];
+                        energyHess[v2 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 3, j + 3];
+                        energyHess[v3 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 6, j + 6];
 
-                    // ddAreaEnergy_dv1_dv2 & ddAreaEnergy_dv2_dv1.
-                    energyHess[v1 * 3 + i, v2 * 3 + j] = areaEnergyHess[i, j + 3];
-                    energyHess[v2 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 3, j];
+                        // ddAreaEnergy_dv1_dv2 & ddAreaEnergy_dv2_dv1.
+                        energyHess[v1 * 3 + i, v2 * 3 + j] = areaEnergyHess[i, j + 3];
+                        energyHess[v2 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 3, j];
 
-                    // ddAreaEnergy_dv1_dv3 & ddAreaEnergy_dv3_dv1.
-                    energyHess[v1 * 3 + i, v3 * 3 + j] = areaEnergyHess[i, j + 6];
-                    energyHess[v3 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 6, j];
+                        // ddAreaEnergy_dv1_dv3 & ddAreaEnergy_dv3_dv1.
+                        energyHess[v1 * 3 + i, v3 * 3 + j] = areaEnergyHess[i, j + 6];
+                        energyHess[v3 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 6, j];
 
-                    // ddAreaEnergy_dv2_dv3 & ddAreaEnergy_dv3_dv2.
-                    energyHess[v2 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 3, j + 6];
-                    energyHess[v3 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 6, j + 3];
+                        // ddAreaEnergy_dv2_dv3 & ddAreaEnergy_dv3_dv2.
+                        energyHess[v2 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 3, j + 6];
+                        energyHess[v3 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 6, j + 3];
+                    }
                 }
             }
         }
