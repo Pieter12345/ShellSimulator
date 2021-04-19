@@ -1200,24 +1200,20 @@ public class Shell : MonoBehaviour {
         if(double.IsNaN(edgeLength)) {
             return new VecD(0, 0, 0, 0, 0, 0); // Edge is zero-length, so the gradient is 0.
         }
-        Vec3D dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
-        Vec3D dEdgeLength_dv2 = -dEdgeLength_dv1;
-        VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+        Vec3D dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]).div(edgeLength);
 
-        for(int i = 0; i < result.length; i++) {
-            if(double.IsNaN(result[i])) {
-                print("NaN length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
-                        + " edgeLength: " + edgeLength);
-                return new VecD(0, 0, 0, 0, 0, 0);
-            }
-            if(double.IsInfinity(result[i])) {
-                print("Infinite length gradient: " + result + " undeformedEdgeLength: " + undeformedEdgeLength
-                        + " edgeLength: " + edgeLength);
-                return new VecD(0, 0, 0, 0, 0, 0);
-            }
+        /*
+         * Perform:
+         * Vec3D dEdgeLength_dv2 = -dEdgeLength_dv1;
+         * VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+         */
+        VecD dEdgeLength_dv1v2 = new VecD(6);
+        for(int i = 0; i < 3; i++) {
+            dEdgeLength_dv1v2[i] = dEdgeLength_dv1[i];
+            dEdgeLength_dv1v2[i + 3] = -dEdgeLength_dv1[i];
         }
-        return result;
-        VecD result = (2 * edgeLength / edge.undeformedLength - 2) * dEdgeLength_dv1v2;
+
+        return dEdgeLength_dv1v2.mul(2 * edgeLength / edge.undeformedLength - 2);
     }
 
     /**
