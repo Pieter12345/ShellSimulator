@@ -38,6 +38,7 @@ public class Shell : MonoBehaviour {
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
     public double gravityConstant = 9.81d;
     public double kPenalty = 1d;
+    public double eGradientMagnitudeTerminationThreshold = 0.5d;
     private double lastLineSearchAlpha = 1d;
 
     // Cached vertex/triangle properties.
@@ -670,7 +671,7 @@ public class Shell : MonoBehaviour {
          */
         
         // Declare constants.
-        double terminationThreshold = 0.5d; // TODO - Set sensible value.
+        double terminationThreshold = this.eGradientMagnitudeTerminationThreshold;
         double kappa = 0.01d; // Value as proposed by Optimization Integrator paper.
         int numVertices = this.vertexPositions.Length;
         double maxStepMagnitude = 1000d; //numVertices * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
