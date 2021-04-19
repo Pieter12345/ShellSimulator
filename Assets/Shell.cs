@@ -1390,11 +1390,20 @@ public class Shell : MonoBehaviour {
                 {0, 0, 0, 0, 0, 0}
             });
         }
-        VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]) / edgeLength;
-        VecD dEdgeLength_dv2 = -dEdgeLength_dv1;
-        VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+        VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]).div(edgeLength);
 
-        VecD dEdgeEnergy_dv1v2 = (2 * edgeLength / edge.undeformedLength - 2) * dEdgeLength_dv1v2;
+        /*
+         * Perform:
+         * Vec3D dEdgeLength_dv2 = -dEdgeLength_dv1;
+         * VecD dEdgeLength_dv1v2 = new VecD(dEdgeLength_dv1, dEdgeLength_dv2); // Partial derivative towards {v1x, v1y, v1z, v2x, v2y, v2z}.
+         */
+        VecD dEdgeLength_dv1v2 = new VecD(6);
+        for(int i = 0; i < 3; i++) {
+            dEdgeLength_dv1v2[i] = dEdgeLength_dv1[i];
+            dEdgeLength_dv1v2[i + 3] = -dEdgeLength_dv1[i];
+        }
+
+        //VecD dEdgeEnergy_dv1v2 = (2 * edgeLength / edge.undeformedLength - 2) * dEdgeLength_dv1v2;
         // TODO - Copied gradient code ends here (See TODO above).
 
         // Calculate edge length Hessian.
@@ -1404,7 +1413,7 @@ public class Shell : MonoBehaviour {
             {edgeLengthSquare - e[0] * e[0],                  - e[1] * e[0],                  - e[2] * e[0]},
             {                 - e[0] * e[1], edgeLengthSquare - e[1] * e[1],                  - e[2] * e[1]},
             {                 - e[0] * e[2],                  - e[1] * e[2], edgeLengthSquare - e[2] * e[2]}
-        }) / edgeLengthCube;
+        }).div(edgeLengthCube);
         
         MatD ddEdgeLength_dv1_dv2 = ddEdgeLength_dv1_dv1.Clone();
         ddEdgeLength_dv1_dv2[0, 0] *= -1;
@@ -1475,10 +1484,15 @@ public class Shell : MonoBehaviour {
         double d = ((v1.y - v2.y) * (v3.z - v2.z) - (v3.y - v2.y) * (v1.z - v2.z));
         double e = ((v2.x - v1.x) * (v3.z - v2.z) + (v3.x - v2.x) * (v1.z - v2.z));
         double f = ((v1.x - v2.x) * (v3.y - v2.y) - (v3.x - v2.x) * (v1.y - v2.y));
-        VecD d_crossProdLength_dv1v2v3 = (d * a + e * b + f * c) / crossProdLength;
-        VecD d_triangleArea_dv1v2v3 = d_crossProdLength_dv1v2v3 / 2d;
-        VecD d_triangleEnergy_dv1v2v3 = (2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d) * d_triangleArea_dv1v2v3;
-        return d_triangleEnergy_dv1v2v3;
+
+        /*
+         * Perform:
+         * VecD d_crossProdLength_dv1v2v3 = (d * a + e * b + f * c) / crossProdLength;
+         * VecD d_triangleArea_dv1v2v3 = d_crossProdLength_dv1v2v3 / 2d;
+         * VecD d_triangleEnergy_dv1v2v3 = (2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d) * d_triangleArea_dv1v2v3;
+         */
+        return new VecD(a.mul(d)).add(b.mul(e)).add(c.mul(f)).div(crossProdLength * 2d)
+                .mul(2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d);
     }
 
     /*
@@ -1486,7 +1500,6 @@ public class Shell : MonoBehaviour {
      * Returns the 9x9 Hessian towards all combinations of {v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z}.
      */
     private MatD getTriangleAreaEnergyHessian(Vec3D[] vertices, int triangleId, int v1Ind, int v2Ind, int v3Ind) {
-        // TODO - Test this implementation and protect against possible infinite/NaN cases if necessary.
         
         // TODO - This is a copy from the energy gradient code. Combine this in a way to prevent double calculations.
         // Return if the area is zero.
@@ -1507,9 +1520,9 @@ public class Shell : MonoBehaviour {
         double d = ((v1.y - v2.y) * (v3.z - v2.z) - (v3.y - v2.y) * (v1.z - v2.z));
         double e = ((v2.x - v1.x) * (v3.z - v2.z) + (v3.x - v2.x) * (v1.z - v2.z));
         double f = ((v1.x - v2.x) * (v3.y - v2.y) - (v3.x - v2.x) * (v1.y - v2.y));
-        VecD d_crossProdLength_dv1v2v3 = (d * a + e * b + f * c) / crossProdLength;
-        VecD d_triangleArea_dv1v2v3 = d_crossProdLength_dv1v2v3 / 2d;
-        //VecD d_triangleEnergy_dv1v2v3 = (2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d) * d_triangleArea_dv1v2v3;
+
+        // Perform: VecD d_crossProdLength_dv1v2v3 = (d * a + e * b + f * c).div(crossProdLength);
+        VecD d_crossProdLength_dv1v2v3 = (d * a).add(e * b).add(f * c).div(crossProdLength);
         // TODO - Copied gradient code ends here (See TODO above).
 
         // Compute triangle energy Hessian.
@@ -1631,28 +1644,36 @@ public class Shell : MonoBehaviour {
         Vec3D t1_e2 = vertices[edge.vf1] - vertices[edge.ve1]; // Top left edge.
         Vec3D t2_e1 = vertices[edge.vf2] - vertices[edge.ve2]; // Bottom right edge.
         Vec3D t2_e2 = vertices[edge.vf2] - vertices[edge.ve1]; // Bottom left edge.
-        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2.magnitude)));
-        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1.magnitude)));
-        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2.magnitude)));
-        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1.magnitude)));
-        double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0.magnitude;
-        double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1.magnitude;
-        double t1_h2 = 2d * this.triangleAreas[edge.triangleId1] / t1_e2.magnitude;
-        double t2_h0 = 2d * this.triangleAreas[edge.triangleId2] / e0.magnitude;
-        double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1.magnitude;
-        double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2.magnitude;
+
+        double e0_magnitude = e0.magnitude;
+        double t1_e1_magnitude = t1_e1.magnitude;
+        double t1_e2_magnitude = t1_e2.magnitude;
+        double t2_e1_magnitude = t2_e1.magnitude;
+        double t2_e2_magnitude = t2_e2.magnitude;
+
+        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2_magnitude)));
+        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1_magnitude)));
+        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2_magnitude)));
+        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1_magnitude)));
+
+        double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0_magnitude;
+        double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1_magnitude;
+        double t1_h2 = 2d * this.triangleAreas[edge.triangleId1] / t1_e2_magnitude;
+        double t2_h0 = 2d * this.triangleAreas[edge.triangleId2] / e0_magnitude;
+        double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1_magnitude;
+        double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2_magnitude;
 
         // Calculate derivatives of teta towards all 4 vertices.
-        VecD d_teta_d_ve1 = Mathf.Cos(t1_alpha2) / t1_h1 * n1 + Mathf.Cos(t2_alpha2) / t2_h1 * n2;
-        VecD d_teta_d_ve2 = Mathf.Cos(t1_alpha1) / t1_h2 * n1 + Mathf.Cos(t2_alpha1) / t2_h2 * n2;
-        VecD d_teta_d_vf1 = -n1 / t1_h0;
-        VecD d_teta_d_vf2 = -n2 / t2_h0;
+        VecD d_teta_d_ve1 = (Mathf.Cos(t1_alpha2) / t1_h1) * n1 + (Mathf.Cos(t2_alpha2) / t2_h1) * n2;
+        VecD d_teta_d_ve2 = (Mathf.Cos(t1_alpha1) / t1_h2) * n1 + (Mathf.Cos(t2_alpha1) / t2_h2) * n2;
+        VecD d_teta_d_vf1 = (-n1).div(t1_h0); // Perform: -n1 / t1_h0;
+        VecD d_teta_d_vf2 = (-n2).div(t2_h0); // Perform: -n2 / t2_h0;
         
         // Assemble hinge angle gradient.
         VecD d_teta_d_ve1ve2vf1vf2 = new VecD(d_teta_d_ve1, d_teta_d_ve2, d_teta_d_vf1, d_teta_d_vf2);
 
         // Return the bending energy gradient.
-        return d_fi_d_teta * d_teta_d_ve1ve2vf1vf2;
+        return d_teta_d_ve1ve2vf1vf2.mul(d_fi_d_teta);
     }
 
     /**
@@ -1703,17 +1724,23 @@ public class Shell : MonoBehaviour {
         Vec3D t2_e1 = vertices[edge.vf2] - vertices[edge.ve2]; // Bottom right edge.
         Vec3D t2_e2 = vertices[edge.vf2] - vertices[edge.ve1]; // Bottom left edge.
 
-        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2.magnitude)));
-        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1.magnitude)));
-        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2.magnitude)));
-        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1.magnitude)));
+        double e0_magnitude = e0.magnitude;
+        double t1_e1_magnitude = t1_e1.magnitude;
+        double t1_e2_magnitude = t1_e2.magnitude;
+        double t2_e1_magnitude = t2_e1.magnitude;
+        double t2_e2_magnitude = t2_e2.magnitude;
 
-        double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0.magnitude;
-        double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1.magnitude;
-        double t1_h2 = 2d * this.triangleAreas[edge.triangleId1] / t1_e2.magnitude;
-        double t2_h0 = 2d * this.triangleAreas[edge.triangleId2] / e0.magnitude;
-        double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1.magnitude;
-        double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2.magnitude;
+        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2_magnitude)));
+        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1_magnitude)));
+        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2_magnitude)));
+        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1_magnitude)));
+
+        double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0_magnitude;
+        double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1_magnitude;
+        double t1_h2 = 2d * this.triangleAreas[edge.triangleId1] / t1_e2_magnitude;
+        double t2_h0 = 2d * this.triangleAreas[edge.triangleId2] / e0_magnitude;
+        double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1_magnitude;
+        double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2_magnitude;
         
         double t1_omega_00 = 1 / (t1_h0 * t1_h0);
         double t1_omega_01 = 1 / (t1_h0 * t1_h1);
@@ -1734,10 +1761,11 @@ public class Shell : MonoBehaviour {
         double t2_omega_21 = t2_omega_12;
         double t2_omega_22 = 1 / (t2_h2 * t2_h2);
         
-        Vec3D t1_e0_normal = Vec3D.cross(e0.unit, n1); // "m_0" in paper.
+        Vec3D e0_unit = e0.unit;
+        Vec3D t1_e0_normal = Vec3D.cross(e0_unit, n1); // "m_0" in paper.
         Vec3D t1_e1_normal = Vec3D.cross(t1_e1.unit, n1); // "m_1" in paper.
         Vec3D t1_e2_normal = Vec3D.cross(t1_e2.unit, n1); // "m_2" in paper.
-        Vec3D t2_e0_normal = Vec3D.cross(e0.unit, n2); // "~m_0" in paper.
+        Vec3D t2_e0_normal = Vec3D.cross(e0_unit, n2); // "~m_0" in paper.
         Vec3D t2_e1_normal = Vec3D.cross(t2_e1.unit, n2); // "~m_1" in paper.
         Vec3D t2_e2_normal = Vec3D.cross(t2_e2.unit, n2); // "~m_2" in paper.
 
@@ -1755,33 +1783,32 @@ public class Shell : MonoBehaviour {
         MatD t2_Q1 = t2_omega_01 * t2_M1;
         MatD t2_Q2 = t2_omega_02 * t2_M2;
 
-        double e0_magnitude = e0.magnitude;
         MatD t1_N0 = t1_M0 / (e0_magnitude * e0_magnitude);
         MatD t2_N0 = t2_M0 / (e0_magnitude * e0_magnitude);
         
-        MatD t1_P10 = t1_omega_10 * Mathf.Cos(t1_alpha1) * t1_M0.transpose;
-        MatD t1_P20 = t1_omega_20 * Mathf.Cos(t1_alpha2) * t1_M0.transpose;
-        MatD t1_P12 = t1_omega_12 * Mathf.Cos(t1_alpha1) * t1_M2.transpose;
-        MatD t1_P21 = t1_omega_21 * Mathf.Cos(t1_alpha2) * t1_M1.transpose;
-        MatD t1_P11 = t1_omega_11 * Mathf.Cos(t1_alpha1) * t1_M1.transpose;
-        MatD t1_P22 = t1_omega_22 * Mathf.Cos(t1_alpha2) * t1_M2.transpose;
-        MatD t2_P10 = t2_omega_10 * Mathf.Cos(t2_alpha1) * t2_M0.transpose;
-        MatD t2_P20 = t2_omega_20 * Mathf.Cos(t2_alpha2) * t2_M0.transpose;
-        MatD t2_P12 = t2_omega_12 * Mathf.Cos(t2_alpha1) * t2_M2.transpose;
-        MatD t2_P21 = t2_omega_21 * Mathf.Cos(t2_alpha2) * t2_M1.transpose;
-        MatD t2_P11 = t2_omega_11 * Mathf.Cos(t2_alpha1) * t2_M1.transpose;
-        MatD t2_P22 = t2_omega_22 * Mathf.Cos(t2_alpha2) * t2_M2.transpose;
+        MatD t1_P10 = t1_M0.transpose.mul(t1_omega_10 * Mathf.Cos(t1_alpha1)); // Perform: MatD t1_P10 = t1_omega_10 * Mathf.Cos(t1_alpha1) * t1_M0.transpose;
+        MatD t1_P20 = t1_M0.transpose.mul(t1_omega_20 * Mathf.Cos(t1_alpha2));
+        MatD t1_P12 = t1_M2.transpose.mul(t1_omega_12 * Mathf.Cos(t1_alpha1));
+        MatD t1_P21 = t1_M1.transpose.mul(t1_omega_21 * Mathf.Cos(t1_alpha2));
+        MatD t1_P11 = t1_M1.transpose.mul(t1_omega_11 * Mathf.Cos(t1_alpha1));
+        MatD t1_P22 = t1_M2.transpose.mul(t1_omega_22 * Mathf.Cos(t1_alpha2));
+        MatD t2_P10 = t2_M0.transpose.mul(t2_omega_10 * Mathf.Cos(t2_alpha1));
+        MatD t2_P20 = t2_M0.transpose.mul(t2_omega_20 * Mathf.Cos(t2_alpha2));
+        MatD t2_P12 = t2_M2.transpose.mul(t2_omega_12 * Mathf.Cos(t2_alpha1));
+        MatD t2_P21 = t2_M1.transpose.mul(t2_omega_21 * Mathf.Cos(t2_alpha2));
+        MatD t2_P11 = t2_M1.transpose.mul(t2_omega_11 * Mathf.Cos(t2_alpha1));
+        MatD t2_P22 = t2_M2.transpose.mul(t2_omega_22 * Mathf.Cos(t2_alpha2));
 
         // Construct 3x3 building blocks for the teta Hessian.
         MatD teta_hess_00 = -getMatPlusTransposedMat(t1_Q0);
         MatD teta_hess_33 = -getMatPlusTransposedMat(t2_Q0);
-        MatD teta_hess_11 = getMatPlusTransposedMat(t1_P11) - t1_N0 + getMatPlusTransposedMat(t2_P11) - t2_N0;
-        MatD teta_hess_22 = getMatPlusTransposedMat(t1_P22) - t1_N0 + getMatPlusTransposedMat(t2_P22) - t2_N0;
-        MatD teta_hess_10 = getMatPlusTransposedMat(t1_P10) - t1_Q1;
-        MatD teta_hess_20 = getMatPlusTransposedMat(t1_P20) - t1_Q2;
-        MatD teta_hess_13 = getMatPlusTransposedMat(t2_P10) - t2_Q1;
-        MatD teta_hess_23 = getMatPlusTransposedMat(t2_P20) - t2_Q2;
-        MatD teta_hess_12 = t1_P12 + t1_P21.transpose + t1_N0 + t2_P12 + t2_P21.transpose + t2_N0;
+        MatD teta_hess_11 = getMatPlusTransposedMat(t1_P11).sub(t1_N0).add(getMatPlusTransposedMat(t2_P11)).sub(t2_N0);
+        MatD teta_hess_22 = getMatPlusTransposedMat(t1_P22).sub(t1_N0).add(getMatPlusTransposedMat(t2_P22)).sub(t2_N0);
+        MatD teta_hess_10 = getMatPlusTransposedMat(t1_P10).sub(t1_Q1);
+        MatD teta_hess_20 = getMatPlusTransposedMat(t1_P20).sub(t1_Q2);
+        MatD teta_hess_13 = getMatPlusTransposedMat(t2_P10).sub(t2_Q1);
+        MatD teta_hess_23 = getMatPlusTransposedMat(t2_P20).sub(t2_Q2);
+        MatD teta_hess_12 = t1_P21.transpose.add(t1_P12).add(t1_N0).add(t2_P12).add(t2_P21.transpose).add(t2_N0);
         MatD teta_hess_03 = new MatD(3, 3);
 
         // Construct teta Hessian.
@@ -1817,10 +1844,10 @@ public class Shell : MonoBehaviour {
         }
 
         // Calculate derivatives of teta towards all 4 vertices.
-        VecD d_teta_d_ve1 = Mathf.Cos(t1_alpha2) / t1_h1 * n1 + Mathf.Cos(t2_alpha2) / t2_h1 * n2;
-        VecD d_teta_d_ve2 = Mathf.Cos(t1_alpha1) / t1_h2 * n1 + Mathf.Cos(t2_alpha1) / t2_h2 * n2;
-        VecD d_teta_d_vf1 = -n1 / t1_h0;
-        VecD d_teta_d_vf2 = -n2 / t2_h0;
+        VecD d_teta_d_ve1 = (Mathf.Cos(t1_alpha2) / t1_h1) * n1 + (Mathf.Cos(t2_alpha2) / t2_h1) * n2;
+        VecD d_teta_d_ve2 = (Mathf.Cos(t1_alpha1) / t1_h2) * n1 + (Mathf.Cos(t2_alpha1) / t2_h2) * n2;
+        VecD d_teta_d_vf1 = (-n1).div(t1_h0); // Perform: -n1 / t1_h0;
+        VecD d_teta_d_vf2 = (-n2).div(t2_h0); // Perform: -n2 / t2_h0;
         
         // Assemble hinge angle gradient.
         VecD d_teta_d_ve1ve2vf1vf2 = new VecD(d_teta_d_ve1, d_teta_d_ve2, d_teta_d_vf1, d_teta_d_vf2);
@@ -1834,8 +1861,10 @@ public class Shell : MonoBehaviour {
          * Discrete shells bending energy: fi_i(teta_i) = ||e|| / h_e_undeformed * (teta_i - teta_e_undeformed)^2
          * fi' = d_fi_d_teta = ||e|| / h_e_undeformed * 2 * (teta - teta_e_undeformed)
          * fi'' = dd_fi_d_teta_d_teta = ||e|| / h_e_undeformed * 2
+         * 
+         * Perform: return d_fi_d_teta * teta_hess + 2d * edge.undeformedLength / h_e_undeformed * MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2);
          */
-        return d_fi_d_teta * teta_hess + 2d * edge.undeformedLength / h_e_undeformed * MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2);
+        return teta_hess.mul(d_fi_d_teta) + MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2).mul(2d * edge.undeformedLength / h_e_undeformed);
     }
 
     private static MatD getMatPlusTransposedMat(MatD mat) {
