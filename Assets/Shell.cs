@@ -1730,10 +1730,10 @@ public class Shell : MonoBehaviour {
         double t2_e1_magnitude = t2_e1.magnitude;
         double t2_e2_magnitude = t2_e2.magnitude;
 
-        float t1_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t1_e2) / (e0.magnitude * t1_e2_magnitude)));
-        float t1_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t1_e1) / (e0.magnitude * t1_e1_magnitude)));
-        float t2_alpha1 = Mathf.Acos((float) (VecD.dot(e0, t2_e2) / (e0.magnitude * t2_e2_magnitude)));
-        float t2_alpha2 = Mathf.Acos((float) (VecD.dot(-e0, t2_e1) / (e0.magnitude * t2_e1_magnitude)));
+        double cos_t1_alpha1 = VecD.dot(e0, t1_e2) / (e0_magnitude * t1_e2_magnitude);
+        double cos_t1_alpha2 = VecD.dot(-e0, t1_e1) / (e0_magnitude * t1_e1_magnitude);
+        double cos_t2_alpha1 = VecD.dot(e0, t2_e2) / (e0_magnitude * t2_e2_magnitude);
+        double cos_t2_alpha2 = VecD.dot(-e0, t2_e1) / (e0_magnitude * t2_e1_magnitude);
 
         double t1_h0 = 2d * this.triangleAreas[edge.triangleId1] / e0_magnitude;
         double t1_h1 = 2d * this.triangleAreas[edge.triangleId1] / t1_e1_magnitude;
@@ -1742,24 +1742,24 @@ public class Shell : MonoBehaviour {
         double t2_h1 = 2d * this.triangleAreas[edge.triangleId2] / t2_e1_magnitude;
         double t2_h2 = 2d * this.triangleAreas[edge.triangleId2] / t2_e2_magnitude;
         
-        double t1_omega_00 = 1 / (t1_h0 * t1_h0);
-        double t1_omega_01 = 1 / (t1_h0 * t1_h1);
-        double t1_omega_02 = 1 / (t1_h0 * t1_h2);
+        double t1_omega_00 = 1d / (t1_h0 * t1_h0);
+        double t1_omega_01 = 1d / (t1_h0 * t1_h1);
+        double t1_omega_02 = 1d / (t1_h0 * t1_h2);
         double t1_omega_10 = t1_omega_01;
-        double t1_omega_11 = 1 / (t1_h1 * t1_h1);
-        double t1_omega_12 = 1 / (t1_h1 * t1_h2);
+        double t1_omega_11 = 1d / (t1_h1 * t1_h1);
+        double t1_omega_12 = 1d / (t1_h1 * t1_h2);
         double t1_omega_20 = t1_omega_02;
         double t1_omega_21 = t1_omega_12;
-        double t1_omega_22 = 1 / (t1_h2 * t1_h2);
-        double t2_omega_00 = 1 / (t2_h0 * t2_h0);
-        double t2_omega_01 = 1 / (t2_h0 * t2_h1);
-        double t2_omega_02 = 1 / (t2_h0 * t2_h2);
+        double t1_omega_22 = 1d / (t1_h2 * t1_h2);
+        double t2_omega_00 = 1d / (t2_h0 * t2_h0);
+        double t2_omega_01 = 1d / (t2_h0 * t2_h1);
+        double t2_omega_02 = 1d / (t2_h0 * t2_h2);
         double t2_omega_10 = t2_omega_01;
-        double t2_omega_11 = 1 / (t2_h1 * t2_h1);
-        double t2_omega_12 = 1 / (t2_h1 * t2_h2);
+        double t2_omega_11 = 1d / (t2_h1 * t2_h1);
+        double t2_omega_12 = 1d / (t2_h1 * t2_h2);
         double t2_omega_20 = t2_omega_02;
         double t2_omega_21 = t2_omega_12;
-        double t2_omega_22 = 1 / (t2_h2 * t2_h2);
+        double t2_omega_22 = 1d / (t2_h2 * t2_h2);
         
         Vec3D e0_unit = e0.unit;
         Vec3D t1_e0_normal = Vec3D.cross(e0_unit, n1); // "m_0" in paper.
@@ -1786,18 +1786,18 @@ public class Shell : MonoBehaviour {
         MatD t1_N0 = t1_M0 / (e0_magnitude * e0_magnitude);
         MatD t2_N0 = t2_M0 / (e0_magnitude * e0_magnitude);
         
-        MatD t1_P10 = t1_M0.transpose.mul(t1_omega_10 * Mathf.Cos(t1_alpha1)); // Perform: MatD t1_P10 = t1_omega_10 * Mathf.Cos(t1_alpha1) * t1_M0.transpose;
-        MatD t1_P20 = t1_M0.transpose.mul(t1_omega_20 * Mathf.Cos(t1_alpha2));
-        MatD t1_P12 = t1_M2.transpose.mul(t1_omega_12 * Mathf.Cos(t1_alpha1));
-        MatD t1_P21 = t1_M1.transpose.mul(t1_omega_21 * Mathf.Cos(t1_alpha2));
-        MatD t1_P11 = t1_M1.transpose.mul(t1_omega_11 * Mathf.Cos(t1_alpha1));
-        MatD t1_P22 = t1_M2.transpose.mul(t1_omega_22 * Mathf.Cos(t1_alpha2));
-        MatD t2_P10 = t2_M0.transpose.mul(t2_omega_10 * Mathf.Cos(t2_alpha1));
-        MatD t2_P20 = t2_M0.transpose.mul(t2_omega_20 * Mathf.Cos(t2_alpha2));
-        MatD t2_P12 = t2_M2.transpose.mul(t2_omega_12 * Mathf.Cos(t2_alpha1));
-        MatD t2_P21 = t2_M1.transpose.mul(t2_omega_21 * Mathf.Cos(t2_alpha2));
-        MatD t2_P11 = t2_M1.transpose.mul(t2_omega_11 * Mathf.Cos(t2_alpha1));
-        MatD t2_P22 = t2_M2.transpose.mul(t2_omega_22 * Mathf.Cos(t2_alpha2));
+        MatD t1_P10 = t1_M0.transpose.mul(t1_omega_10 * cos_t1_alpha1); // Perform: MatD t1_P10 = t1_omega_10 * Mathf.Cos(t1_alpha1) * t1_M0.transpose;
+        MatD t1_P20 = t1_M0.transpose.mul(t1_omega_20 * cos_t1_alpha2);
+        MatD t1_P12 = t1_M2.transpose.mul(t1_omega_12 * cos_t1_alpha1);
+        MatD t1_P21 = t1_M1.transpose.mul(t1_omega_21 * cos_t1_alpha2);
+        MatD t1_P11 = t1_M1.transpose.mul(t1_omega_11 * cos_t1_alpha1);
+        MatD t1_P22 = t1_M2.transpose.mul(t1_omega_22 * cos_t1_alpha2);
+        MatD t2_P10 = t2_M0.transpose.mul(t2_omega_10 * cos_t2_alpha1);
+        MatD t2_P20 = t2_M0.transpose.mul(t2_omega_20 * cos_t2_alpha2);
+        MatD t2_P12 = t2_M2.transpose.mul(t2_omega_12 * cos_t2_alpha1);
+        MatD t2_P21 = t2_M1.transpose.mul(t2_omega_21 * cos_t2_alpha2);
+        MatD t2_P11 = t2_M1.transpose.mul(t2_omega_11 * cos_t2_alpha1);
+        MatD t2_P22 = t2_M2.transpose.mul(t2_omega_22 * cos_t2_alpha2);
 
         // Construct 3x3 building blocks for the teta Hessian.
         MatD teta_hess_00 = -getMatPlusTransposedMat(t1_Q0);
@@ -1844,8 +1844,8 @@ public class Shell : MonoBehaviour {
         }
 
         // Calculate derivatives of teta towards all 4 vertices.
-        VecD d_teta_d_ve1 = (Mathf.Cos(t1_alpha2) / t1_h1) * n1 + (Mathf.Cos(t2_alpha2) / t2_h1) * n2;
-        VecD d_teta_d_ve2 = (Mathf.Cos(t1_alpha1) / t1_h2) * n1 + (Mathf.Cos(t2_alpha1) / t2_h2) * n2;
+        VecD d_teta_d_ve1 = (cos_t1_alpha2 / t1_h1) * n1 + (cos_t2_alpha2 / t2_h1) * n2;
+        VecD d_teta_d_ve2 = (cos_t1_alpha1 / t1_h2) * n1 + (cos_t2_alpha1 / t2_h2) * n2;
         VecD d_teta_d_vf1 = (-n1).div(t1_h0); // Perform: -n1 / t1_h0;
         VecD d_teta_d_vf2 = (-n2).div(t2_h0); // Perform: -n2 / t2_h0;
         
@@ -1864,7 +1864,7 @@ public class Shell : MonoBehaviour {
          * 
          * Perform: return d_fi_d_teta * teta_hess + 2d * edge.undeformedLength / h_e_undeformed * MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2);
          */
-        return teta_hess.mul(d_fi_d_teta) + MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2).mul(2d * edge.undeformedLength / h_e_undeformed);
+        return teta_hess.mul(d_fi_d_teta).add(MatD.fromVecMultiplication(d_teta_d_ve1ve2vf1vf2, d_teta_d_ve1ve2vf1vf2).mul(2d * edge.undeformedLength / h_e_undeformed));
     }
 
     private static MatD getMatPlusTransposedMat(MatD mat) {
