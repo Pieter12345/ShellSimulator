@@ -1764,9 +1764,9 @@ public class Shell : MonoBehaviour {
         Vec3D e0_unit = e0.unit;
         Vec3D t1_e0_normal = Vec3D.cross(e0_unit, n1); // "m_0" in paper.
         Vec3D t1_e1_normal = Vec3D.cross(t1_e1.unit, n1); // "m_1" in paper.
-        Vec3D t1_e2_normal = Vec3D.cross(t1_e2.unit, n1); // "m_2" in paper.
-        Vec3D t2_e0_normal = Vec3D.cross(e0_unit, n2); // "~m_0" in paper.
-        Vec3D t2_e1_normal = Vec3D.cross(t2_e1.unit, n2); // "~m_1" in paper.
+        Vec3D t1_e2_normal = Vec3D.cross(n1, t1_e2.unit); // "m_2" in paper.
+        Vec3D t2_e0_normal = Vec3D.cross(n2, e0_unit); // "~m_0" in paper.
+        Vec3D t2_e1_normal = Vec3D.cross(n2, t2_e1.unit); // "~m_1" in paper.
         Vec3D t2_e2_normal = Vec3D.cross(t2_e2.unit, n2); // "~m_2" in paper.
 
         MatD t1_M0 = MatD.fromVecMultiplication(n1, t1_e0_normal);

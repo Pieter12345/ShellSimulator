@@ -6,6 +6,7 @@ public class MatD {
     
     public int numRows { get { return matrix.GetLength(0); } }
     public int numColumns { get { return matrix.GetLength(1); } }
+
     public MatD transpose {
         get {
             MatD ret = new MatD(this.numColumns, this.numRows);
@@ -18,6 +19,19 @@ public class MatD {
         }
     }
 
+    public bool isSymmetric {
+        get {
+            for(int row = 0; row < this.numRows; row++) {
+                for(int col = 0; col < this.numColumns; col++) {
+                    if(this[row, col] != this[col, row]) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+    }
+
     public MatD(int rows, int columns) {
         this.matrix = new double[rows, columns];
         // TODO - Need to initialize to 0?
@@ -25,6 +39,10 @@ public class MatD {
 
     public MatD(double[,] data) {
         this.matrix = data;
+    }
+
+    public MatD(MatD m) {
+        this.matrix = (double[,]) m.matrix.Clone();
     }
 
     public MatD(params VecD[] rows) {
@@ -47,14 +65,14 @@ public class MatD {
     
     public static MatD operator +(MatD m) => m;
     public static MatD operator -(MatD m) => new MatD(m.numRows, m.numColumns).sub(m);
-    public static MatD operator +(MatD m1, MatD m2) => new MatD(m1.numRows, m1.numColumns).add(m1).add(m2);
-    public static MatD operator -(MatD m1, MatD m2) => new MatD(m1.numRows, m1.numColumns).add(m1).sub(m2);
-    public static MatD operator *(MatD m, double v) => new MatD(m.numRows, m.numColumns).add(m).mul(v);
-    public static MatD operator *(double v, MatD m) => new MatD(m.numRows, m.numColumns).add(m).mul(v);
+    public static MatD operator +(MatD m1, MatD m2) => new MatD(m1).add(m2);
+    public static MatD operator -(MatD m1, MatD m2) => new MatD(m1).sub(m2);
+    public static MatD operator *(MatD m, double v) => new MatD(m).mul(v);
+    public static MatD operator *(double v, MatD m) => new MatD(m).mul(v);
     public static MatD operator *(MatD m1, MatD m2) => mul(m1, m2);
     public static VecD operator *(VecD v, MatD m) => mul(v, m);
     public static VecD operator *(MatD m, VecD v) => mul(m, v);
-    public static MatD operator /(MatD m, double v) => new MatD(m.numRows, m.numColumns).add(m).div(v);
+    public static MatD operator /(MatD m, double v) => new MatD(m).div(v);
 
     public MatD add(MatD m) {
         ensureMatricesSameDimensions(this, m);
@@ -206,6 +224,22 @@ public class MatD {
         string str = (this.numColumns > 0 ? this.matrix[row, 0].ToString() : "");
         for(int i = 1; i < this.numColumns; i++) {
             str += ", " + this.matrix[row, i];
+        }
+        return str;
+    }
+
+    public string toFancyString() {
+        string str = (this.numRows > 0 ? "\n\t" + this.getFancyRowStr(0) + "\n" : "");
+        for(int i = 1; i < this.numRows; i++) {
+            str += "\t" + this.getFancyRowStr(i) + "\n";
+        }
+        return base.ToString() + "{" + str + "}";
+    }
+
+    private string getFancyRowStr(int row) {
+        string str = (this.numColumns > 0 ? String.Format("{0,22}", this.matrix[row, 0]) : "");
+        for(int i = 1; i < this.numColumns; i++) {
+            str += String.Format(", {0,22}", this.matrix[row, i]);
         }
         return str;
     }
