@@ -677,6 +677,27 @@ public class Shell : MonoBehaviour {
         double maxStepMagnitude = 1000d; //numVertices * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
         int[] triangles = this.getMesh().triangles;
 
+        // Get vertex masses. These are assumed to be constant, which is an okay approximation for small steps.
+        VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
+
+        // Assemble system-wide energy Hessian.
+        // TODO - Represent this using triples instead of a full matrix.
+        MatD energyHess = this.getSystemEnergyHessian(this.vertexPositions, triangles);
+
+        // Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
+        /**
+            * Get E Hessian.
+            * This is a simplified version without measurements penalty and wind force.
+            * The gravity force is not dependent on the positions, so the gravity Hessian is a zero matrix.
+            * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
+            * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
+            */
+        MatD eHess = energyHess;
+        double deltaTimeSquare = deltaTime * deltaTime;
+        for(int i = 0; i < eHess.numRows; i++) {
+            eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
+        }
+
         // Perform Newton's method, setting steps until the termination criterion has been met.
         VecD vertexPositionsFlat = new VecD(this.vertexPositions);
         Vec3D[] newVertexPositions = new Vec3D[numVertices]; // TODO - Use pos + deltaTime * velocity as initial guess.
@@ -684,7 +705,6 @@ public class Shell : MonoBehaviour {
             newVertexPositions[i] = this.vertexPositions[i].clone();
         }
         //this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions); // TODO - Call this when the initial guess changes.
-        VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
         int iteration = 0;
         long maxTimeSpentInLoopMs = 10000;
         Stopwatch stopWatch = Stopwatch.StartNew();
@@ -748,22 +768,24 @@ public class Shell : MonoBehaviour {
                 break;
             }
 
-            // Assemble system-wide energy Hessian.
-            // TODO - Represent this using triples instead of a full matrix.
-            MatD energyHess = this.getSystemEnergyHessian(newVertexPositions, triangles);
+            // Recompute the system-wide energy Hessian every X iterations.
+            if(iteration % 10 == 0) {
+                // Assemble system-wide energy Hessian.
+                // TODO - Represent this using triples instead of a full matrix.
+                energyHess = this.getSystemEnergyHessian(newVertexPositions, triangles);
 
-            // Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
-            /**
-             * Get E Hessian.
-             * This is a simplified version without measurements penalty and wind force.
-             * The gravity force is not dependent on the positions, so the gravity Hessian is a zero matrix.
-             * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
-             * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
-             */
-            MatD eHess = energyHess;
-            double deltaTimeSquare = deltaTime * deltaTime;
-            for(int i = 0; i < eHess.numRows; i++) {
-                eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
+                // Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
+                /**
+                 * Get E Hessian.
+                 * This is a simplified version without measurements penalty and wind force.
+                 * The gravity force is not dependent on the positions, so the gravity Hessian is a zero matrix.
+                 * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
+                 * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
+                 */
+                eHess = energyHess;
+                for(int i = 0; i < eHess.numRows; i++) {
+                    eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
+                }
             }
 
             // Compute Newton step.
