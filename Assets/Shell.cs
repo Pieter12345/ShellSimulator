@@ -1071,16 +1071,16 @@ public class Shell : MonoBehaviour {
                     for(int j = 0; j < 3; j++) {
 
                         // ddLengthEnergy_dv1_dv1.
-                        energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
+                        energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] += lengthEnergyHess[i, j];
 
                         // ddLengthEnergy_dv2_dv2.
-                        energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
+                        energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] += lengthEnergyHess[i + 3, j + 3];
 
                         // ddLengthEnergy_dv1_dv2.
-                        energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
+                        energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] += lengthEnergyHess[i, j + 3];
 
                         // ddLengthEnergy_dv2_dv1.
-                        energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
+                        energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] += lengthEnergyHess[i + 3, j];
                     }
                 }
             }
@@ -1091,25 +1091,25 @@ public class Shell : MonoBehaviour {
                 makeHessPositiveDefinite(bendEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
-                        energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i, j];
-                        energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i, j + 3];
-                        energyHess[edge.ve1 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i, j + 6];
-                        energyHess[edge.ve1 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i, j + 9];
+                        energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i, j];
+                        energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i, j + 3];
+                        energyHess[edge.ve1 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i, j + 6];
+                        energyHess[edge.ve1 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i, j + 9];
                         
-                        energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i + 3, j];
-                        energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i + 3, j + 3];
-                        energyHess[edge.ve2 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i + 3, j + 6];
-                        energyHess[edge.ve2 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i + 3, j + 9];
+                        energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i + 3, j];
+                        energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i + 3, j + 3];
+                        energyHess[edge.ve2 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i + 3, j + 6];
+                        energyHess[edge.ve2 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i + 3, j + 9];
                         
-                        energyHess[edge.vf1 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i + 6, j];
-                        energyHess[edge.vf1 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i + 6, j + 3];
-                        energyHess[edge.vf1 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i + 6, j + 6];
-                        energyHess[edge.vf1 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i + 6, j + 9];
+                        energyHess[edge.vf1 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i + 6, j];
+                        energyHess[edge.vf1 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i + 6, j + 3];
+                        energyHess[edge.vf1 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i + 6, j + 6];
+                        energyHess[edge.vf1 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i + 6, j + 9];
                         
-                        energyHess[edge.vf2 * 3 + i, edge.ve1 * 3 + j] = bendEnergyHess[i + 9, j];
-                        energyHess[edge.vf2 * 3 + i, edge.ve2 * 3 + j] = bendEnergyHess[i + 9, j + 3];
-                        energyHess[edge.vf2 * 3 + i, edge.vf1 * 3 + j] = bendEnergyHess[i + 9, j + 6];
-                        energyHess[edge.vf2 * 3 + i, edge.vf2 * 3 + j] = bendEnergyHess[i + 9, j + 9];
+                        energyHess[edge.vf2 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i + 9, j];
+                        energyHess[edge.vf2 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i + 9, j + 3];
+                        energyHess[edge.vf2 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i + 9, j + 6];
+                        energyHess[edge.vf2 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i + 9, j + 9];
                     }
                 }
             }
@@ -1125,21 +1125,21 @@ public class Shell : MonoBehaviour {
                     for(int j = 0; j < 3; j++) {
 
                         // ddAreaEnergy_dvi_dvi.
-                        energyHess[v1 * 3 + i, v1 * 3 + j] = areaEnergyHess[i, j];
-                        energyHess[v2 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 3, j + 3];
-                        energyHess[v3 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 6, j + 6];
+                        energyHess[v1 * 3 + i, v1 * 3 + j] += areaEnergyHess[i, j];
+                        energyHess[v2 * 3 + i, v2 * 3 + j] += areaEnergyHess[i + 3, j + 3];
+                        energyHess[v3 * 3 + i, v3 * 3 + j] += areaEnergyHess[i + 6, j + 6];
 
                         // ddAreaEnergy_dv1_dv2 & ddAreaEnergy_dv2_dv1.
-                        energyHess[v1 * 3 + i, v2 * 3 + j] = areaEnergyHess[i, j + 3];
-                        energyHess[v2 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 3, j];
+                        energyHess[v1 * 3 + i, v2 * 3 + j] += areaEnergyHess[i, j + 3];
+                        energyHess[v2 * 3 + i, v1 * 3 + j] += areaEnergyHess[i + 3, j];
 
                         // ddAreaEnergy_dv1_dv3 & ddAreaEnergy_dv3_dv1.
-                        energyHess[v1 * 3 + i, v3 * 3 + j] = areaEnergyHess[i, j + 6];
-                        energyHess[v3 * 3 + i, v1 * 3 + j] = areaEnergyHess[i + 6, j];
+                        energyHess[v1 * 3 + i, v3 * 3 + j] += areaEnergyHess[i, j + 6];
+                        energyHess[v3 * 3 + i, v1 * 3 + j] += areaEnergyHess[i + 6, j];
 
                         // ddAreaEnergy_dv2_dv3 & ddAreaEnergy_dv3_dv2.
-                        energyHess[v2 * 3 + i, v3 * 3 + j] = areaEnergyHess[i + 3, j + 6];
-                        energyHess[v3 * 3 + i, v2 * 3 + j] = areaEnergyHess[i + 6, j + 3];
+                        energyHess[v2 * 3 + i, v3 * 3 + j] += areaEnergyHess[i + 3, j + 6];
+                        energyHess[v3 * 3 + i, v2 * 3 + j] += areaEnergyHess[i + 6, j + 3];
                     }
                 }
             }
