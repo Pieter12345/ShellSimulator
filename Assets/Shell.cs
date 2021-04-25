@@ -758,9 +758,9 @@ public class Shell : MonoBehaviour {
             }
 
             // Get E gradient.
-            VecD eGradient = VecD.multiplyElementWise(vertexCoordMasses,
-                    new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities))
-                    / (deltaTime * deltaTime) + energyGradient + penaltyEnergyGradient - windForce - gravityForce;
+            VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
+                    .multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
+                    .add(energyGradient).add(penaltyEnergyGradient).sub(windForce).sub(gravityForce);
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;
@@ -875,9 +875,9 @@ public class Shell : MonoBehaviour {
                         }
                     }
                 }
-                VecD newEGradient = VecD.multiplyElementWise(vertexCoordMasses,
-                        new VecD(newNewVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)).div(deltaTimeSquare)
-                                .add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce);
+                VecD newEGradient = new VecD(newNewVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
+                        .multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
+                        .add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce);
 
                 // Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
                 if(newEGradient.magnitude <= eGradient.magnitude) {// + c * alpha * (eHess * step).sum) {
@@ -915,7 +915,7 @@ public class Shell : MonoBehaviour {
         }
         
         // Update vertex velocity.
-        this.vertexVelocities = (new VecD(newVertexPositions).sub(vertexPositionsFlat)) / deltaTime;
+        this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 
         // Update vertex positions.
         this.vertexPositions = newVertexPositions;

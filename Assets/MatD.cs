@@ -19,19 +19,6 @@ public class MatD {
         }
     }
 
-    public bool isSymmetric {
-        get {
-            for(int row = 0; row < this.numRows; row++) {
-                for(int col = 0; col < this.numColumns; col++) {
-                    if(this[row, col] != this[col, row]) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-    }
-
     public MatD(int rows, int columns) {
         this.matrix = new double[rows, columns];
         // TODO - Need to initialize to 0?
@@ -204,6 +191,22 @@ public class MatD {
         }
         return false;
     }
+
+    public bool isSymmetric(double maxDiff) {
+        for(int row = 0; row < this.numRows; row++) {
+            for(int col = 0; col < this.numColumns; col++) {
+                double diff = this[row, col] - this[col, row];
+                if(diff < 0) {
+                    diff = -diff;
+                }
+                if(diff > maxDiff) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     public double[,] asDoubleArray() {
         return (double[,]) this.matrix.Clone();
     }
