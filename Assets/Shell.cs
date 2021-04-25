@@ -720,6 +720,7 @@ public class Shell : MonoBehaviour {
             }
 
             // Get system-wide energy gradient.
+            this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions);
             VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
 
             // Get wind force.
