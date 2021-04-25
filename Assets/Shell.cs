@@ -831,9 +831,10 @@ public class Shell : MonoBehaviour {
                 newNewVertexPositions[i] = new Vec3D();
             }
 
-            // Take steps with decreasing alpha until sufficient decrease has been achieved.
+            // Take steps with adjusting alpha until sufficient decrease has been achieved.
             double alpha = this.lastLineSearchAlpha;
             double bestAlpha = double.NaN;
+            double bestEGradientMagnitude = eGradientMagnitude;
             double c = 1d;
             long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
             while(true) {
@@ -880,16 +881,19 @@ public class Shell : MonoBehaviour {
                         .add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce);
 
                 // Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
-                if(newEGradient.magnitude <= eGradient.magnitude) {// + c * alpha * (eHess * step).sum) {
-
+                double newEGradientMagnitude = newEGradient.magnitude;
+                if(newEGradientMagnitude <= bestEGradientMagnitude) {// + c * alpha * (eHess * step).sum) {
+                    
                     // Alpha is suitable, but there might be a higher value of alpha that is still suitable. Increase alpha and store the current best alpha.
                     bestAlpha = alpha;
+                    bestEGradientMagnitude = newEGradientMagnitude;
                     alpha *= 2;
                 } else if(!double.IsNaN(bestAlpha)) {
 
                     // A best alpha was set, but a higher value of alpha didn't make it. Return the best value.
                     alpha = bestAlpha;
-                    print("Terminating with alpha: " + alpha + " after " + (stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime) + "ms.");
+                    print(stopWatch.ElapsedMilliseconds + "ms: Terminating with alpha: " + alpha
+                            + " after " + (stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime) + "ms (bestEGradientMagnitude: " + bestEGradientMagnitude + ").");
                     break;
                 } else {
 
