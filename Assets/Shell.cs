@@ -1553,11 +1553,13 @@ public class Shell : MonoBehaviour {
 
         // Calculate length energy Hessian.
         // ddLengthEnergy_di_dj = 2 / undeformedEdgeLength * dEdgeLength_dj * dEdgeLength_di + (2 * edgeLength / undeformedEdgeLength - 2) * ddEdgeLength_di_dj
+        // This calculation uses the fact that the length energy Hessian is symmetric.
         MatD lengthEnergyHess = new MatD(6, 6);
         double a = (2 * edgeLength / edge.undeformedLength - 2);
         for(int i = 0; i < 6; i++) {
-            for(int j = 0; j < 6; j++) {
-                lengthEnergyHess[i, j] = 2 / edge.undeformedLength * dEdgeLength_dv1v2[i] * dEdgeLength_dv1v2[j] + a * edgeLengthHess[i, j];
+            lengthEnergyHess[i, i] = 2d / edge.undeformedLength * dEdgeLength_dv1v2[i] * dEdgeLength_dv1v2[i] + a * edgeLengthHess[i, i];
+            for(int j = i + 1; j < 6; j++) {
+                lengthEnergyHess[i, j] = lengthEnergyHess[j, i] = 2d / edge.undeformedLength * dEdgeLength_dv1v2[i] * dEdgeLength_dv1v2[j] + a * edgeLengthHess[i, j];
             }
         }
         return lengthEnergyHess;
@@ -1681,8 +1683,8 @@ public class Shell : MonoBehaviour {
 			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}  // d_c_dv3z
         });
         for(int i = 0; i < areaEnergyHessian.numRows; i++) {
-            for(int j = 0; j < areaEnergyHessian.numColumns; j++) {
-                areaEnergyHessian[i, j] = (
+            for(int j = i; j < areaEnergyHessian.numColumns; j++) { // Use knowledge that the Hessian is symmetric.
+                areaEnergyHessian[i, j] = areaEnergyHessian[j, i] = (
                         (a[i] * a[j] + d_a_dv1v2v3[j, i] * d + b[i] * b[j] + d_b_dv1v2v3[j, i] * e + c[i] * c[j] + d_b_dv1v2v3[j, i] * f)
                         - (d * a[j] + e * b[j] + f * c[j]) * d_crossProdLength_dv1v2v3[i] / crossProdLength
                         ) / crossProdLength / 2d;
@@ -1933,13 +1935,16 @@ public class Shell : MonoBehaviour {
         // Construct teta Hessian.
         MatD teta_hess = new MatD(12, 12);
         for(int row = 0; row < 3; row++) {
-            for(int col = 0; col < 3; col++) {
+            for(int col = row; col < 3; col++) {
 
                 // Set Hessian diagonal building blocks.
-                teta_hess[row, col] = teta_hess_00[row, col];
-                teta_hess[row + 3, col + 3] = teta_hess_11[row, col];
-                teta_hess[row + 6, col + 6] = teta_hess_22[row, col];
-                teta_hess[row + 9, col + 9] = teta_hess_33[row, col];
+                // Use only the top triangle of the blocks to ensure that there are no rounding errors in the result that will make it non-symmetrical.
+                teta_hess[row, col] = teta_hess[col, row] = teta_hess_00[row, col];
+                teta_hess[row + 3, col + 3] = teta_hess[col + 3, row + 3] = teta_hess_11[row, col];
+                teta_hess[row + 6, col + 6] = teta_hess[col + 6, row + 6] = teta_hess_22[row, col];
+                teta_hess[row + 9, col + 9] = teta_hess[col + 9, row + 9] = teta_hess_33[row, col];
+            }
+            for(int col = 0; col < 3; col++) {
 
                 // Set remaining symmetric non-diagonal building blocks.
                 teta_hess[row + 3, col] = teta_hess_10[row, col];
@@ -2095,25 +2100,25 @@ public class Shell : MonoBehaviour {
         }
         //print("Hess (after): " + hess);
 
-        // TODO - Remove test below after validating that it always succeeds.
-        mat = MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(hess.asDoubleArray());
-        eigValDecomp = mat.Evd();
-        eigenValues = eigValDecomp.EigenValues;
-        eigenVectors = eigValDecomp.EigenVectors;
-        for(int i = 0; i < eigenValues.Count; i++) {
-            if(eigenValues[i].Real <= 0d) {
-                print("Negative eigenvalue! eigenValues[" + i + "] = " + eigenValues[i] + " Matrix: " + hess);
+        //// TODO - Remove test below after validating that it always succeeds.
+        //mat = MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(hess.asDoubleArray());
+        //eigValDecomp = mat.Evd();
+        //eigenValues = eigValDecomp.EigenValues;
+        //eigenVectors = eigValDecomp.EigenVectors;
+        //for(int i = 0; i < eigenValues.Count; i++) {
+        //    if(eigenValues[i].Real <= 0d) {
+        //        print("Negative eigenvalue! eigenValues[" + i + "] = " + eigenValues[i] + " Matrix: " + hess);
 
-                // Return the identity matrix as fallback.
-                for(int row = 0; row < hess.numRows; row++) {
-                    for(int col = 0; col < hess.numColumns; col++) {
-                        mat[row, col] = (row == col ? 1d : 0d);
-                    }
-                }
-                return;
-                //throw new Exception("Negative eigenvalue! eigenValues[" + i + "] = " + eigenValues[i] + " Matrix: " + hess);
-            }
-        }
+        //        // Return the identity matrix as fallback.
+        //        for(int row = 0; row < hess.numRows; row++) {
+        //            for(int col = 0; col < hess.numColumns; col++) {
+        //                mat[row, col] = (row == col ? 1d : 0d);
+        //            }
+        //        }
+        //        return;
+        //        //throw new Exception("Negative eigenvalue! eigenValues[" + i + "] = " + eigenValues[i] + " Matrix: " + hess);
+        //    }
+        //}
     }
 
     /*
