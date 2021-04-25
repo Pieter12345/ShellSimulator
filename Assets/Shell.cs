@@ -669,6 +669,9 @@ public class Shell : MonoBehaviour {
          *     dd_E(x)_dx_dx = d_h(x)_dx = d_(massMatrix * (x - xOld - deltaTime * vOld) / deltaTime^2 + d_fi_d_x)_dx
          *         = massMatrix / deltaTime^2 + dd_fi_dx_dx // MatD
          */
+
+        // Start timer.
+        Stopwatch stopWatch = Stopwatch.StartNew();
         
         // Declare constants.
         double terminationThreshold = this.eGradientMagnitudeTerminationThreshold;
@@ -706,13 +709,13 @@ public class Shell : MonoBehaviour {
         //this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions); // TODO - Call this when the initial guess changes.
         int iteration = 0;
         long maxTimeSpentInLoopMs = 10000;
-        Stopwatch stopWatch = Stopwatch.StartNew();
         while(true) {
 
             // Limit amount of time spent to prevent endless loops.
             iteration++;
             if(stopWatch.ElapsedMilliseconds > maxTimeSpentInLoopMs) {
-                print("Maximum time reached in Optimization Integrator update after " + iteration + " iterations. Returning without taking a step.");
+                print(stopWatch.ElapsedMilliseconds + "ms: Maximum time reached in Optimization Integrator update after "
+                        + iteration + " iterations. Returning without taking a step.");
                 return;
             }
 
@@ -760,10 +763,10 @@ public class Shell : MonoBehaviour {
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;
-            print("E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold
-                    + ", totalLoopTimeElapsed: " + stopWatch.ElapsedMilliseconds + ")");
+            print(stopWatch.ElapsedMilliseconds + "ms: E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold
+                    + ", iteration: " + iteration + ")");
             if(eGradientMagnitude < terminationThreshold) {
-                print("Finished on iteration: " + iteration + " after " + stopWatch.ElapsedMilliseconds + "ms.");
+                print(stopWatch.ElapsedMilliseconds + "ms: Finished on iteration: " + iteration + ".");
                 break;
             }
 
@@ -834,7 +837,7 @@ public class Shell : MonoBehaviour {
             long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
             while(true) {
                 if(stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime > 10000) {
-                    print("Spent too long in line search. Breaking with alpha = " + alpha);
+                    print(stopWatch.ElapsedMilliseconds + "ms: Spent too long in line search. Breaking with alpha = " + alpha);
                     break;
                 }
 
@@ -895,7 +898,7 @@ public class Shell : MonoBehaviour {
                     // Just take the step if alpha gets too small.
                     if(alpha <= 0.0001d) {
                         alpha = 0.0001d;
-                        print("Alpha is getting too small. Setting alpha: " + alpha);
+                        print(stopWatch.ElapsedMilliseconds + "ms: Alpha is getting too small. Setting alpha: " + alpha);
                         break;
                     }
                 }
