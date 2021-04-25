@@ -851,7 +851,7 @@ public class Shell : MonoBehaviour {
                 // Get E gradient after the step.
                 this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
                 VecD newEnergyGradient = this.getSystemEnergyGradient(triangles, newNewVertexPositions);
-                VecD newWindForce = this.getVertexWindForce(triangles, newVertexPositions);
+                VecD newWindForce = this.getVertexWindForce(triangles, newNewVertexPositions);
                 VecD newGravityForce = this.getVertexGravityForce(vertexCoordMasses);
                 VecD newPenaltyEnergyGradient = new VecD(3 * numVertices);
                 if(this.measurements != null) {
