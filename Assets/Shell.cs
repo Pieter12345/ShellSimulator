@@ -62,8 +62,8 @@ public class Shell : MonoBehaviour {
 
         // Initialize fields. Doing this overwrites the values set in Unity's inspector.
         this.kLength = 10f;
-        this.kArea = 0f;
-        this.kBend = 0f;
+        this.kArea = 10f;
+        this.kBend = 0.1f;
         this.kGradientDescent = 1f;
         this.maxGradientDescentStep = 0.01f;
         this.windPressure = new Vector3(0f, 0f, 10f);
@@ -76,7 +76,7 @@ public class Shell : MonoBehaviour {
             this.shellObj.AddComponent<MeshFilter>();
             //mesh = MeshHelper.createTriangleMesh(5, 5, 0);
             //mesh = MeshHelper.createSquareMesh(5, 5, 1);
-            mesh = MeshHelper.createTriangleMesh(5, 5, 3); // 5 subdivisions leads to 561 vertices and 3072 triangles.
+            mesh = MeshHelper.createTriangleMesh(5, 5, 5); // 5 subdivisions leads to 561 vertices and 3072 triangles.
             this.undeformedEdgeLengthFactor = 1.1d;
         } else {
             mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
