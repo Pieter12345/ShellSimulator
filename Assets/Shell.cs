@@ -2057,13 +2057,6 @@ public class Shell : MonoBehaviour {
         //    hess.addDiag(diagIncrement);
         //}
 
-        // Convert Hessian to float to prevent precision errors causing the eigen decomposition to yield invalid eigenvectors.
-        for(int row = 0; row < hess.numRows; row++) {
-            for(int col = 0; col < hess.numColumns; col++) {
-                hess[row, col] = (float) hess[row, col];
-            }
-        }
-
         double minEigenValue = 0.1d;
 
         MathNet.Numerics.LinearAlgebra.Matrix<double> mat = MathNet.Numerics.LinearAlgebra.Matrix<double>.Build.DenseOfArray(hess.asDoubleArray());
