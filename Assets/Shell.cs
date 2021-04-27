@@ -927,6 +927,13 @@ public class Shell : MonoBehaviour {
                 newVertexPositions[i].y += alpha * step[3 * i + 1];
                 newVertexPositions[i].z += alpha * step[3 * i + 2];
             }
+
+            // Terminate when the termination criterion has been met.
+            // This check is redundant, but it prevents the gradient from being unnecessarily recalculated.
+            if(bestEGradientMagnitude < terminationThreshold) {
+                print(stopWatch.ElapsedMilliseconds + "ms: Finished on iteration: " + iteration + ".");
+                break;
+            }
         }
         
         // Update vertex velocity.
