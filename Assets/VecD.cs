@@ -65,6 +65,10 @@ public class VecD {
     public static VecD operator -(VecD v, double val) => new VecD((double[]) v.vector.Clone()).sub(val);
     public static VecD operator -(double val, VecD v) => new VecD((double[]) v.vector.Clone()).sub(val);
     public static VecD operator *(VecD v, double val) => new VecD((double[]) v.vector.Clone()).mul(val);
+    public static VecD operator *(VecD v, MathNet.Numerics.LinearAlgebra.Double.SparseMatrix m) =>
+            new VecD((m * MathNet.Numerics.LinearAlgebra.Double.DenseVector.OfArray(v.vector)).AsArray());
+    public static VecD operator *(MathNet.Numerics.LinearAlgebra.Double.SparseMatrix m, VecD v) =>
+            new VecD((MathNet.Numerics.LinearAlgebra.Double.DenseVector.OfArray(v.vector) * m).AsArray());
     public static VecD operator *(double val, VecD v) => new VecD((double[]) v.vector.Clone()).mul(val);
     public static VecD operator /(VecD v, double val) => new VecD((double[]) v.vector.Clone()).div(val);
 

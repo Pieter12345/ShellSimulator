@@ -34,6 +34,7 @@ public class Shell : MonoBehaviour {
     public double kGradientDescent;
     public double maxGradientDescentStep;
     public double timeScale = 1f;
+    public double dampingConstant = 1d;
     public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
     public double gravityConstant = 9.81d;
@@ -694,7 +695,7 @@ public class Shell : MonoBehaviour {
           * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
           * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
           */
-        MathNet.Numerics.LinearAlgebra.Double.SparseMatrix eHess = energyHess;
+        MathNet.Numerics.LinearAlgebra.Double.SparseMatrix eHess = MathNet.Numerics.LinearAlgebra.Double.SparseMatrix.OfMatrix(energyHess);
         double deltaTimeSquare = deltaTime * deltaTime;
         for(int i = 0; i < eHess.RowCount; i++) {
             eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
@@ -729,6 +730,10 @@ public class Shell : MonoBehaviour {
             // Get gravity force.
             VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
+            // Get damping force.
+            VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat);
+            VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
+
             // Get measurement penalty gradient.
             // Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
             // Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
@@ -752,6 +757,7 @@ public class Shell : MonoBehaviour {
                         energyGradient[3 * i + coord] = 0;
                         windForce[3 * i + coord] = 0;
                         gravityForce[3 * i + coord] = 0;
+                        dampingForce[3 * i + coord] = 0;
                         penaltyEnergyGradient[3 * i + coord] = 0;
                     }
                 }
@@ -760,7 +766,7 @@ public class Shell : MonoBehaviour {
             // Get E gradient.
             VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
                     .multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
-                    .add(energyGradient).add(penaltyEnergyGradient).sub(windForce).sub(gravityForce);
+                    .add(energyGradient).add(penaltyEnergyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
 
             // Terminate when the termination criterion has been met.
             double eGradientMagnitude = eGradient.magnitude;
@@ -784,7 +790,7 @@ public class Shell : MonoBehaviour {
                  * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
                  * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
                  */
-                eHess = energyHess;
+                eHess = MathNet.Numerics.LinearAlgebra.Double.SparseMatrix.OfMatrix(energyHess);
                 for(int i = 0; i < eHess.RowCount; i++) {
                     eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
                 }
@@ -855,6 +861,10 @@ public class Shell : MonoBehaviour {
                 VecD newEnergyGradient = this.getSystemEnergyGradient(triangles, newNewVertexPositions);
                 VecD newWindForce = this.getVertexWindForce(triangles, newNewVertexPositions);
                 VecD newGravityForce = this.getVertexGravityForce(vertexCoordMasses);
+                
+                VecD newNextVertexVelocities = new VecD(newNewVertexPositions).sub(vertexPositionsFlat);
+                VecD newDampingForce = -this.dampingConstant * (energyHess * newNextVertexVelocities);
+
                 VecD newPenaltyEnergyGradient = new VecD(3 * numVertices);
                 if(this.measurements != null) {
                     for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
@@ -872,13 +882,14 @@ public class Shell : MonoBehaviour {
                             newEnergyGradient[3 * i + coord] = 0;
                             newWindForce[3 * i + coord] = 0;
                             newGravityForce[3 * i + coord] = 0;
+                            newDampingForce[3 * i + coord] = 0;
                             newPenaltyEnergyGradient[3 * i + coord] = 0;
                         }
                     }
                 }
                 VecD newEGradient = new VecD(newNewVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
                         .multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
-                        .add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce);
+                        .add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce).sub(newDampingForce);
 
                 // Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
                 double newEGradientMagnitude = newEGradient.magnitude;
