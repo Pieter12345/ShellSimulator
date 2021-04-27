@@ -2079,7 +2079,7 @@ public class Shell : MonoBehaviour {
                 // Return the identity matrix as fallback.
                 for(int row = 0; row < hess.numRows; row++) {
                     for(int col = 0; col < hess.numColumns; col++) {
-                        mat[row, col] = (row == col ? 1d : 0d);
+                        hess[row, col] = (row == col ? 1d : 0d);
                     }
                 }
                 return;
