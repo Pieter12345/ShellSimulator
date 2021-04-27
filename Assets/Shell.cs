@@ -1089,7 +1089,7 @@ public class Shell : MonoBehaviour {
 
             // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
             if(this.kLength != 0d) {
-                MatD lengthEnergyHess = this.kLength * this.getEdgeLengthEnergyHess(vertexPositions, edge);
+                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(vertexPositions, edge).mul(this.kLength);
                 makeHessPositiveDefinite(lengthEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
@@ -1111,7 +1111,7 @@ public class Shell : MonoBehaviour {
 
             // The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
             if(this.kBend != 0d && edge.hasSideFlaps()) {
-                MatD bendEnergyHess = this.kBend * this.getEdgeBendEnergyHess(vertexPositions, edge);
+                MatD bendEnergyHess = this.getEdgeBendEnergyHess(vertexPositions, edge).mul(this.kBend);
                 makeHessPositiveDefinite(bendEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
@@ -1143,7 +1143,7 @@ public class Shell : MonoBehaviour {
                 int v1 = triangles[triangleId];
                 int v2 = triangles[triangleId + 1];
                 int v3 = triangles[triangleId + 2];
-                MatD areaEnergyHess = this.kArea * this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3);
+                MatD areaEnergyHess = this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3).mul(this.kArea);
                 makeHessPositiveDefinite(areaEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
@@ -1180,7 +1180,7 @@ public class Shell : MonoBehaviour {
 
             // The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
             if(this.kLength != 0d) {
-                MatD lengthEnergyHess = this.kLength * this.getEdgeLengthEnergyHess(vertexPositions, edge);
+                MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(vertexPositions, edge).mul(this.kLength);
                 makeHessPositiveDefinite(lengthEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
@@ -1202,7 +1202,7 @@ public class Shell : MonoBehaviour {
 
             // The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
             if(this.kBend != 0d && edge.hasSideFlaps()) {
-                MatD bendEnergyHess = this.kBend * this.getEdgeBendEnergyHess(vertexPositions, edge);
+                MatD bendEnergyHess = this.getEdgeBendEnergyHess(vertexPositions, edge).mul(this.kBend);
                 makeHessPositiveDefinite(bendEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {
@@ -1234,7 +1234,7 @@ public class Shell : MonoBehaviour {
                 int v1 = triangles[triangleId];
                 int v2 = triangles[triangleId + 1];
                 int v3 = triangles[triangleId + 2];
-                MatD areaEnergyHess = this.kArea * this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3);
+                MatD areaEnergyHess = this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3).mul(this.kArea);
                 makeHessPositiveDefinite(areaEnergyHess);
                 for(int i = 0; i < 3; i++) {
                     for(int j = 0; j < 3; j++) {

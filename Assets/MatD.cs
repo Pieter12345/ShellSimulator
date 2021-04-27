@@ -4,8 +4,8 @@ public class MatD {
 
     private double[,] matrix;
     
-    public int numRows { get { return matrix.GetLength(0); } }
-    public int numColumns { get { return matrix.GetLength(1); } }
+    public int numRows { get; }
+    public int numColumns { get; }
 
     public MatD transpose {
         get {
@@ -21,25 +21,31 @@ public class MatD {
 
     public MatD(int rows, int columns) {
         this.matrix = new double[rows, columns];
-        // TODO - Need to initialize to 0?
+        this.numRows = rows;
+        this.numColumns = columns;
     }
 
     public MatD(double[,] data) {
         this.matrix = data;
+        this.numRows = this.matrix.GetLength(0);
+        this.numColumns = this.matrix.GetLength(1);
     }
 
     public MatD(MatD m) {
         this.matrix = (double[,]) m.matrix.Clone();
+        this.numRows = m.numRows;
+        this.numColumns = m.numColumns;
     }
 
     public MatD(params VecD[] rows) {
-        int numColumns = (rows.Length == 0 ? 0 : rows[0].length);
-        this.matrix = new double[rows.Length, numColumns];
-        for(int row = 0; row < rows.Length; row++) {
-            if(rows[row].length != numColumns) {
+        this.numRows = rows.Length;
+        this.numColumns = (this.numRows == 0 ? 0 : rows[0].length);
+        this.matrix = new double[this.numRows, this.numColumns];
+        for(int row = 0; row < this.numRows; row++) {
+            if(rows[row].length != this.numColumns) {
                 throw new ArgumentException("All rows that compose a matrix must have the same length.");
             }
-            for(int col = 0; col < numColumns; col++) {
+            for(int col = 0; col < this.numColumns; col++) {
                 this.matrix[row, col] = rows[row][col];
             }
         }
