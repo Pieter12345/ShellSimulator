@@ -1703,7 +1703,7 @@ public class Shell : MonoBehaviour {
         for(int i = 0; i < areaEnergyHessian.numRows; i++) {
             for(int j = i; j < areaEnergyHessian.numColumns; j++) { // Use knowledge that the Hessian is symmetric.
                 areaEnergyHessian[i, j] = areaEnergyHessian[j, i] = (
-                        (a[i] * a[j] + d_a_dv1v2v3[j, i] * d + b[i] * b[j] + d_b_dv1v2v3[j, i] * e + c[i] * c[j] + d_b_dv1v2v3[j, i] * f)
+                        (a[i] * a[j] + d_a_dv1v2v3[j, i] * d + b[i] * b[j] + d_b_dv1v2v3[j, i] * e + c[i] * c[j] + d_c_dv1v2v3[j, i] * f)
                         - (d * a[j] + e * b[j] + f * c[j]) * d_crossProdLength_dv1v2v3[i] / crossProdLength
                         ) / crossProdLength / 2d;
             }
