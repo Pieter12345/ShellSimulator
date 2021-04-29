@@ -1518,16 +1518,9 @@ public class Shell : MonoBehaviour {
         Vec3D e = vertexPositions[v2] - vertexPositions[v1]; // Vector from v1 to v2.
         double edgeLength = e.magnitude;
         if(double.IsNaN(edgeLength)) {
-            return new MatD(new double[,] {
-                {0, 0, 0, 0, 0, 0},
-                {0, 0, 0, 0, 0, 0},
-                {0, 0, 0, 0, 0, 0},
-                {0, 0, 0, 0, 0, 0},
-                {0, 0, 0, 0, 0, 0},
-                {0, 0, 0, 0, 0, 0}
-            });
+            return new MatD(6, 6);
         }
-        VecD dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]).div(edgeLength);
+        Vec3D dEdgeLength_dv1 = (vertexPositions[v1] - vertexPositions[v2]).div(edgeLength);
 
         /*
          * Perform:
@@ -1553,9 +1546,9 @@ public class Shell : MonoBehaviour {
         }).div(edgeLengthCube);
         
         MatD ddEdgeLength_dv1_dv2 = ddEdgeLength_dv1_dv1.Clone();
-        ddEdgeLength_dv1_dv2[0, 0] *= -1;
-        ddEdgeLength_dv1_dv2[1, 1] *= -1;
-        ddEdgeLength_dv1_dv2[2, 2] *= -1;
+        ddEdgeLength_dv1_dv2[0, 0] = -ddEdgeLength_dv1_dv2[0, 0];
+        ddEdgeLength_dv1_dv2[1, 1] = -ddEdgeLength_dv1_dv2[1, 1];
+        ddEdgeLength_dv1_dv2[2, 2] = -ddEdgeLength_dv1_dv2[2, 2];
         MatD ddEdgeLength_dv2_dv1 = ddEdgeLength_dv1_dv2;
         MatD ddEdgeLength_dv2_dv2 = -ddEdgeLength_dv1_dv2;
 
@@ -1634,6 +1627,40 @@ public class Shell : MonoBehaviour {
                 .mul(2d * this.triangleAreas[triangleId] / this.undeformedTriangleAreas[triangleId] - 2d);
     }
 
+    // Area Hessian constants.
+    private static readonly MatD d_a_dv1v2v3 = new MatD(new double[,] {
+        {0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv1x
+		{0,  0,  0, 0,  0, -1, 0,  0,  1}, // d_a_dv1y
+		{0,  0,  0, 0,  1,  0, 0, -1,  0}, // d_a_dv1z
+		{0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv2x
+		{0,  0,  1, 0,  0,  0, 0,  0, -1}, // d_a_dv2y
+		{0, -1,  0, 0,  0,  0, 0,  1,  0}, // d_a_dv2z
+		{0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv3x
+		{0,  0, -1, 0,  0,  1, 0,  0,  0}, // d_a_dv3y
+		{0,  1,  0, 0, -1,  0, 0,  0,  0}  // d_a_dv3z
+    });
+    private static readonly MatD d_b_dv1v2v3 = new MatD(new double[,] {
+        { 0, 0,  0,  0, 0,  1,  0, 0, -1}, // d_b_dv1x
+		{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv1y
+		{ 0, 0,  0, -1, 0,  0,  1, 0,  0}, // d_b_dv1z
+		{ 0, 0, -1,  0, 0,  0,  0, 0,  1}, // d_b_dv2x
+		{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv2y
+		{ 1, 0,  0,  0, 0,  0, -1, 0,  0}, // d_b_dv2z
+		{ 0, 0,  1,  0, 0, -1,  0, 0,  0}, // d_b_dv3x
+		{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv3y
+		{-1, 0,  0,  1, 0,  0,  0, 0,  0}  // d_b_dv3z
+    });
+    private static readonly MatD d_c_dv1v2v3 = new MatD(new double[,] {
+        { 0,  0, 0,  0, -1, 0,  0,  1, 0}, // d_c_dv1x
+		{ 0,  0, 0,  1,  0, 0, -1,  0, 0}, // d_c_dv1y
+		{ 0,  0, 0,  0,  0, 0,  0,  0, 0}, // d_c_dv1z
+		{ 0,  1, 0,  0,  0, 0,  0, -1, 0}, // d_c_dv2x
+		{-1,  0, 0,  0,  0, 0,  1,  0, 0}, // d_c_dv2y
+		{ 0,  0, 0,  0,  0, 0,  0,  0, 0}, // d_c_dv2z
+		{ 0, -1, 0,  0,  1, 0,  0,  0, 0}, // d_c_dv3x
+		{ 1,  0, 0, -1,  0, 0,  0,  0, 0}, // d_c_dv3y
+		{ 0,  0, 0,  0,  0, 0,  0,  0, 0}  // d_c_dv3z
+    });
     /*
      * Computes the triangle area energy Hessian for the triangle defined by vertices v1, v2 and v3.
      * Returns the 9x9 Hessian towards all combinations of {v1x, v1y, v1z, v2x, v2y, v2z, v3x, v3y, v3z}.
@@ -1667,39 +1694,6 @@ public class Shell : MonoBehaviour {
         // Compute triangle energy Hessian.
         // hess[i, j] = (crossProdLength * (a[i] * a[j] + d_a[j]_di * d + b[i] * b[j] + d_b[j]_di * e + c[i] * c[j] + d_c[j]_di * f) - (d * a[j] + e * b[j] + f * c[j]) * d_crossProdLength_di) / crossProdLength^2 / 2
         MatD areaEnergyHessian = new MatD(9, 9);
-        MatD d_a_dv1v2v3 = new MatD(new double[,] {
-            {0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv1x
-			{0,  0,  0, 0,  0, -1, 0,  0,  1}, // d_a_dv1y
-			{0,  0,  0, 0,  1,  0, 0, -1,  0}, // d_a_dv1z
-			{0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv2x
-			{0,  0,  1, 0,  0,  0, 0,  0, -1}, // d_a_dv2y
-			{0, -1,  0, 0,  0,  0, 0,  1,  0}, // d_a_dv2z
-			{0,  0,  0, 0,  0,  0, 0,  0,  0}, // d_a_dv3x
-			{0,  0, -1, 0,  0,  1, 0,  0,  0}, // d_a_dv3y
-			{0,  1,  0, 0, -1,  0, 0,  0,  0}  // d_a_dv3z
-        });
-        MatD d_b_dv1v2v3 = new MatD(new double[,] {
-            { 0, 0,  0,  0, 0,  1,  0, 0, -1}, // d_b_dv1x
-			{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv1y
-			{ 0, 0,  0, -1, 0,  0,  1, 0,  0}, // d_b_dv1z
-			{ 0, 0, -1,  0, 0,  0,  0, 0,  1}, // d_b_dv2x
-			{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv2y
-			{ 1, 0,  0,  0, 0,  0, -1, 0,  0}, // d_b_dv2z
-			{ 0, 0,  1,  0, 0, -1,  0, 0,  0}, // d_b_dv3x
-			{ 0, 0,  0,  0, 0,  0,  0, 0,  0}, // d_b_dv3y
-			{-1, 0,  0,  1, 0,  0,  0, 0,  0}  // d_b_dv3z
-        });
-        MatD d_c_dv1v2v3 = new MatD(new double[,] {
-            { 0,  0, 0,  0, -1, 0,  0,  1, 0}, // d_c_dv1x
-			{ 0,  0, 0,  1,  0, 0, -1,  0, 0}, // d_c_dv1y
-			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}, // d_c_dv1z
-			{ 0,  1, 0,  0,  0, 0,  0, -1, 0}, // d_c_dv2x
-			{-1,  0, 0,  0,  0, 0,  1,  0, 0}, // d_c_dv2y
-			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}, // d_c_dv2z
-			{ 0, -1, 0,  0,  1, 0,  0,  0, 0}, // d_c_dv3x
-			{ 1,  0, 0, -1,  0, 0,  0,  0, 0}, // d_c_dv3y
-			{ 0,  0, 0,  0,  0, 0,  0,  0, 0}  // d_c_dv3z
-        });
         for(int i = 0; i < areaEnergyHessian.numRows; i++) {
             for(int j = i; j < areaEnergyHessian.numColumns; j++) { // Use knowledge that the Hessian is symmetric.
                 areaEnergyHessian[i, j] = areaEnergyHessian[j, i] = (
@@ -1900,13 +1894,13 @@ public class Shell : MonoBehaviour {
         double t2_omega_21 = t2_omega_12;
         double t2_omega_22 = 1d / (t2_h2 * t2_h2);
         
-        Vec3D e0_unit = e0.unit;
+        Vec3D e0_unit = e0 / e0_magnitude;
         Vec3D t1_e0_normal = Vec3D.cross(e0_unit, n1); // "m_0" in paper.
-        Vec3D t1_e1_normal = Vec3D.cross(t1_e1.unit, n1); // "m_1" in paper.
-        Vec3D t1_e2_normal = Vec3D.cross(n1, t1_e2.unit); // "m_2" in paper.
+        Vec3D t1_e1_normal = Vec3D.cross(t1_e1 / t1_e1_magnitude, n1); // "m_1" in paper.
+        Vec3D t1_e2_normal = Vec3D.cross(n1, t1_e2 / t1_e2_magnitude); // "m_2" in paper.
         Vec3D t2_e0_normal = Vec3D.cross(n2, e0_unit); // "~m_0" in paper.
-        Vec3D t2_e1_normal = Vec3D.cross(n2, t2_e1.unit); // "~m_1" in paper.
-        Vec3D t2_e2_normal = Vec3D.cross(t2_e2.unit, n2); // "~m_2" in paper.
+        Vec3D t2_e1_normal = Vec3D.cross(n2, t2_e1 / t2_e1_magnitude); // "~m_1" in paper.
+        Vec3D t2_e2_normal = Vec3D.cross(t2_e2 / t2_e2_magnitude, n2); // "~m_2" in paper.
 
         MatD t1_M0 = MatD.fromVecMultiplication(n1, t1_e0_normal);
         MatD t1_M1 = MatD.fromVecMultiplication(n1, t1_e1_normal);
