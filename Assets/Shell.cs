@@ -94,7 +94,6 @@ public class Shell : MonoBehaviour {
     }
 
     private void loadMesh(Mesh mesh) {
-        print("Loading mesh with " + mesh.vertices.Length + " vertices and " + mesh.triangles.Length + " triangles.");
 
         // Set the mesh in the mesh filter.
         MeshFilter meshFilter = this.shellObj.GetComponent<MeshFilter>();
@@ -234,6 +233,8 @@ public class Shell : MonoBehaviour {
         //}
         //mesh.vertices = vertices;
         //mesh.RecalculateNormals();
+
+        print("Loaded mesh with " + mesh.vertices.Length + " vertices, " + this.edges.Count + " edges and " + mesh.triangles.Length + " triangles.");
     }
 
     private void reset() {
