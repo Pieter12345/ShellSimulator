@@ -21,7 +21,7 @@ public class Shell : MonoBehaviour {
     private List<int>[] sortedVertexTriangles;
     private List<Edge> edges;
     private Vector3[] originalVertices; // Vertices in undeformed state.
-    private double undeformedEdgeLengthFactor = 1d; // Factor to multiple all undeformed edge lengths with to make artificial edge-constrained sails non-flat.
+    private double undeformedEdgeLengthFactor = 1.01d; // Factor to multiple all undeformed edge lengths with to make artificial edge-constrained sails non-flat.
     private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
     private Vec3D[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
@@ -31,25 +31,34 @@ public class Shell : MonoBehaviour {
     // Simulation update loop settings.
     public TimeSteppingMethod timeSteppingMethod = TimeSteppingMethod.GRADIENT_DESCENT;
     private bool doUpdate = false;
-    public double kGradientDescent;
-    public double maxGradientDescentStep;
     public double timeScale = 1f;
-    public double dampingConstant = 1d;
-    public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
     public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
     public double gravityConstant = 9.81d;
-    public double kPenalty = 1d;
+
+    public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
+    private Vec3D[] measurements = null; // Measurements. One element for each vertex, null meaning that there is no measurement for that vertex.
+
+    // Gradient descent specific settings.
+    public double kGradientDescent;
+    public double maxGradientDescentStep;
+
+    // Explicit integration specific settings.
+    public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
+
+    // Optimization integrator specific settings.
+    public double dampingConstant = 1d;
+    public double kMeasurementsPenalty = 1d;
     public double eGradientMagnitudeTerminationThreshold = 0.5d;
     private double lastLineSearchAlpha = 1d;
+    public double MaxLineSearchTimeMS = 10000;
+    public double MinLineSearchAlpha = 0.000001d;
+    public double MaxNewtonsMethodLoopTimeMS = 10000;
 
     // Cached vertex/triangle properties.
     private Vec3D[] triangleNormals;
     private Vec3D[] undeformedTriangleNormals;
     private double[] triangleAreas;
     private double[] undeformedTriangleAreas;
-
-    public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
-    private Vec3D[] measurements = null; // Measurements. One element for each vertex, null meaning that there is no measurement for that vertex.
 
     void Awake() {
         QualitySettings.vSyncCount = 0; // Disable V-sync.
@@ -714,12 +723,11 @@ public class Shell : MonoBehaviour {
         }
         //this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions); // TODO - Call this when the initial guess changes.
         int iteration = 0;
-        long maxTimeSpentInLoopMs = 10000;
         while(true) {
 
             // Limit amount of time spent to prevent endless loops.
             iteration++;
-            if(stopWatch.ElapsedMilliseconds > maxTimeSpentInLoopMs) {
+            if(stopWatch.ElapsedMilliseconds > this.MaxNewtonsMethodLoopTimeMS) {
                 print(stopWatch.ElapsedMilliseconds + "ms: Maximum time reached in Optimization Integrator update after "
                         + iteration + " iterations. Returning without taking a step.");
                 return;
@@ -748,7 +756,7 @@ public class Shell : MonoBehaviour {
                     if(this.measurements[vertexInd] != null) {
                         for(int coord = 0; coord < 3; coord++) {
                             penaltyEnergyGradient[3 * vertexInd + coord] =
-                                this.kPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+                                this.kMeasurementsPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
                         }
                     }
                 }
@@ -849,7 +857,7 @@ public class Shell : MonoBehaviour {
             double c = 1d;
             long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
             while(true) {
-                if(stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime > 10000) {
+                if(stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime > this.MaxLineSearchTimeMS) {
                     print(stopWatch.ElapsedMilliseconds + "ms: Spent too long in line search. Breaking with alpha = " + alpha);
                     break;
                 }
@@ -876,7 +884,7 @@ public class Shell : MonoBehaviour {
                         if(this.measurements[vertexInd] != null) {
                             for(int coord = 0; coord < 3; coord++) {
                                 newPenaltyEnergyGradient[3 * vertexInd + coord] =
-                                    this.kPenalty * 2d * (newNewVertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+                                    this.kMeasurementsPenalty * 2d * (newNewVertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
                             }
                         }
                     }
@@ -917,8 +925,8 @@ public class Shell : MonoBehaviour {
                     alpha /= 2d;
 
                     // Just take the step if alpha gets too small.
-                    if(alpha <= 0.0001d) {
-                        alpha = 0.0001d;
+                    if(alpha <= this.MinLineSearchAlpha) {
+                        alpha = this.MinLineSearchAlpha;
                         print(stopWatch.ElapsedMilliseconds + "ms: Alpha is getting too small. Setting alpha: " + alpha);
                         break;
                     }
