@@ -787,6 +787,10 @@ public class Shell : MonoBehaviour {
                     + ", iteration: " + iteration + ")");
             if(eGradientMagnitude < terminationThreshold) {
                 print(stopWatch.ElapsedMilliseconds + "ms: Finished on iteration: " + iteration + ".");
+                if(iteration == 1) {
+                    this.doUpdate = false;
+                    print("Finished on the first iteration. Pausing simulation.");
+                }
                 break;
             }
 
