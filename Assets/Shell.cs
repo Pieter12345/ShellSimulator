@@ -246,9 +246,9 @@ public class Shell : MonoBehaviour {
             this.vertexPositions[i] = new Vec3D(this.originalVertices[i].x, this.originalVertices[i].y, this.originalVertices[i].z);
             for(int coord = 0; coord < 3; coord++) {
                 this.vertexVelocities[3 * i + coord] = 0;
+                this.vertexAccelerations[3 * i + coord] = 0;
             }
         }
-        //this.vertexPositions[5][2] += 5; // TODO - Remove test.
         mesh.vertices = vertices;
         mesh.RecalculateNormals();
     }
