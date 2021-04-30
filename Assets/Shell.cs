@@ -267,6 +267,10 @@ public class Shell : MonoBehaviour {
             this.doUpdate = !this.doUpdate;
             print((this.doUpdate ? "Simulation resumed." : "Simulation paused."));
         }
+        if(Input.GetKeyDown(KeyCode.Q)) {
+            this.doUpdate = false;
+            print("Simulation paused.");
+        }
 
         // Handle single step hotkey.
         if(Input.GetKeyDown(KeyCode.G)) {
