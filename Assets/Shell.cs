@@ -274,8 +274,9 @@ public class Shell : MonoBehaviour {
 
         // Handle single step hotkey.
         if(Input.GetKeyDown(KeyCode.G)) {
-            this.simulationStep(Time.fixedDeltaTime);
-            print("Performed single step (" + Time.fixedDeltaTime + "s).");
+            double deltaTime = Time.fixedDeltaTime * this.timeScale;
+            this.simulationStep(deltaTime);
+            print("Performed single step (" + (deltaTime < 1d ? ((deltaTime / 1000d) + "ms") : deltaTime + "s") + ").");
         }
     }
 
@@ -288,11 +289,10 @@ public class Shell : MonoBehaviour {
         }
 
         // Perform a simulation step.
-        this.simulationStep(Time.deltaTime);
+        this.simulationStep(Time.deltaTime * this.timeScale);
     }
 
     private void simulationStep(double deltaTime) {
-        deltaTime *= this.timeScale;
 
         // Get the mesh.
         Mesh mesh = this.getMesh();
