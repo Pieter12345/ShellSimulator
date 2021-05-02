@@ -4,66 +4,66 @@ using System.IO;
 using UnityEngine;
 
 public class SailMeasurements {
-    
-    public Vec3D[] vertexPositions { get; }
-    public Vec3D[] measurements { get; }
+	
+	public Vec3D[] vertexPositions { get; }
+	public Vec3D[] measurements { get; }
 
-    public SailMeasurements(Vec3D[] vertexPositions, Vec3D[] measurements) {
-        this.vertexPositions = (Vec3D[]) vertexPositions.Clone();
-        this.measurements = (Vec3D[]) measurements.Clone();
-    }
+	public SailMeasurements(Vec3D[] vertexPositions, Vec3D[] measurements) {
+		this.vertexPositions = (Vec3D[]) vertexPositions.Clone();
+		this.measurements = (Vec3D[]) measurements.Clone();
+	}
 
-    public void storeToFile(string fileName) {
-        string dirPath = Application.dataPath + "/SailData";
-        string filePath = dirPath + "/" + fileName + ".sailmeasurements";
-        MonoBehaviour.print("Storing sail measurements to file: " + filePath);
-        if(!Directory.Exists(dirPath)) {
-            Directory.CreateDirectory(dirPath);
-        }
-        FileStream fs = (File.Exists(filePath) ? File.OpenWrite(filePath) : File.Create(filePath));
-        BinaryWriter writer = new BinaryWriter(fs);
+	public void storeToFile(string fileName) {
+		string dirPath = Application.dataPath + "/SailData";
+		string filePath = dirPath + "/" + fileName + ".sailmeasurements";
+		MonoBehaviour.print("Storing sail measurements to file: " + filePath);
+		if(!Directory.Exists(dirPath)) {
+			Directory.CreateDirectory(dirPath);
+		}
+		FileStream fs = (File.Exists(filePath) ? File.OpenWrite(filePath) : File.Create(filePath));
+		BinaryWriter writer = new BinaryWriter(fs);
 
-        writer.Write((int) this.vertexPositions.Length);
+		writer.Write((int) this.vertexPositions.Length);
 
-        foreach(Vec3D pos in this.vertexPositions) {
-            writer.Write((double) pos.x);
-            writer.Write((double) pos.y);
-            writer.Write((double) pos.z);
-        }
+		foreach(Vec3D pos in this.vertexPositions) {
+			writer.Write((double) pos.x);
+			writer.Write((double) pos.y);
+			writer.Write((double) pos.z);
+		}
 
-        foreach(Vec3D pos in this.measurements) {
-            if(pos != null) {
-                writer.Write(true);
-                writer.Write((double) pos.x);
-                writer.Write((double) pos.y);
-                writer.Write((double) pos.z);
-            } else {
-                writer.Write(false);
-            }
-        }
-    }
+		foreach(Vec3D pos in this.measurements) {
+			if(pos != null) {
+				writer.Write(true);
+				writer.Write((double) pos.x);
+				writer.Write((double) pos.y);
+				writer.Write((double) pos.z);
+			} else {
+				writer.Write(false);
+			}
+		}
+	}
 
-    public static SailMeasurements loadFromFile(string fileName) {
-        string filePath = Application.dataPath + "/SailData/" + fileName + ".sailmeasurements";
-        MonoBehaviour.print("Loading sail measurements from file: " + filePath);
-        FileStream fs = File.OpenRead(filePath);
-        BinaryReader reader = new BinaryReader(fs);
+	public static SailMeasurements loadFromFile(string fileName) {
+		string filePath = Application.dataPath + "/SailData/" + fileName + ".sailmeasurements";
+		MonoBehaviour.print("Loading sail measurements from file: " + filePath);
+		FileStream fs = File.OpenRead(filePath);
+		BinaryReader reader = new BinaryReader(fs);
 
-        int numVertices = reader.ReadInt32();
+		int numVertices = reader.ReadInt32();
 
-        Vec3D[] vertexPositions = new Vec3D[numVertices];
-        for(int i = 0; i < numVertices; i++) {
-            vertexPositions[i] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
-        }
+		Vec3D[] vertexPositions = new Vec3D[numVertices];
+		for(int i = 0; i < numVertices; i++) {
+			vertexPositions[i] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
+		}
 
-        Vec3D[] measurements = new Vec3D[numVertices];
-        for(int i = 0; i < numVertices; i++) {
-            if(reader.ReadBoolean()) {
-                measurements[i] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
-            } else {
-                measurements[i] = null;
-            }
-        }
-        return new SailMeasurements(vertexPositions, measurements);
-    }
+		Vec3D[] measurements = new Vec3D[numVertices];
+		for(int i = 0; i < numVertices; i++) {
+			if(reader.ReadBoolean()) {
+				measurements[i] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
+			} else {
+				measurements[i] = null;
+			}
+		}
+		return new SailMeasurements(vertexPositions, measurements);
+	}
 }
