@@ -717,11 +717,15 @@ public class Shell : MonoBehaviour {
 
         // Perform Newton's method, setting steps until the termination criterion has been met.
         VecD vertexPositionsFlat = new VecD(this.vertexPositions);
-        Vec3D[] newVertexPositions = new Vec3D[numVertices]; // TODO - Use pos + deltaTime * velocity as initial guess.
+        Vec3D[] newVertexPositions = new Vec3D[numVertices];
         for(int i = 0; i < numVertices; i++) {
-            newVertexPositions[i] = this.vertexPositions[i].clone();
+
+            // Set initial guess: pos + deltaTime * velocity.
+            newVertexPositions[i] = new Vec3D();
+            for(int coord = 0; coord < 3; coord++) {
+                newVertexPositions[i][coord] = this.vertexPositions[i][coord] + deltaTime * this.vertexVelocities[i * 3 + coord];
+            }
         }
-        //this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions); // TODO - Call this when the initial guess changes.
         int iteration = 0;
         while(true) {
 
