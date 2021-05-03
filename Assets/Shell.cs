@@ -285,7 +285,7 @@ public class Shell : MonoBehaviour {
 		if(Input.GetKeyDown(KeyCode.G)) {
 			double deltaTime = Time.fixedDeltaTime * this.timeScale;
 			this.simulationStep(deltaTime);
-			print("Performed single step (" + (deltaTime < 1d ? ((deltaTime / 1000d) + "ms") : deltaTime + "s") + ").");
+			print("Performed single step (" + (deltaTime < 1d ? ((deltaTime * 1000d) + "ms") : deltaTime + "s") + ").");
 		}
 	}
 
