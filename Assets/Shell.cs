@@ -1251,10 +1251,11 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		if(this.kArea != 0d) {
-			for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId += 3) {
-				int v1 = triangles[triangleId];
-				int v2 = triangles[triangleId + 1];
-				int v3 = triangles[triangleId + 2];
+			for(int triangleId = 0; triangleId < triangles.Length / 3; triangleId++) {
+				int triangleBaseIndex = triangleId * 3;
+				int v1 = triangles[triangleBaseIndex];
+				int v2 = triangles[triangleBaseIndex + 1];
+				int v3 = triangles[triangleBaseIndex + 2];
 				MatD areaEnergyHess = this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3).mul(this.kArea);
 				makeHessPositiveDefinite(areaEnergyHess);
 				for(int i = 0; i < 3; i++) {
