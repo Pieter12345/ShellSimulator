@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public class Shell : MonoBehaviour {
@@ -699,7 +700,8 @@ public class Shell : MonoBehaviour {
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
 
 		// Assemble system-wide energy Hessian.
-		MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess = this.getSystemEnergyHessianSparseRepresentation(this.vertexPositions, triangles);
+		MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess =
+			this.getSystemEnergyHessianSparseRepresentationMultiThreadedTriplets(this.vertexPositions, triangles);
 
 		// Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
 		/**
@@ -801,7 +803,7 @@ public class Shell : MonoBehaviour {
 			// Recompute the system-wide energy Hessian every X iterations.
 			if(iteration % 10 == 0) {
 				// Assemble system-wide energy Hessian.
-				energyHess = this.getSystemEnergyHessianSparseRepresentation(this.vertexPositions, triangles);
+				energyHess = this.getSystemEnergyHessianSparseRepresentationMultiThreadedTriplets(this.vertexPositions, triangles);
 
 				// Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
 				/**
@@ -1281,6 +1283,308 @@ public class Shell : MonoBehaviour {
 				}
 			}
 		}
+		return energyHess;
+	}
+
+	private MathNet.Numerics.LinearAlgebra.Double.SparseMatrix getSystemEnergyHessianSparseRepresentationMultiThreaded(Vec3D[] vertexPositions, int[] triangles) {
+		
+		// Assemble system-wide energy Hessian.
+		int numVertices = vertexPositions.Length;
+		MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess = new MathNet.Numerics.LinearAlgebra.Double.SparseMatrix(numVertices * 3, numVertices * 3);
+		
+		// The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
+		if(this.kLength != 0d) {
+			MatD[] lengthEnergyHessians = new MatD[this.edges.Count];
+			Parallel.For(0, this.edges.Count, (i) => {
+				lengthEnergyHessians[i] = this.getEdgeLengthEnergyHess(vertexPositions, this.edges[i]).mul(this.kLength);
+				makeHessPositiveDefinite(lengthEnergyHessians[i]);
+			});
+
+			for(int edgeInd = 0; edgeInd < this.edges.Count; edgeInd++) {
+				Edge edge = this.edges[edgeInd];
+				MatD lengthEnergyHess = lengthEnergyHessians[edgeInd];
+				for(int i = 0; i < 3; i++) {
+					for(int j = 0; j < 3; j++) {
+
+						// ddLengthEnergy_dv1_dv1.
+						energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] += lengthEnergyHess[i, j];
+
+						// ddLengthEnergy_dv2_dv2.
+						energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] += lengthEnergyHess[i + 3, j + 3];
+
+						// ddLengthEnergy_dv1_dv2.
+						energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] += lengthEnergyHess[i, j + 3];
+
+						// ddLengthEnergy_dv2_dv1.
+						energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] += lengthEnergyHess[i + 3, j];
+					}
+				}
+			}
+		}
+		
+		// The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
+		if(this.kBend != 0d) {
+			MatD[] bendEnergyHessians = new MatD[this.edges.Count];
+			Parallel.For(0, this.edges.Count, (i) => {
+				if(this.edges[i].hasSideFlaps()) {
+					bendEnergyHessians[i] = this.getEdgeBendEnergyHess(vertexPositions, this.edges[i]).mul(this.kBend);
+					makeHessPositiveDefinite(bendEnergyHessians[i]);
+				} else {
+					bendEnergyHessians[i] = null;
+				}
+			});
+
+			for(int edgeInd = 0; edgeInd < this.edges.Count; edgeInd++) {
+				MatD bendEnergyHess = bendEnergyHessians[edgeInd];
+				if(bendEnergyHess == null) {
+					continue;
+				}
+				Edge edge = this.edges[edgeInd];
+				for(int i = 0; i < 3; i++) {
+					for(int j = 0; j < 3; j++) {
+						energyHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i, j];
+						energyHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i, j + 3];
+						energyHess[edge.ve1 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i, j + 6];
+						energyHess[edge.ve1 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i, j + 9];
+						
+						energyHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i + 3, j];
+						energyHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i + 3, j + 3];
+						energyHess[edge.ve2 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i + 3, j + 6];
+						energyHess[edge.ve2 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i + 3, j + 9];
+						
+						energyHess[edge.vf1 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i + 6, j];
+						energyHess[edge.vf1 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i + 6, j + 3];
+						energyHess[edge.vf1 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i + 6, j + 6];
+						energyHess[edge.vf1 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i + 6, j + 9];
+						
+						energyHess[edge.vf2 * 3 + i, edge.ve1 * 3 + j] += bendEnergyHess[i + 9, j];
+						energyHess[edge.vf2 * 3 + i, edge.ve2 * 3 + j] += bendEnergyHess[i + 9, j + 3];
+						energyHess[edge.vf2 * 3 + i, edge.vf1 * 3 + j] += bendEnergyHess[i + 9, j + 6];
+						energyHess[edge.vf2 * 3 + i, edge.vf2 * 3 + j] += bendEnergyHess[i + 9, j + 9];
+					}
+				}
+			}
+		}
+		
+		// The area energy Hessian consists of 9 (3x3) parts that have to be inserted into the matrix.
+		if(this.kArea != 0d) {
+			int numTriangles = triangles.Length / 3;
+			MatD[] areaEnergyHessians = new MatD[numTriangles];
+			Parallel.For(0, numTriangles, (triangleId) => {
+				int triangleBaseIndex = 3 * triangleId;
+				int v1 = triangles[triangleBaseIndex];
+				int v2 = triangles[triangleBaseIndex + 1];
+				int v3 = triangles[triangleBaseIndex + 2];
+				areaEnergyHessians[triangleId] = this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3).mul(this.kArea);
+				makeHessPositiveDefinite(areaEnergyHessians[triangleId]);
+			});
+
+			for(int triangleId = 0; triangleId < numTriangles; triangleId++) {
+				int trianglebaseIndex = 3 * triangleId;
+				int v1 = triangles[trianglebaseIndex];
+				int v2 = triangles[trianglebaseIndex + 1];
+				int v3 = triangles[trianglebaseIndex + 2];
+				MatD areaEnergyHess = areaEnergyHessians[triangleId];
+				for(int i = 0; i < 3; i++) {
+					for(int j = 0; j < 3; j++) {
+
+						// ddAreaEnergy_dvi_dvi.
+						energyHess[v1 * 3 + i, v1 * 3 + j] += areaEnergyHess[i, j];
+						energyHess[v2 * 3 + i, v2 * 3 + j] += areaEnergyHess[i + 3, j + 3];
+						energyHess[v3 * 3 + i, v3 * 3 + j] += areaEnergyHess[i + 6, j + 6];
+
+						// ddAreaEnergy_dv1_dv2 & ddAreaEnergy_dv2_dv1.
+						energyHess[v1 * 3 + i, v2 * 3 + j] += areaEnergyHess[i, j + 3];
+						energyHess[v2 * 3 + i, v1 * 3 + j] += areaEnergyHess[i + 3, j];
+
+						// ddAreaEnergy_dv1_dv3 & ddAreaEnergy_dv3_dv1.
+						energyHess[v1 * 3 + i, v3 * 3 + j] += areaEnergyHess[i, j + 6];
+						energyHess[v3 * 3 + i, v1 * 3 + j] += areaEnergyHess[i + 6, j];
+
+						// ddAreaEnergy_dv2_dv3 & ddAreaEnergy_dv3_dv2.
+						energyHess[v2 * 3 + i, v3 * 3 + j] += areaEnergyHess[i + 3, j + 6];
+						energyHess[v3 * 3 + i, v2 * 3 + j] += areaEnergyHess[i + 6, j + 3];
+					}
+				}
+			}
+		}
+		return energyHess;
+	}
+
+	private MathNet.Numerics.LinearAlgebra.Double.SparseMatrix getSystemEnergyHessianSparseRepresentationMultiThreadedTriplets(Vec3D[] vertexPositions, int[] triangles) {
+		Stopwatch stopwatch = Stopwatch.StartNew();
+
+		// Define constants and allocate memory for all Hessian part triplets.
+		int numVertices = vertexPositions.Length;
+		int numEdges = this.edges.Count;
+		int numTriangles = triangles.Length / 3;
+
+		int numLengthHessParts = (this.kLength != 0d ? numEdges : 0);
+		int numAreaHessParts = (this.kArea != 0d ? numTriangles : 0);
+		int numBendHessParts = (this.kBend != 0d ? numEdges : 0); // TODO - Get number of inner edges instead, and cache an array of inner edges for iteration.
+		
+		int numTriplets = numLengthHessParts * 6 * 6 + numAreaHessParts * 9 * 9 + numBendHessParts * 12 * 12;
+		int lengthHessPartsOffset = 0;
+		int areaHessPartsOffset = lengthHessPartsOffset + numLengthHessParts * 6 * 6;
+		int bendHessPartsOffset = areaHessPartsOffset + numAreaHessParts * 9 * 9;
+		Tuple<int, int, double>[] energyHessTriplets = new Tuple<int, int, double>[numTriplets];
+
+		// The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
+		long startTime = stopwatch.ElapsedMilliseconds;
+		if(this.kLength != 0d) {
+			Parallel.For(0, numEdges, (edgeInd) => {
+				Edge edge = this.edges[edgeInd];
+				MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(vertexPositions, edge).mul(this.kLength);
+				makeHessPositiveDefinite(lengthEnergyHess);
+				
+				int tripletsOffset = lengthHessPartsOffset + 6 * 6 * edgeInd;
+				for(int i = 0; i < 3; i++) {
+					for(int j = 0; j < 3; j++) {
+
+						// ddLengthEnergy_dv1_dv1.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve1 * 3 + i, edge.ve1 * 3 + j, lengthEnergyHess[i, j]);
+
+						// ddLengthEnergy_dv2_dv2.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve2 * 3 + i, edge.ve2 * 3 + j, lengthEnergyHess[i + 3, j + 3]);
+
+						// ddLengthEnergy_dv1_dv2.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve1 * 3 + i, edge.ve2 * 3 + j, lengthEnergyHess[i, j + 3]);
+
+						// ddLengthEnergy_dv2_dv1.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve2 * 3 + i, edge.ve1 * 3 + j, lengthEnergyHess[i + 3, j]);
+					}
+				}
+			});
+		}
+		print(stopwatch.ElapsedMilliseconds + ": Length hess done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
+
+		// The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
+		startTime = stopwatch.ElapsedMilliseconds;
+		if(this.kBend != 0d) {
+			Parallel.For(0, numEdges, (edgeInd) => {
+				Edge edge = this.edges[edgeInd];
+				if(!edge.hasSideFlaps()) {
+					return; // TODO - Instead, cache all inner edges so that we don't have to allocate memory for outer edges without bending Hessian.
+				}
+				MatD bendEnergyHess = this.getEdgeBendEnergyHess(vertexPositions, edge).mul(this.kBend);
+				makeHessPositiveDefinite(bendEnergyHess);
+
+				int tripletsOffset = bendHessPartsOffset + 12 * 12 * edgeInd;
+				for(int i = 0; i < 3; i++) {
+					for(int j = 0; j < 3; j++) {
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve1 * 3 + i, edge.ve1 * 3 + j, bendEnergyHess[i, j]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve1 * 3 + i, edge.ve2 * 3 + j, bendEnergyHess[i, j + 3]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve1 * 3 + i, edge.vf1 * 3 + j, bendEnergyHess[i, j + 6]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve1 * 3 + i, edge.vf2 * 3 + j, bendEnergyHess[i, j + 9]);
+						
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve2 * 3 + i, edge.ve1 * 3 + j, bendEnergyHess[i + 3, j]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve2 * 3 + i, edge.ve2 * 3 + j, bendEnergyHess[i + 3, j + 3]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve2 * 3 + i, edge.vf1 * 3 + j, bendEnergyHess[i + 3, j + 6]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.ve2 * 3 + i, edge.vf2 * 3 + j, bendEnergyHess[i + 3, j + 9]);
+						
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf1 * 3 + i, edge.ve1 * 3 + j, bendEnergyHess[i + 6, j]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf1 * 3 + i, edge.ve2 * 3 + j, bendEnergyHess[i + 6, j + 3]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf1 * 3 + i, edge.vf1 * 3 + j, bendEnergyHess[i + 6, j + 6]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf1 * 3 + i, edge.vf2 * 3 + j, bendEnergyHess[i + 6, j + 9]);
+						
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf2 * 3 + i, edge.ve1 * 3 + j, bendEnergyHess[i + 9, j]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf2 * 3 + i, edge.ve2 * 3 + j, bendEnergyHess[i + 9, j + 3]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf2 * 3 + i, edge.vf1 * 3 + j, bendEnergyHess[i + 9, j + 6]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(edge.vf2 * 3 + i, edge.vf2 * 3 + j, bendEnergyHess[i + 9, j + 9]);
+					}
+				}
+			});
+		}
+		print(stopwatch.ElapsedMilliseconds + ": Bend hess done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
+		
+		// The area energy Hessian consists of 9 (3x3) parts that have to be inserted into the matrix.
+		startTime = stopwatch.ElapsedMilliseconds;
+		if(this.kArea != 0d) {
+			Parallel.For(0, numTriangles, (triangleId) => {
+				int trianglebaseIndex = 3 * triangleId;
+				int v1 = triangles[trianglebaseIndex];
+				int v2 = triangles[trianglebaseIndex + 1];
+				int v3 = triangles[trianglebaseIndex + 2];
+				MatD areaEnergyHess = this.getTriangleAreaEnergyHessian(vertexPositions, triangleId, v1, v2, v3).mul(this.kArea);
+				makeHessPositiveDefinite(areaEnergyHess);
+				
+				int tripletsOffset = areaHessPartsOffset + 9 * 9 * triangleId;
+				for(int i = 0; i < 3; i++) {
+					for(int j = 0; j < 3; j++) {
+
+						// ddAreaEnergy_dvi_dvi.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v1 * 3 + i, v1 * 3 + j, areaEnergyHess[i, j]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v2 * 3 + i, v2 * 3 + j, areaEnergyHess[i + 3, j + 3]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v3 * 3 + i, v3 * 3 + j, areaEnergyHess[i + 6, j + 6]);
+
+						// ddAreaEnergy_dv1_dv2 & ddAreaEnergy_dv2_dv1.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v1 * 3 + i, v2 * 3 + j, areaEnergyHess[i, j + 3]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v2 * 3 + i, v1 * 3 + j, areaEnergyHess[i + 3, j]);
+
+						// ddAreaEnergy_dv1_dv3 & ddAreaEnergy_dv3_dv1.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v1 * 3 + i, v3 * 3 + j, areaEnergyHess[i, j + 6]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v3 * 3 + i, v1 * 3 + j, areaEnergyHess[i + 6, j]);
+
+						// ddAreaEnergy_dv2_dv3 & ddAreaEnergy_dv3_dv2.
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v2 * 3 + i, v3 * 3 + j, areaEnergyHess[i + 3, j + 6]);
+						energyHessTriplets[tripletsOffset++] = new Tuple<int, int, double>(v3 * 3 + i, v2 * 3 + j, areaEnergyHess[i + 6, j + 3]);
+					}
+				}
+			});
+		}
+		print(stopwatch.ElapsedMilliseconds + ": Area hess done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
+
+		// Sort triplets first on row and then on column.
+		startTime = stopwatch.ElapsedMilliseconds;
+		Array.Sort(energyHessTriplets, (o1, o2) =>
+				(o1 == null ? (o2 == null ? 0 : -1) : o2 == null ? 1
+						: (o1.Item1 > o2.Item1 ? 1 : (o1.Item1 < o2.Item1 ? -1
+								: (o1.Item2 > o2.Item2 ? 1 : (o1.Item2 < o2.Item2 ? -1 : 0))))));
+		print(stopwatch.ElapsedMilliseconds + ": Sorting triplets done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
+
+		// Sum up triplets at the same index and move them to the left, resulting in trailing nulls.
+		startTime = stopwatch.ElapsedMilliseconds;
+		Tuple<int, int, double> lastTriplet = null;
+		int lastTripletInd = -1;
+		for(int i = 0; i < energyHessTriplets.Length; i++) {
+			Tuple<int, int, double> triplet = energyHessTriplets[i];
+			if(triplet == null) {
+				continue;
+			} else if(triplet.Item3 == 0d) {
+				energyHessTriplets[i] = null;
+			} else if(lastTriplet == null) {
+
+				// Found first triplet. Put it in the first index of the triplets array.
+				energyHessTriplets[i] = null;
+				energyHessTriplets[0] = triplet;
+				lastTriplet = triplet;
+				lastTripletInd = 0;
+			} else if(triplet.Item1 == lastTriplet.Item1 && triplet.Item2 == lastTriplet.Item2) {
+
+				// Merge triplet into lastTriplet.
+				energyHessTriplets[lastTripletInd] = new Tuple<int, int, double>(lastTriplet.Item1, lastTriplet.Item2, lastTriplet.Item3 + triplet.Item3);
+				lastTriplet = energyHessTriplets[lastTripletInd];
+				energyHessTriplets[i] = null;
+			} else {
+
+				// Move the non-null triplet to the leftmost free location in the array.
+				energyHessTriplets[i] = null;
+				energyHessTriplets[++lastTripletInd] = triplet;
+				lastTriplet = triplet;
+			}
+		}
+		print(stopwatch.ElapsedMilliseconds + ": Merging triplets done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
+
+		// Assemble and return system-wide energy Hessian.
+		startTime = stopwatch.ElapsedMilliseconds;
+		MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess = new MathNet.Numerics.LinearAlgebra.Double.SparseMatrix(numVertices * 3, numVertices * 3);
+		foreach(Tuple<int, int, double> triplet in energyHessTriplets) {
+			if(triplet == null) {
+				break; // All nulls are trailing, so there won't be more data.
+			}
+			energyHess[triplet.Item1, triplet.Item2] = triplet.Item3;
+		}
+		print(stopwatch.ElapsedMilliseconds + ": Creating SparseMatrix done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 		return energyHess;
 	}
 
