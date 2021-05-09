@@ -482,7 +482,7 @@ public class Shell : MonoBehaviour {
 	private void doGradientDescentStep() {
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions);
+		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressure));
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 		VecD step = this.kGradientDescent * (vertexWindForce + gravityForce - vertexEnergyGradient);
@@ -520,7 +520,7 @@ public class Shell : MonoBehaviour {
 		// Calculate vertex energy gradient array and vertex wind force array.
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions);
+		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressure));
 
 		// Perform Newmark Time Stepping (ODE integration).
 		double gamma = 0.5d;
@@ -744,7 +744,7 @@ public class Shell : MonoBehaviour {
 			VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
 
 			// Get wind force.
-			VecD windForce = this.getVertexWindForce(triangles, newVertexPositions);
+			VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, new VecD(this.windPressure));
 
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
@@ -882,7 +882,7 @@ public class Shell : MonoBehaviour {
 				// Get E gradient after the step.
 				this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
 				VecD newEnergyGradient = this.getSystemEnergyGradient(triangles, newNewVertexPositions);
-				VecD newWindForce = this.getVertexWindForce(triangles, newNewVertexPositions);
+				VecD newWindForce = this.getVertexWindForce(triangles, newNewVertexPositions, new VecD(this.windPressure));
 				VecD newGravityForce = this.getVertexGravityForce(vertexCoordMasses);
 				
 				VecD newNextVertexVelocities = new VecD(newNewVertexPositions).sub(vertexPositionsFlat);
@@ -1613,7 +1613,7 @@ public class Shell : MonoBehaviour {
 	 * Calculates the wind force acting on each vertex.
 	 * Returns the wind force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
 	 */
-	private VecD getVertexWindForce(int[] triangles, VecD[] vertices) {
+	private VecD getVertexWindForce(int[] triangles, VecD[] vertices, VecD windPressure) {
 
 		// Initialize vertex wind force array.
 		VecD vertexWindForce = new VecD(vertices.Length * 3);
@@ -1632,7 +1632,7 @@ public class Shell : MonoBehaviour {
 				continue; // Triangle has a zero-area and no normal, so the projected wind force is zero as well.
 			}
 			double triangleArea = this.triangleAreas[triangleId];
-			VecD triangleVertexWindForce = (VecD.dot(new VecD(this.windPressure), triangleNormal) * triangleArea / 3d) * triangleNormal;
+			VecD triangleVertexWindForce = (VecD.dot(windPressure, triangleNormal) * triangleArea / 3d) * triangleNormal;
 
 			// Add a third of the total triangle wind force to each of its vertices.
 			for(int coord = 0; coord < 3; coord++) {
