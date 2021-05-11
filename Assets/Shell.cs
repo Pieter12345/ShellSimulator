@@ -863,7 +863,8 @@ public class Shell : MonoBehaviour {
 			// Take steps with adjusting alpha until sufficient decrease has been achieved.
 			double alpha = this.lastLineSearchAlpha;
 			double bestAlpha = double.NaN;
-			double bestEGradientMagnitude = eGradientMagnitude;
+			double e = this.getE(triangles, vertexPositionsFlat, newVertexPositions, vertexCoordMasses, new VecD(this.windPressure), deltaTime);
+			double bestE = e;
 			double c = 1d;
 			long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
 			while(true) {
@@ -879,55 +880,22 @@ public class Shell : MonoBehaviour {
 					newNewVertexPositions[i].z = newVertexPositions[i].z + alpha * step[3 * i + 2];
 				}
 
-				// Get E gradient after the step.
+				// Terminate when there is sufficient E decrease. Adjust alpha otherwise.
 				this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
-				VecD newEnergyGradient = this.getSystemEnergyGradient(triangles, newNewVertexPositions);
-				VecD newWindForce = this.getVertexWindForce(triangles, newNewVertexPositions, new VecD(this.windPressure));
-				VecD newGravityForce = this.getVertexGravityForce(vertexCoordMasses);
-				
-				VecD newNextVertexVelocities = new VecD(newNewVertexPositions).sub(vertexPositionsFlat);
-				VecD newDampingForce = -this.dampingConstant * (energyHess * newNextVertexVelocities);
-
-				VecD newPenaltyEnergyGradient = new VecD(3 * numVertices);
-				if(this.measurements != null) {
-					for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-						if(this.measurements[vertexInd] != null) {
-							for(int coord = 0; coord < 3; coord++) {
-								newPenaltyEnergyGradient[3 * vertexInd + coord] =
-									this.kMeasurementsPenalty * 2d * (newNewVertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
-							}
-						}
-					}
-				}
-				for(int i = 0; i < numVertices; i++) {
-					if(this.verticesMovementConstraints[i]) {
-						for(int coord = 0; coord < 3; coord++) {
-							newEnergyGradient[3 * i + coord] = 0;
-							newWindForce[3 * i + coord] = 0;
-							newGravityForce[3 * i + coord] = 0;
-							newDampingForce[3 * i + coord] = 0;
-							newPenaltyEnergyGradient[3 * i + coord] = 0;
-						}
-					}
-				}
-				VecD newEGradient = new VecD(newNewVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
-						.multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
-						.add(newEnergyGradient).add(newPenaltyEnergyGradient).sub(newWindForce).sub(newGravityForce).sub(newDampingForce);
-
-				// Terminate when there is sufficient E gradient magnitude decrease. Adjust alpha otherwise.
-				double newEGradientMagnitude = newEGradient.magnitude;
-				if(newEGradientMagnitude <= bestEGradientMagnitude) {// + c * alpha * (eHess * step).sum) {
+				double newE = this.getE(triangles, vertexPositionsFlat, newNewVertexPositions, vertexCoordMasses, new VecD(this.windPressure), deltaTime);
+				if(newE <= bestE) {
+				//if(newE <= e + c * alpha * VecD.dot(eGradient, step)) {
 					
 					// Alpha is suitable, but there might be a higher value of alpha that is still suitable. Increase alpha and store the current best alpha.
 					bestAlpha = alpha;
-					bestEGradientMagnitude = newEGradientMagnitude;
+					bestE = newE;
 					alpha *= 2;
 				} else if(!double.IsNaN(bestAlpha)) {
 
 					// A best alpha was set, but a higher value of alpha didn't make it. Return the best value.
 					alpha = bestAlpha;
 					print(stopWatch.ElapsedMilliseconds + "ms: Terminating with alpha: " + alpha
-							+ " after " + (stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime) + "ms (bestEGradientMagnitude: " + bestEGradientMagnitude + ").");
+							+ " after " + (stopWatch.ElapsedMilliseconds - lineSearchLoopStartTime) + "ms (bestE: " + bestE + ").");
 					break;
 				} else {
 
@@ -951,12 +919,6 @@ public class Shell : MonoBehaviour {
 				newVertexPositions[i].z += alpha * step[3 * i + 2];
 			}
 
-			// Terminate when the termination criterion has been met.
-			// This check is redundant, but it prevents the gradient from being unnecessarily recalculated.
-			if(bestEGradientMagnitude < terminationThreshold) {
-				print(stopWatch.ElapsedMilliseconds + "ms: Finished on iteration: " + iteration + ".");
-				break;
-			}
 		}
 		
 		// Update vertex velocity.
@@ -1586,6 +1548,33 @@ public class Shell : MonoBehaviour {
 		}
 		print(stopwatch.ElapsedMilliseconds + ": Creating SparseMatrix done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 		return energyHess;
+	}
+
+	private double getE(int[] triangles, VecD vertexPositionsFlat, Vec3D[] newVertexPositions, VecD vertexCoordMasses, VecD windVelocity, double deltaTime) {
+		int numVertices = newVertexPositions.Length;
+
+		VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windVelocity);
+		for(int i = 0; i < numVertices; i++) {
+			if(this.verticesMovementConstraints[i]) {
+				for(int coord = 0; coord < 3; coord++) {
+					windForce[3 * i + coord] = 0;
+				}
+			}
+		}
+
+		VecD deltaVertexPositions = new VecD(newVertexPositions).sub(vertexPositionsFlat);
+		double systemEnergy = this.getSystemEnergy(triangles, newVertexPositions);
+		double gravityWork = 0;
+		double windWork = -VecD.dot(windForce, deltaVertexPositions); // Approximation: Consider triangle normals and areas constant.
+		for(int i = 0; i < numVertices; i++) {
+			if(!this.verticesMovementConstraints[i]) { // Not necessary when comparing energy, but lets consider them part of the outside world.
+				int yCoordIndex = 3 * i + 1;
+				gravityWork += vertexCoordMasses[yCoordIndex] * this.gravityConstant * deltaVertexPositions[yCoordIndex];
+			}
+		}
+		VecD squareTerm = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities);
+		return VecD.dot(VecD.multiplyElementWise(squareTerm, squareTerm), vertexCoordMasses) / (2d * deltaTime * deltaTime)
+				+ systemEnergy + gravityWork + windWork;
 	}
 
 	/**
