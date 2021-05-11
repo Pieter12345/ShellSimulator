@@ -800,25 +800,6 @@ public class Shell : MonoBehaviour {
 				break;
 			}
 
-			// Recompute the system-wide energy Hessian every X iterations.
-			if(iteration % 10 == 0) {
-				// Assemble system-wide energy Hessian.
-				energyHess = this.getSystemEnergyHessianSparseRepresentationMultiThreadedTriplets(this.vertexPositions, triangles);
-
-				// Get E Hessian. This is a simplified version without measurements penalty, wind force and gravity force.
-				/**
-				 * Get E Hessian.
-				 * This is a simplified version without measurements penalty and wind force.
-				 * The gravity force is not dependent on the positions, so the gravity Hessian is a zero matrix.
-				 * The wind force is dependent on the rotation and area of the triangles, but for small steps, this is constant enough to ignore.
-				 * TODO - Check whether the measurements penalty Hessian should be included here. The length energy Hessian code can be used for this.
-				 */
-				eHess = MathNet.Numerics.LinearAlgebra.Double.SparseMatrix.OfMatrix(energyHess);
-				for(int i = 0; i < eHess.RowCount; i++) {
-					eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
-				}
-			}
-
 			// Compute Newton step.
 			// step = -inverse(eHess) * eGradient === eHess * step = -eGradient
 			//VecD step = -eGradient;
