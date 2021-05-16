@@ -844,7 +844,8 @@ public class Shell : MonoBehaviour {
 			// Take steps with adjusting alpha until sufficient decrease has been achieved.
 			double alpha = this.lastLineSearchAlpha;
 			double bestAlpha = double.NaN;
-			double e = this.getE(triangles, vertexPositionsFlat, newVertexPositions, vertexCoordMasses, new VecD(this.windPressure), deltaTime);
+			double e = this.getE(triangles, vertexPositionsFlat, newVertexPositions,
+					vertexCoordMasses, new VecD(this.windPressure), energyHess, deltaTime);
 			double bestE = e;
 			double c = 1d;
 			long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
@@ -863,7 +864,8 @@ public class Shell : MonoBehaviour {
 
 				// Terminate when there is sufficient E decrease. Adjust alpha otherwise.
 				this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
-				double newE = this.getE(triangles, vertexPositionsFlat, newNewVertexPositions, vertexCoordMasses, new VecD(this.windPressure), deltaTime);
+				double newE = this.getE(triangles, vertexPositionsFlat, newNewVertexPositions,
+						vertexCoordMasses, new VecD(this.windPressure), energyHess, deltaTime);
 				if(newE <= bestE) {
 				//if(newE <= e + c * alpha * VecD.dot(eGradient, step)) {
 					
@@ -1531,7 +1533,8 @@ public class Shell : MonoBehaviour {
 		return energyHess;
 	}
 
-	private double getE(int[] triangles, VecD vertexPositionsFlat, Vec3D[] newVertexPositions, VecD vertexCoordMasses, VecD windVelocity, double deltaTime) {
+	private double getE(int[] triangles, VecD vertexPositionsFlat, Vec3D[] newVertexPositions, VecD vertexCoordMasses,
+			VecD windVelocity, MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess, double deltaTime) {
 		int numVertices = newVertexPositions.Length;
 
 		VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windVelocity);
@@ -1543,10 +1546,12 @@ public class Shell : MonoBehaviour {
 			}
 		}
 
-		VecD deltaVertexPositions = new VecD(newVertexPositions).sub(vertexPositionsFlat);
+		VecD deltaVertexPositions = new VecD(newVertexPositions).sub(vertexPositionsFlat); // These are also the new vertex velocities.
 		double systemEnergy = this.getSystemEnergy(triangles, newVertexPositions);
 		double gravityWork = 0;
 		double windWork = -VecD.dot(windForce, deltaVertexPositions); // Approximation: Consider triangle normals and areas constant.
+		VecD dampingForce = -this.dampingConstant * (energyHess * deltaVertexPositions);
+		double dampingWork = -VecD.dot(dampingForce, deltaVertexPositions);
 		for(int i = 0; i < numVertices; i++) {
 			if(!this.verticesMovementConstraints[i]) { // Not necessary when comparing energy, but lets consider them part of the outside world.
 				int yCoordIndex = 3 * i + 1;
@@ -1555,7 +1560,7 @@ public class Shell : MonoBehaviour {
 		}
 		VecD squareTerm = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities);
 		return VecD.dot(VecD.multiplyElementWise(squareTerm, squareTerm), vertexCoordMasses) / (2d * deltaTime * deltaTime)
-				+ systemEnergy + gravityWork + windWork;
+				+ systemEnergy + gravityWork + windWork + dampingWork;
 	}
 
 	/**
