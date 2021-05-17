@@ -60,6 +60,10 @@ public class Shell : MonoBehaviour {
 	private double[] triangleAreas;
 	private double[] undeformedTriangleAreas;
 
+	// Simulation recording.
+	private MeshRecorder meshRecorder = null;
+	private Boolean isRecording = false;
+
 	void Awake() {
 		QualitySettings.vSyncCount = 0; // Disable V-sync.
 		Application.targetFrameRate = 100; // Set max framerate.
@@ -289,6 +293,39 @@ public class Shell : MonoBehaviour {
 			this.simulationStep(deltaTime);
 			print("Performed single step (" + (deltaTime < 1d ? ((deltaTime * 1000d) + "ms") : deltaTime + "s") + ").");
 		}
+
+		// Handle record start/stop/replay.
+		if(Input.GetKeyDown(KeyCode.Y)) {
+			if(this.isRecording) {
+				print("Recording already active.");
+			} else {
+				this.meshRecorder = new MeshRecorder(this.getMesh().triangles, this.edges, this.vertexPositions);
+				this.isRecording = true;
+				print("New recording started.");
+			}
+		}
+		if(Input.GetKeyDown(KeyCode.U)) {
+			if(!this.isRecording) {
+				print("No recording running.");
+			} else {
+				this.isRecording = false;
+				print("Recording stopped.");
+			}
+		}
+		if(Input.GetKeyDown(KeyCode.I)) {
+			if(this.meshRecorder == null) {
+				print("No recording available for replay.");
+			} else if(this.meshRecorder.isPlaying()) {
+				print("Recording is already playing.");
+			} else {
+				this.meshRecorder.replay();
+			}
+		}
+
+		// Update recording.
+		if(this.meshRecorder != null) {
+			this.meshRecorder.update();
+		}
 	}
 
 	// FixedUpdate is called every fixed interval (Edit -> Project Settings -> Time -> Fixed Timestep).
@@ -331,7 +368,11 @@ public class Shell : MonoBehaviour {
 				break;
 			}
 		}
-		
+
+		// Update mesh recorder.
+		if(this.isRecording) {
+			this.meshRecorder.record(deltaTime, this.vertexPositions);
+		}
 
 		// TODO - This implementation is wrong. Use things like the mass calculation if useful. Remove after having used all useful parts.
 		/*

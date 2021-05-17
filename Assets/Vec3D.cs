@@ -93,4 +93,12 @@ public class Vec3D : VecD {
 	public static Vec3D cross(Vec3D v1, Vec3D v2) {
 		return new Vec3D(v1.y * v2.z - v2.y * v1.z, -v1.x * v2.z + v2.x * v1.z, v1.x * v2.y - v2.x * v1.y);
 	}
+
+	public static Vec3D[] clone(Vec3D[] vec) {
+		Vec3D[] clone = new Vec3D[vec.Length];
+		for(int i = 0; i < vec.Length; i++) {
+			clone[i] = vec[i].clone();
+		}
+		return clone;
+	}
 }
