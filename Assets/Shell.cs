@@ -22,7 +22,6 @@ public class Shell : MonoBehaviour {
 	private List<int>[] sortedVertexTriangles;
 	private List<Edge> edges;
 	private Vector3[] originalVertices; // Vertices in undeformed state.
-	private double undeformedEdgeLengthFactor = 1.01d; // Factor to multiple all undeformed edge lengths with to make artificial edge-constrained sails non-flat.
 	private bool[] verticesMovementConstraints; // When true, movement for the corresponding vertex is prohibited.
 
 	private Vec3D[] vertexPositions; // Format: {{x1, y1, z1}, {x2, y2, z2}, ...}.
@@ -80,6 +79,7 @@ public class Shell : MonoBehaviour {
 
 		// Create the new object in the scene.
 		Mesh mesh;
+		double undeformedInnerEdgeLengthFactor;
 		if(this.shellObj == null) {
 			this.shellObj = new GameObject();
 			this.shellObj.AddComponent<MeshRenderer>();
@@ -87,9 +87,10 @@ public class Shell : MonoBehaviour {
 			//mesh = MeshHelper.createTriangleMesh(5, 5, 0);
 			//mesh = MeshHelper.createSquareMesh(5, 5, 1);
 			mesh = MeshHelper.createTriangleMesh(5, 5, 5); // 5 subdivisions leads to 561 vertices and 3072 triangles.
-			this.undeformedEdgeLengthFactor = 1.1d;
+			undeformedInnerEdgeLengthFactor = 1.1d;
 		} else {
 			mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
+			undeformedInnerEdgeLengthFactor = 1d;
 		}
 
 		// Set the mesh renderer.
@@ -97,13 +98,13 @@ public class Shell : MonoBehaviour {
 		meshRenderer.sharedMaterial = new Material(Shader.Find("Custom/StandardTwoSides"));
 
 		// Load the mesh.
-		this.loadMesh(mesh);
+		this.loadMesh(mesh, undeformedInnerEdgeLengthFactor);
 
 		// Set the shell position.
 		this.shellObj.transform.position = new Vector3(0, 1, 0);
 	}
 
-	private void loadMesh(Mesh mesh) {
+	private void loadMesh(Mesh mesh, double undeformedInnerEdgeLengthFactor) {
 
 		// Set the mesh in the mesh filter.
 		MeshFilter meshFilter = this.shellObj.GetComponent<MeshFilter>();
@@ -129,7 +130,7 @@ public class Shell : MonoBehaviour {
 
 			// Apply undeformed edge length factor on inner edges.
 			if(edge.hasSideFlaps()) {
-				edge.undeformedLength *= this.undeformedEdgeLengthFactor;
+				edge.undeformedLength *= undeformedInnerEdgeLengthFactor;
 			}
 		}
 
@@ -158,8 +159,8 @@ public class Shell : MonoBehaviour {
 			int v2 = triangles[triangleBaseIndex + 1];
 			int v3 = triangles[triangleBaseIndex + 2];
 			Vec3D crossProd = Vec3D.cross(
-					(new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1])) * this.undeformedEdgeLengthFactor,
-					(new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1])) * this.undeformedEdgeLengthFactor);
+					(new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1])) * undeformedInnerEdgeLengthFactor,
+					(new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1])) * undeformedInnerEdgeLengthFactor); // TODO - Don't apply factor to outer edges.
 			double crossProdMag = crossProd.magnitude;
 
 			// Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
@@ -2483,7 +2484,7 @@ public class Shell : MonoBehaviour {
 		mesh.triangles = sailConfiguration.triangles;
 		mesh.normals = new Vector3[sailConfiguration.vertexPositions.Length];
 		mesh.RecalculateNormals();
-		this.loadMesh(mesh);
+		this.loadMesh(mesh, 1d);
 	}
 
 	public void onSaveSailMeasurementsButtonPress() {
