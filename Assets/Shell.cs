@@ -299,7 +299,7 @@ public class Shell : MonoBehaviour {
 			if(this.isRecording) {
 				print("Recording already active.");
 			} else {
-				this.meshRecorder = new MeshRecorder(this.getMesh().triangles, this.edges, this.vertexPositions);
+				this.meshRecorder = new MeshRecorder(this.getMesh().triangles, this.vertexPositions);
 				this.isRecording = true;
 				print("New recording started.");
 			}

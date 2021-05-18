@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public class MeshRecorder {
 	
 	// Record variables.
 	private int[] triangles;
-	private List<Edge> edges;
-	private List<Tuple<double, Vec3D[]>> vertexPositionsTimeTuples = new List<Tuple<double, Vec3D[]>>();
+	private List<Tuple<double, Vec3D[]>> vertexPositionsTimeTuples;
 
 	// Replay variables.
 	private GameObject gameObject;
@@ -16,10 +16,16 @@ public class MeshRecorder {
 	private int replayIndex = -1;
 	private double lastUpdateTime;
 
-	public MeshRecorder(int[] triangles, List<Edge> edges, Vec3D[] initialVertexPositions) {
+	public MeshRecorder(int[] triangles, Vec3D[] initialVertexPositions) {
 		this.triangles = triangles;
-		this.edges = edges;
-		this.vertexPositionsTimeTuples.Add(new Tuple<double, Vec3D[]>(0, Vec3D.clone(initialVertexPositions)));
+		this.vertexPositionsTimeTuples = new List<Tuple<double, Vec3D[]>> {
+			new Tuple<double, Vec3D[]>(0, Vec3D.clone(initialVertexPositions))
+		};
+	}
+
+	private MeshRecorder(int[] triangles, List<Tuple<double, Vec3D[]>> vertexPositionsTimeTuples) {
+		this.triangles = triangles;
+		this.vertexPositionsTimeTuples = vertexPositionsTimeTuples;
 	}
 
 	public void record(double deltaTime, Vec3D[] vertexPositions) {
@@ -82,6 +88,66 @@ public class MeshRecorder {
 			this.replayIndex++;
 		}
 		this.replayTime += Time.deltaTime;
+	}
+
+	public void storeToFile(string fileName) {
+		string dirPath = Application.dataPath + "/Recordings";
+		string filePath = dirPath + "/" + fileName + ".rec";
+		MonoBehaviour.print("Storing sail measurements to file: " + filePath);
+		if(!Directory.Exists(dirPath)) {
+			Directory.CreateDirectory(dirPath);
+		}
+		FileStream fs = (File.Exists(filePath) ? File.OpenWrite(filePath) : File.Create(filePath));
+		BinaryWriter writer = new BinaryWriter(fs);
+
+		// Write triangles.
+		writer.Write(this.triangles.Length);
+		foreach(int val in this.triangles) {
+			writer.Write(val);
+		}
+
+		// Write time position tuples.
+		writer.Write(this.vertexPositionsTimeTuples.Count);
+		foreach(Tuple<double, Vec3D[]> tuple in this.vertexPositionsTimeTuples) {
+			double deltaTime = tuple.Item1;
+			Vec3D[] vertexPositions = tuple.Item2;
+			writer.Write(deltaTime);
+			writer.Write(vertexPositions.Length);
+			foreach(Vec3D vertexPosition in vertexPositions) {
+				writer.Write(vertexPosition.x);
+				writer.Write(vertexPosition.y);
+				writer.Write(vertexPosition.z);
+			}
+		}
+	}
+
+	public static MeshRecorder loadFromFile(string fileName) {
+		string filePath = Application.dataPath + "/Recordings/" + fileName + ".rec";
+		MonoBehaviour.print("Loading sail measurements from file: " + filePath);
+		FileStream fs = File.OpenRead(filePath);
+		BinaryReader reader = new BinaryReader(fs);
+
+		// Read triangles.
+		int triangleLength = reader.ReadInt32();
+		int[] triangles = new int[triangleLength];
+		for(int i = 0; i < triangleLength; i++) {
+			triangles[i] = reader.ReadInt32();
+		}
+
+		// Read time position tuples.
+		int numVertexPositionTuples = reader.ReadInt32();
+		List<Tuple<double, Vec3D[]>> vertexPositionsTimeTuples = new List<Tuple<double, Vec3D[]>>();
+		for(int i = 0; i < numVertexPositionTuples; i++) {
+			double deltaTime = reader.ReadDouble();
+			int numVertices = reader.ReadInt32();
+			Vec3D[] vertexPositions = new Vec3D[numVertices];
+			for(int j = 0; j < numVertices; j++) {
+				vertexPositions[j] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
+			}
+			vertexPositionsTimeTuples.Add(new Tuple<double, Vec3D[]>(deltaTime, vertexPositions));
+		}
+
+		return new MeshRecorder(triangles, vertexPositionsTimeTuples);
 	}
 
 	private static Vector3[] vecToVec(Vec3D[] vec) {
