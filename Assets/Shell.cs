@@ -612,7 +612,68 @@ public class Shell : MonoBehaviour {
 		for(int i = 0; i < eHess.RowCount; i++) {
 			eHess[i, i] += vertexCoordMasses[i] / deltaTimeSquare;
 		}
-		
+
+		// Update wind force if measurements are set.
+		Vec3D windVelocity = new Vec3D(this.windPressure);
+		if(this.measurements != null) {
+			Vec3D[] measurements = this.measurements.measurements;
+
+			// Get system-wide energy gradient.
+			this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
+			VecD energyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
+
+			// Get wind force.
+			VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, windVelocity);
+
+			// Get gravity force.
+			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
+
+			//// Get damping force.
+			//VecD dampingForce = -this.dampingConstant * (energyHess * this.vertexVelocities);
+
+			// Get measurement penalty gradient.
+			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
+			// Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
+			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
+			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+				if(measurements[vertexInd] != null) {
+					for(int coord = 0; coord < 3; coord++) {
+						penaltyEnergyGradient[3 * vertexInd + coord] =
+							this.kMeasurementsPenalty * 2d * (this.vertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
+					}
+				}
+			}
+
+			// Set forces to zero for constrained vertices.
+			// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
+			for(int i = 0; i < numVertices; i++) {
+				if(this.verticesMovementConstraints[i]) {
+					for(int coord = 0; coord < 3; coord++) {
+						energyGradient[3 * i + coord] = 0;
+						windForce[3 * i + coord] = 0;
+						gravityForce[3 * i + coord] = 0;
+						//dampingForce[3 * i + coord] = 0;
+						penaltyEnergyGradient[3 * i + coord] = 0;
+					}
+				}
+			}
+
+			// Update the wind velocity and force based on virtual measurements error force.
+			// This virtual force is the force that we would like to include in the existing wind force.
+			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(windForce).sub(gravityForce); //.sub(dampingForce);
+			Vec3D deltaWindVelocity = this.getDeltaWindVelocity(triangles, this.vertexPositions, virtMeasurementsErrorForce);
+			double deltaWindVelocityMag = deltaWindVelocity.magnitude;
+
+			// Limit delta wind velocity magnitude.
+			double maxDeltaWindVelocityMag = windVelocity.magnitude / 100d + 0.001d;
+			if(deltaWindVelocityMag > maxDeltaWindVelocityMag) {
+				deltaWindVelocity.mul(maxDeltaWindVelocityMag / deltaWindVelocityMag);
+			}
+
+			windVelocity += deltaWindVelocity;
+			print("New wind velocity: " + windVelocity + " (deltaWindVelocity = " + deltaWindVelocity + ").");
+		}
+
 		// Perform Newton's method, setting steps until the termination criterion has been met.
 		VecD vertexPositionsFlat = new VecD(this.vertexPositions);
 		Vec3D[] newVertexPositions = new Vec3D[numVertices];
@@ -640,7 +701,7 @@ public class Shell : MonoBehaviour {
 			VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
 
 			// Get wind force.
-			VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, new VecD(this.windPressure));
+			VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windVelocity);
 
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
@@ -682,7 +743,7 @@ public class Shell : MonoBehaviour {
 			// Get E gradient.
 			VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
 					.multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
-					.add(energyGradient).add(penaltyEnergyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
+					.add(energyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
 
 			// Terminate when the termination criterion has been met.
 			double eGradientMagnitude = eGradient.magnitude;
@@ -742,7 +803,7 @@ public class Shell : MonoBehaviour {
 			double alpha = this.lastLineSearchAlpha;
 			double bestAlpha = double.NaN;
 			double e = this.getE(triangles, vertexPositionsFlat, newVertexPositions,
-					vertexCoordMasses, new VecD(this.windPressure), energyHess, deltaTime);
+					vertexCoordMasses, windVelocity, energyHess, deltaTime);
 			double bestE = e;
 			double c = 1d;
 			long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
@@ -762,7 +823,7 @@ public class Shell : MonoBehaviour {
 				// Terminate when there is sufficient E decrease. Adjust alpha otherwise.
 				this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
 				double newE = this.getE(triangles, vertexPositionsFlat, newNewVertexPositions,
-						vertexCoordMasses, new VecD(this.windPressure), energyHess, deltaTime);
+						vertexCoordMasses, windVelocity, energyHess, deltaTime);
 				if(newE <= bestE) {
 				//if(newE <= e + c * alpha * VecD.dot(eGradient, step)) {
 					
@@ -798,7 +859,6 @@ public class Shell : MonoBehaviour {
 				newVertexPositions[i].y += alpha * step[3 * i + 1];
 				newVertexPositions[i].z += alpha * step[3 * i + 2];
 			}
-
 		}
 		
 		// Update vertex velocity.
@@ -807,8 +867,62 @@ public class Shell : MonoBehaviour {
 		// Update vertex positions.
 		this.vertexPositions = newVertexPositions;
 
+		// Update wind velocity.
+		this.windPressure = new Vector3((float) windVelocity[0], (float) windVelocity[1], (float) windVelocity[2]);
+
 		// Update mesh.
 		this.updateMesh();
+	}
+
+	private Vec3D getDeltaWindVelocity(int[] triangles, Vec3D[] vertexPositions, VecD virtMeasurementsErrorForce) {
+		int numVertices = vertexPositions.Length;
+
+		// Set the virtual measurements error force to 0 for points without measurements.
+		// This is necessary to not cause the wind force to attempt to cancel acceleration and therefore keep non-measurements vertices in place.
+		int numMeasurements = 0;
+		for(int i = 0; i < numVertices; i++) {
+			if(this.measurements == null || this.measurements.measurements[i] == null) {
+				virtMeasurementsErrorForce[i * 3] = 0d;
+				virtMeasurementsErrorForce[i * 3 + 1] = 0d;
+				virtMeasurementsErrorForce[i * 3 + 2] = 0d;
+			} else {
+				numMeasurements++;
+			}
+		}
+		if(numMeasurements == 0) {
+			return new Vec3D();
+		}
+
+		// Determine the delta wind velocity direction.
+		// For the direction, the direction of the sum of virtual measurements error forces is used.
+		// For the magnitude, we first determine the wind force produced by the unit wind direction and then scale it to on average match the virtual error forces.
+		Vec3D deltaWindVelocity = new Vec3D();
+		double averageVirtMeasurementsErrorForceMagnitude = 0d;
+		for(int i = 0; i < numVertices; i++) {
+			Vec3D virtMeasurementErrorForce = new Vec3D(
+					virtMeasurementsErrorForce[3 * i], virtMeasurementsErrorForce[3 * i + 1], virtMeasurementsErrorForce[3 * i + 2]);
+			deltaWindVelocity += virtMeasurementErrorForce;
+			averageVirtMeasurementsErrorForceMagnitude += virtMeasurementErrorForce.magnitude;
+		}
+		double magnitude = deltaWindVelocity.magnitude;
+		if(magnitude == 0d) {
+			return new Vec3D();
+		}
+		deltaWindVelocity /= magnitude;
+		averageVirtMeasurementsErrorForceMagnitude /= numMeasurements;
+
+		VecD deltaVertexUnitWindForce = this.getVertexWindForce(triangles, vertexPositions, deltaWindVelocity);
+		double averageUnitDeltaWindForceMagnitude = 0d;
+		for(int i = 0; i < numVertices; i++) {
+			Vec3D deltaWindForce = new Vec3D(
+					deltaVertexUnitWindForce[3 * i], deltaVertexUnitWindForce[3 * i + 1], deltaVertexUnitWindForce[3 * i + 2]);
+			averageUnitDeltaWindForceMagnitude += deltaWindForce.magnitude;
+		}
+		averageUnitDeltaWindForceMagnitude /= numVertices;
+		double deltaWindForceMagnitude = averageVirtMeasurementsErrorForceMagnitude / averageUnitDeltaWindForceMagnitude;
+		deltaWindVelocity.mul(deltaWindForceMagnitude);
+
+		return deltaWindVelocity;
 	}
 
 	/*
