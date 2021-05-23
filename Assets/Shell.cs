@@ -2375,10 +2375,9 @@ public class Shell : MonoBehaviour {
 
 	public void onLoadSailShapeButtonPress() {
 		SailConfiguration sailConfiguration = SailConfiguration.loadFromFile("sail");
-		Mesh mesh = this.getMesh();
+		Mesh mesh = new Mesh();
 		mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
 		mesh.triangles = sailConfiguration.triangles;
-		mesh.normals = new Vector3[sailConfiguration.vertexPositions.Length];
 		mesh.RecalculateNormals();
 		this.loadMesh(mesh, 1d);
 	}
