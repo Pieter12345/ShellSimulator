@@ -5,7 +5,14 @@ using UnityEngine;
 
 public class SailMeasurements {
 	
+	/*
+	 * Vertex positions at the time the measurements were taken. This can be used as ground truth.
+	 */
 	public Vec3D[] vertexPositions { get; }
+
+	/*
+	 * The measurements. One element for each vertex, null meaning that there is no measurement for that vertex.
+	 */
 	public Vec3D[] measurements { get; }
 
 	public SailMeasurements(Vec3D[] vertexPositions, Vec3D[] measurements) {

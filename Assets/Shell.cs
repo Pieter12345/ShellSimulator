@@ -36,7 +36,7 @@ public class Shell : MonoBehaviour {
 	public double gravityConstant = 9.81d;
 
 	public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
-	private Vec3D[] measurements = null; // Measurements. One element for each vertex, null meaning that there is no measurement for that vertex.
+	private SailMeasurements measurements = null;
 
 	// Gradient descent specific settings.
 	public double kGradientDescent;
@@ -654,11 +654,12 @@ public class Shell : MonoBehaviour {
 			// Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
 			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
 			if(this.measurements != null) {
+				Vec3D[] measurements = this.measurements.measurements;
 				for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-					if(this.measurements[vertexInd] != null) {
+					if(measurements[vertexInd] != null) {
 						for(int coord = 0; coord < 3; coord++) {
 							penaltyEnergyGradient[3 * vertexInd + coord] =
-								this.kMeasurementsPenalty * 2d * (this.vertexPositions[vertexInd][coord] - this.measurements[vertexInd][coord]);
+								this.kMeasurementsPenalty * 2d * (newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
 						}
 					}
 				}
@@ -2394,8 +2395,7 @@ public class Shell : MonoBehaviour {
 	}
 
 	public void onLoadSailMeasurementsButtonPress() {
-		SailMeasurements sailMeasurements = SailMeasurements.loadFromFile("measurements");
-		this.measurements = sailMeasurements.measurements;
+		this.measurements = SailMeasurements.loadFromFile("measurements");
 	}
 
 	private static Vector3[] vecToVec(Vec3D[] vec) {
