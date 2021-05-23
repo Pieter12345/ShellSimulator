@@ -812,6 +812,40 @@ public class Shell : MonoBehaviour {
 	}
 
 	/*
+	 * Gets the sum of per-coordinate squared errors between the current vertex positions and the vertex positions at the time the measurements were taken.
+	 * Returns 0 if no measurement is set.
+	 */
+	private double getSquaredMeasurementsError(Vec3D[] vertexPositions) {
+		double error = 0;
+		if(this.measurements != null) {
+			Vec3D[] measurements = this.measurements.measurements;
+			for(int i = 0; i < vertexPositions.Length; i++) {
+				if(measurements[i] != null) {
+					Vec3D diff = measurements[i] - vertexPositions[i];
+					error += VecD.dot(diff, diff);
+				}
+			}
+		}
+		return error;
+	}
+
+	/*
+	 * Gets the sum of distances between the current vertex positions and the vertex positions at the time the measurements were taken.
+	 * Returns 0 if no measurement is set.
+	 */
+	private double getReconstructionDistance(Vec3D[] vertexPositions) {
+		double error = 0;
+		if(this.measurements != null) {
+			Vec3D[] correctPositions = this.measurements.vertexPositions;
+			for(int i = 0; i < vertexPositions.Length; i++) {
+				Vec3D diff = correctPositions[i] - vertexPositions[i];
+				error += diff.magnitude;
+			}
+		}
+		return error;
+	}
+
+	/*
 	 * Updates the current mesh with the current vertices positions.
 	 * After setting the new vertices, the mesh normals are recalculated.
 	 */
