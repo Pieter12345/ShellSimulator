@@ -61,6 +61,8 @@ public class Shell : MonoBehaviour {
 	private double[] undeformedTriangleAreas;
 
 	// Simulation recording.
+	public string MeasurementsFileName = "measurements";
+	public string MeshFileName = "sail";
 	private MeshRecorder meshRecorder = null;
 	private Boolean isRecording = false;
 
@@ -2518,11 +2520,11 @@ public class Shell : MonoBehaviour {
 
 	public void onSaveSailShapeButtonPress() {
 		Mesh mesh = this.getMesh();
-		new SailConfiguration(this.vertexPositions, mesh.triangles).storeToFile("sail");
+		new SailConfiguration(this.vertexPositions, mesh.triangles).storeToFile(this.MeshFileName);
 	}
 
 	public void onLoadSailShapeButtonPress() {
-		SailConfiguration sailConfiguration = SailConfiguration.loadFromFile("sail");
+		SailConfiguration sailConfiguration = SailConfiguration.loadFromFile(this.MeshFileName);
 		Mesh mesh = new Mesh();
 		mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
 		mesh.triangles = sailConfiguration.triangles;
@@ -2538,11 +2540,11 @@ public class Shell : MonoBehaviour {
 			this.measurementsGenerateFactor = 1f;
 		}
 		int numMeasurements = (int) (this.vertexPositions.Length * this.measurementsGenerateFactor);
-		new SailMeasurements(this.vertexPositions, MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile("measurements");
+		new SailMeasurements(this.vertexPositions, MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile(this.MeasurementsFileName);
 	}
 
 	public void onLoadSailMeasurementsButtonPress() {
-		this.measurements = SailMeasurements.loadFromFile("measurements");
+		this.measurements = SailMeasurements.loadFromFile(this.MeasurementsFileName);
 	}
 
 	private static Vector3[] vecToVec(Vec3D[] vec) {
