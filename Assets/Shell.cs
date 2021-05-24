@@ -64,7 +64,7 @@ public class Shell : MonoBehaviour {
 	public string MeasurementsFileName = "measurements";
 	public string MeshFileName = "sail";
 	private MeshRecorder meshRecorder = null;
-	private Boolean isRecording = false;
+	private bool isRecording = false;
 
 	void Awake() {
 		QualitySettings.vSyncCount = 0; // Disable V-sync.
