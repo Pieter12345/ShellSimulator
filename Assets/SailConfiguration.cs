@@ -34,6 +34,7 @@ public class SailConfiguration {
 			writer.Write((double) pos.y);
 			writer.Write((double) pos.z);
 		}
+		writer.Close();
 	}
 
 	public static SailConfiguration loadFromFile(string fileName) {
@@ -53,6 +54,7 @@ public class SailConfiguration {
 		for(int i = 0; i < numVertices; i++) {
 			vertexPositions[i] = new Vec3D(reader.ReadDouble(), reader.ReadDouble(), reader.ReadDouble());
 		}
+		reader.Close();
 		return new SailConfiguration(vertexPositions, triangles);
 	}
 }

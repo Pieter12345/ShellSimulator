@@ -119,6 +119,7 @@ public class MeshRecorder {
 				writer.Write(vertexPosition.z);
 			}
 		}
+		writer.Close();
 	}
 
 	public static MeshRecorder loadFromFile(string fileName) {
@@ -146,7 +147,7 @@ public class MeshRecorder {
 			}
 			vertexPositionsTimeTuples.Add(new Tuple<double, Vec3D[]>(deltaTime, vertexPositions));
 		}
-
+		reader.Close();
 		return new MeshRecorder(triangles, vertexPositionsTimeTuples);
 	}
 

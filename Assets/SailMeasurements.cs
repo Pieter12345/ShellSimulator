@@ -48,6 +48,7 @@ public class SailMeasurements {
 				writer.Write(false);
 			}
 		}
+		writer.Close();
 	}
 
 	public static SailMeasurements loadFromFile(string fileName) {
@@ -71,6 +72,7 @@ public class SailMeasurements {
 				measurements[i] = null;
 			}
 		}
+		reader.Close();
 		return new SailMeasurements(vertexPositions, measurements);
 	}
 }
