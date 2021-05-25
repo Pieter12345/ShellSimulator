@@ -1589,12 +1589,12 @@ public class Shell : MonoBehaviour {
 			}
 		}
 
-		VecD deltaVertexPositions = new VecD(newVertexPositions).sub(vertexPositionsFlat); // These are also the new vertex velocities.
+		VecD deltaVertexPositions = new VecD(newVertexPositions).sub(vertexPositionsFlat);
 		double systemEnergy = this.getSystemEnergy(triangles, newVertexPositions);
 		double gravityWork = 0;
 		double windWork = -VecD.dot(windForce, deltaVertexPositions); // Approximation: Consider triangle normals and areas constant.
 		VecD dampingForce = -this.dampingConstant * (energyHess * deltaVertexPositions);
-		double dampingWork = -VecD.dot(dampingForce, deltaVertexPositions);
+		double dampingWork = -VecD.dot(dampingForce, deltaVertexPositions) / 2d;
 		for(int i = 0; i < numVertices; i++) {
 			if(!this.verticesMovementConstraints[i]) { // Not necessary when comparing energy, but lets consider them part of the outside world.
 				int yCoordIndex = 3 * i + 1;
