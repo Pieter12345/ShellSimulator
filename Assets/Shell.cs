@@ -106,6 +106,9 @@ public class Shell : MonoBehaviour {
 		// Load the mesh.
 		this.loadMesh(mesh, undeformedInnerEdgeLengthFactor);
 
+		// Constrain the mesh.
+		MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
+
 		// Set the shell position.
 		this.shellObj.transform.position = new Vector3(0, 1, 0);
 	}
@@ -176,34 +179,6 @@ public class Shell : MonoBehaviour {
 			} else {
 				this.undeformedTriangleNormals[triangleId] = crossProd / crossProdMag;
 				this.undeformedTriangleAreas[triangleId] = crossProdMag / 2d; // Triangle area is half of the cross product of any two of its edges.
-			}
-		}
-
-		// Add movement constraints on mesh edge vertices.
-		for(int vertexInd = 0; vertexInd < this.sortedVertexTriangles.Length; vertexInd++) {
-			List<int> triangleList = this.sortedVertexTriangles[vertexInd];
-			for(int i = 0; i < triangleList.Count; i++) {
-
-				// Get triangle vertices.
-				int triangleBaseInd1 = triangleList[i] * 3;
-				int v11 = mesh.triangles[triangleBaseInd1];
-				int v12 = mesh.triangles[triangleBaseInd1 + 1];
-				int v13 = mesh.triangles[triangleBaseInd1 + 2];
-
-				// Get next triangle vertices.
-				int triangleBaseInd2 = triangleList[(i + 1) % triangleList.Count] * 3;
-				int v21 = mesh.triangles[triangleBaseInd2];
-				int v22 = mesh.triangles[triangleBaseInd2 + 1];
-				int v23 = mesh.triangles[triangleBaseInd2 + 2];
-
-				// Get the vertex indices of the other vertices that are connected to this vertex's edges.
-				int otherVertexClockwiseInd1 = (vertexInd == v11 ? v13 : (vertexInd == v13 ? v12 : v11));
-				int otherVertexAntiClockwiseInd2 = (vertexInd == v21 ? v22 : (vertexInd == v22 ? v23 : v21));
-
-				// Constrain the vertex if a gap between triangles has been found.
-				if(otherVertexClockwiseInd1 != otherVertexAntiClockwiseInd2) {
-					this.verticesMovementConstraints[vertexInd] = true;
-				}
 			}
 		}
 
@@ -2516,7 +2491,7 @@ public class Shell : MonoBehaviour {
 
 	public void onSaveSailShapeButtonPress() {
 		Mesh mesh = this.getMesh();
-		new SailConfiguration(this.vertexPositions, mesh.triangles).storeToFile(this.MeshFileName);
+		new SailConfiguration(this.vertexPositions, mesh.triangles, this.verticesMovementConstraints).storeToFile(this.MeshFileName);
 	}
 
 	public void onLoadSailShapeButtonPress() {
@@ -2526,6 +2501,7 @@ public class Shell : MonoBehaviour {
 		mesh.triangles = sailConfiguration.triangles;
 		mesh.RecalculateNormals();
 		this.loadMesh(mesh, 1d);
+		this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
 	}
 
 	public void onSaveSailMeasurementsButtonPress() {

@@ -132,4 +132,22 @@ public class MeshHelper {
 		}
 		return mesh;
 	}
+
+	/**
+	 * Creates an array of vertex constraints constraining all outer edges of the given mesh.
+	 * The returned array contains one element per vertex, where true means constrained and false unconstrained.
+	 */
+	public static bool[] createOuterEdgeVertexContraints(Vec3D[] vertices, List<Edge> edges) {
+		bool[] verticesMovementConstraints = new bool[vertices.Length];
+		for(int i = 0; i < verticesMovementConstraints.Length; i++) {
+			verticesMovementConstraints[i] = false;
+		}
+		foreach(Edge edge in edges) {
+			if(!edge.hasSideFlaps()) {
+				verticesMovementConstraints[edge.ve1] = true;
+				verticesMovementConstraints[edge.ve2] = true;
+			}
+		}
+		return verticesMovementConstraints;
+	}
 }
