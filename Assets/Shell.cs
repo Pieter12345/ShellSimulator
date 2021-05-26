@@ -107,7 +107,7 @@ public class Shell : MonoBehaviour {
 		this.loadMesh(mesh, undeformedInnerEdgeLengthFactor);
 
 		// Constrain the mesh.
-		MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
+		this.verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
 
 		// Set the shell position.
 		this.shellObj.transform.position = new Vector3(0, 1, 0);
