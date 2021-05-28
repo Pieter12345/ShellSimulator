@@ -1568,7 +1568,7 @@ public class Shell : MonoBehaviour {
 		double systemEnergy = this.getSystemEnergy(triangles, newVertexPositions);
 		double gravityWork = 0;
 		double windWork = -VecD.dot(windForce, deltaVertexPositions); // Approximation: Consider triangle normals and areas constant.
-		VecD dampingForce = -this.dampingConstant * (energyHess * deltaVertexPositions);
+		VecD dampingForce = -(this.dampingConstant / deltaTime) * (energyHess * deltaVertexPositions);
 		double dampingWork = -VecD.dot(dampingForce, deltaVertexPositions) / 2d;
 		for(int i = 0; i < numVertices; i++) {
 			if(!this.verticesMovementConstraints[i]) { // Not necessary when comparing energy, but lets consider them part of the outside world.
