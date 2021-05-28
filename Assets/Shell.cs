@@ -804,6 +804,13 @@ public class Shell : MonoBehaviour {
 					bestAlpha = alpha;
 					bestE = newE;
 					alpha *= 2;
+
+					// Limit alpha. This prevents stable zero-step configurations from resulting in an infinite alpha.
+					if(alpha >= 10) {
+						alpha = 10;
+						print(stopWatch.ElapsedMilliseconds + "ms: Alpha is getting too large. Setting alpha: " + alpha);
+						break;
+					}
 				} else if(!double.IsNaN(bestAlpha)) {
 
 					// A best alpha was set, but a higher value of alpha didn't make it. Return the best value.
