@@ -61,7 +61,7 @@ public class Shell : MonoBehaviour {
 	private double[] undeformedTriangleAreas;
 
 	// Simulation recording.
-	public static string storageBaseDirPath = Application.dataPath + "/StoredData";
+	public static string storageBaseDirPath;
 	public string MeasurementsFileName = "measurements";
 	public string MeshFileName = "sail";
 	public string RecordingFileName = "recording";
@@ -69,6 +69,7 @@ public class Shell : MonoBehaviour {
 	private bool isRecording = false;
 
 	void Awake() {
+		storageBaseDirPath = Application.dataPath + "/StoredData";
 		QualitySettings.vSyncCount = 0; // Disable V-sync.
 		Application.targetFrameRate = 100; // Set max framerate.
 		System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US"); // To print decimal points instead of commas.
