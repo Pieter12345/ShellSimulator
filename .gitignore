@@ -73,3 +73,5 @@ crashlytics-build.properties
 # Project specific data storage
 /Assets/SailData/
 /Assets/SailData.meta
+/Assets/Recordings/
+/Assets/Recordings.meta

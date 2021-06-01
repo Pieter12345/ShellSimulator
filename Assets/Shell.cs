@@ -63,6 +63,7 @@ public class Shell : MonoBehaviour {
 	// Simulation recording.
 	public string MeasurementsFileName = "measurements";
 	public string MeshFileName = "sail";
+	public string RecordingFileName = "recording";
 	private MeshRecorder meshRecorder = null;
 	private bool isRecording = false;
 
@@ -2512,7 +2513,6 @@ public class Shell : MonoBehaviour {
 	}
 
 	public void onSaveSailMeasurementsButtonPress() {
-		Mesh mesh = this.getMesh();
 		if(this.measurementsGenerateFactor < 0f) {
 			this.measurementsGenerateFactor = 0f;
 		} else if(this.measurementsGenerateFactor > 1f) {
@@ -2524,6 +2524,23 @@ public class Shell : MonoBehaviour {
 
 	public void onLoadSailMeasurementsButtonPress() {
 		this.measurements = SailMeasurements.loadFromFile(this.MeasurementsFileName);
+	}
+
+	public void onSaveRecordingButtonPress() {
+		if(this.meshRecorder == null) {
+			print("No recording available to save.");
+			return;
+		}
+		this.meshRecorder.storeToFile(this.RecordingFileName);
+			print("Recording saved.");
+	}
+
+	public void onLoadRecordingButtonPress() {
+		if(this.meshRecorder != null) {
+			this.meshRecorder.stop();
+		}
+		this.meshRecorder = MeshRecorder.loadFromFile(this.RecordingFileName);
+		print("Recording loaded.");
 	}
 
 	private static Vector3[] vecToVec(Vec3D[] vec) {
