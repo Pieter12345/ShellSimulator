@@ -61,6 +61,7 @@ public class Shell : MonoBehaviour {
 	private double[] undeformedTriangleAreas;
 
 	// Simulation recording.
+	public static string storageBaseDirPath = Application.dataPath + "/StoredData";
 	public string MeasurementsFileName = "measurements";
 	public string MeshFileName = "sail";
 	public string RecordingFileName = "recording";

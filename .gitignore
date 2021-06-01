@@ -71,7 +71,5 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 # Project specific data storage
-/Assets/SailData/
-/Assets/SailData.meta
-/Assets/Recordings/
-/Assets/Recordings.meta
+/Assets/StoredData/
+/Assets/StoredData.meta

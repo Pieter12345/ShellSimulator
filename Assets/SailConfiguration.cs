@@ -20,7 +20,7 @@ public class SailConfiguration {
 	}
 
 	public void storeToFile(string fileName) {
-		string dirPath = Application.dataPath + "/SailData";
+		string dirPath = Shell.storageBaseDirPath + "/SailData";
 		string filePath = dirPath + "/" + fileName + ".sailshapedata";
 		MonoBehaviour.print("Storing sail shape to file: " + filePath);
 		if(!Directory.Exists(dirPath)) {
@@ -46,7 +46,7 @@ public class SailConfiguration {
 	}
 
 	public static SailConfiguration loadFromFile(string fileName) {
-		string filePath = Application.dataPath + "/SailData/" + fileName + ".sailshapedata";
+		string filePath = Shell.storageBaseDirPath + "/SailData/" + fileName + ".sailshapedata";
 		MonoBehaviour.print("Loading sail shape from file: " + filePath);
 		FileStream fs = File.OpenRead(filePath);
 		BinaryReader reader = new BinaryReader(fs);

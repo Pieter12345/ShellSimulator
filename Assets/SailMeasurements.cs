@@ -21,7 +21,7 @@ public class SailMeasurements {
 	}
 
 	public void storeToFile(string fileName) {
-		string dirPath = Application.dataPath + "/SailData";
+		string dirPath = Shell.storageBaseDirPath + "/SailData";
 		string filePath = dirPath + "/" + fileName + ".sailmeasurements";
 		MonoBehaviour.print("Storing sail measurements to file: " + filePath);
 		if(!Directory.Exists(dirPath)) {
@@ -52,7 +52,7 @@ public class SailMeasurements {
 	}
 
 	public static SailMeasurements loadFromFile(string fileName) {
-		string filePath = Application.dataPath + "/SailData/" + fileName + ".sailmeasurements";
+		string filePath = Shell.storageBaseDirPath + "/SailData/" + fileName + ".sailmeasurements";
 		MonoBehaviour.print("Loading sail measurements from file: " + filePath);
 		FileStream fs = File.OpenRead(filePath);
 		BinaryReader reader = new BinaryReader(fs);
