@@ -1508,7 +1508,7 @@ MonoBehaviour:
   kGradientDescent: 0
   maxGradientDescentStep: 0
   dampingFactor: 0.99
-  dampingConstant: 1
+  dampingConstant: 0.001
   kMeasurementsPenalty: 1
   eGradientMagnitudeTerminationThreshold: 2.5
   MaxLineSearchTimeMS: 5000
