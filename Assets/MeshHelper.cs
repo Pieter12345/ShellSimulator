@@ -133,6 +133,35 @@ public class MeshHelper {
 		return mesh;
 	}
 
+	/*
+	 * Creates a rectuangular mesh from (0, 0, 0) to (dx, 0, dz) with two triangles to which numSubdivisions subdivisions are applied.
+	 */
+	public static Mesh createFlatRectangleMesh(float dx, float dz, int numSubdivisions) {
+		Mesh mesh = new Mesh();
+		mesh.vertices = new Vector3[] {
+			new Vector3(0, 0, 0),
+			new Vector3(dx, 0, 0),
+			new Vector3(0, 0, dz),
+			new Vector3(dx, 0, dz)
+		};
+		mesh.triangles = new int[] {
+			0, 2, 1,
+			2, 3, 1
+		};
+		mesh.uv = new Vector2[] {
+			new Vector2(0, 0),
+			new Vector2(1, 0),
+			new Vector2(0, 1),
+			new Vector2(1, 1)
+		};
+		mesh.RecalculateNormals();
+
+		for(int i = 0; i < numSubdivisions; i++) {
+			MeshHelper.Subdivide(mesh);
+		}
+		return mesh;
+	}
+
 	/**
 	 * Creates an array of vertex constraints constraining all outer edges of the given mesh.
 	 * The returned array contains one element per vertex, where true means constrained and false unconstrained.
