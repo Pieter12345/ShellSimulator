@@ -17,6 +17,7 @@ public class Shell : MonoBehaviour {
 
 	// Game object to simulate.
 	public GameObject shellObj = null;
+	private Vector3 shellObjPosition = new Vector3(0f, 1f, 0f);
 
 	// Vertex related fields.
 	private List<int>[] sortedVertexTriangles;
@@ -68,6 +69,9 @@ public class Shell : MonoBehaviour {
 	private MeshRecorder meshRecorder = null;
 	private bool isRecording = false;
 
+	// Debugging.
+	private VectorVisualizer vectorVisualizer;
+
 	void Awake() {
 		storageBaseDirPath = Application.dataPath + "/StoredData";
 		QualitySettings.vSyncCount = 0; // Disable V-sync.
@@ -77,6 +81,9 @@ public class Shell : MonoBehaviour {
 
 	// Start is called before the first frame update.
 	void Start() {
+
+		// Initialize vector visualizer.
+		this.vectorVisualizer = new VectorVisualizer(this.shellObjPosition);
 
 		// Initialize fields. Doing this overwrites the values set in Unity's inspector.
 		this.kLength = 10f;
@@ -113,7 +120,7 @@ public class Shell : MonoBehaviour {
 		this.verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
 
 		// Set the shell position.
-		this.shellObj.transform.position = new Vector3(0, 1, 0);
+		this.shellObj.transform.position = this.shellObjPosition;
 	}
 
 	private void loadMesh(Mesh mesh, double undeformedInnerEdgeLengthFactor) {
@@ -246,6 +253,9 @@ public class Shell : MonoBehaviour {
 		}
 		mesh.vertices = vertices;
 		mesh.RecalculateNormals();
+
+		// Clear vector visualizer.
+		this.vectorVisualizer.clear();
 	}
 
 	// Update is called once per frame.
@@ -328,6 +338,9 @@ public class Shell : MonoBehaviour {
 
 		// Compute triangle normals and areas.
 		this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
+
+		// Clear previous vector visualizations.
+		this.vectorVisualizer.clear();
 
 		// Update the vertices using the chosen time stepping method.
 		switch(this.timeSteppingMethod) {
