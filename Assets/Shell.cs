@@ -69,6 +69,10 @@ public class Shell : MonoBehaviour {
 	private MeshRecorder meshRecorder = null;
 	private bool isRecording = false;
 
+	// Reconstruction error.
+	private double BestMeasurementsSquaredError = Double.PositiveInfinity;
+	private double BestAverageReconstructionDistance = Double.NaN; // Average reconstruction distance at the time of the best measurements squared error.
+
 	// Debugging.
 	private VectorVisualizer vectorVisualizer;
 
@@ -256,6 +260,10 @@ public class Shell : MonoBehaviour {
 
 		// Clear vector visualizer.
 		this.vectorVisualizer.clear();
+
+		// Reset reconstruction error parameters.
+		this.BestMeasurementsSquaredError = Double.PositiveInfinity;
+		this.BestAverageReconstructionDistance = Double.NaN;
 	}
 
 	// Update is called once per frame.
@@ -360,6 +368,19 @@ public class Shell : MonoBehaviour {
 				this.doOptimizationIntegratorStep(deltaTime);
 				break;
 			}
+		}
+
+		// Update and print best reconstruction error.
+		if(this.measurements != null) {
+			double measurementsSquaredError = this.getSquaredMeasurementsError(this.vertexPositions);
+			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
+			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
+			if(measurementsSquaredError < this.BestMeasurementsSquaredError) {
+				this.BestMeasurementsSquaredError = measurementsSquaredError;
+				this.BestAverageReconstructionDistance = averageReconstructionDistance;
+			}
+			print("Squared measurements error: " + measurementsSquaredError + "(best: " + this.BestMeasurementsSquaredError + ")");
+			print("Average reconstruction distance: " + averageReconstructionDistance + "(best: " + this.BestAverageReconstructionDistance + ")");
 		}
 
 		// Update mesh recorder.
