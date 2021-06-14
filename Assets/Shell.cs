@@ -314,9 +314,12 @@ public class Shell : MonoBehaviour {
 			if(this.meshRecorder == null) {
 				print("No recording available for replay.");
 			} else if(this.meshRecorder.isPlaying()) {
-				print("Recording is already playing.");
+				this.meshRecorder.stop();
+				this.meshRecorder.replay();
+				print("Recording replay interrupted and restarted.");
 			} else {
 				this.meshRecorder.replay();
+				print("Recording replay started.");
 			}
 		}
 
