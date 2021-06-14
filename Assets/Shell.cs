@@ -56,6 +56,7 @@ public class Shell : MonoBehaviour {
 	private double lastLineSearchAlpha = 1d;
 	public double MaxLineSearchTimeMS = 10000;
 	public double MinLineSearchAlpha = 0.000001d;
+	public int MinNumNewtonIterations = 0; // Minimum number of Newton steps to do before allowing termination.
 	public double MaxNewtonsMethodLoopTimeMS = 10000;
 
 	// Cached vertex/triangle properties.
@@ -733,7 +734,7 @@ public class Shell : MonoBehaviour {
 			double eGradientMagnitude = eGradient.magnitude;
 			print(stopWatch.ElapsedMilliseconds + "ms: E gradient magnitude: " + eGradientMagnitude + " (threshold: " + terminationThreshold
 					+ ", iteration: " + iteration + ")");
-			if(eGradientMagnitude < terminationThreshold) {
+			if(eGradientMagnitude < terminationThreshold && iteration > this.MinNumNewtonIterations) {
 				print(stopWatch.ElapsedMilliseconds + "ms: Finished on iteration: " + iteration + ".");
 				break;
 			}
