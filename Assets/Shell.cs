@@ -1424,7 +1424,6 @@ public class Shell : MonoBehaviour {
 	}
 
 	private MathNet.Numerics.LinearAlgebra.Double.SparseMatrix getSystemEnergyHessianSparseRepresentationMultiThreadedTriplets(Vec3D[] vertexPositions, int[] triangles) {
-		Stopwatch stopwatch = Stopwatch.StartNew();
 
 		// Define constants and allocate memory for all Hessian part triplets.
 		int numVertices = vertexPositions.Length;
@@ -1442,7 +1441,6 @@ public class Shell : MonoBehaviour {
 		Tuple<int, int, double>[] energyHessTriplets = new Tuple<int, int, double>[numTriplets];
 
 		// The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-		long startTime = stopwatch.ElapsedMilliseconds;
 		if(this.kLength != 0d) {
 			Parallel.For(0, numEdges, (edgeInd) => {
 				Edge edge = this.edges[edgeInd];
@@ -1468,10 +1466,8 @@ public class Shell : MonoBehaviour {
 				}
 			});
 		}
-		print(stopwatch.ElapsedMilliseconds + ": Length hess done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 
 		// The bending energy Hessian consists of 16 (3x3) parts that have to be inserted into the matrix.
-		startTime = stopwatch.ElapsedMilliseconds;
 		if(this.kBend != 0d) {
 			Parallel.For(0, numEdges, (edgeInd) => {
 				Edge edge = this.edges[edgeInd];
@@ -1507,10 +1503,8 @@ public class Shell : MonoBehaviour {
 				}
 			});
 		}
-		print(stopwatch.ElapsedMilliseconds + ": Bend hess done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 		
 		// The area energy Hessian consists of 9 (3x3) parts that have to be inserted into the matrix.
-		startTime = stopwatch.ElapsedMilliseconds;
 		if(this.kArea != 0d) {
 			Parallel.For(0, numTriangles, (triangleId) => {
 				int trianglebaseIndex = 3 * triangleId;
@@ -1544,18 +1538,14 @@ public class Shell : MonoBehaviour {
 				}
 			});
 		}
-		print(stopwatch.ElapsedMilliseconds + ": Area hess done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 
 		// Sort triplets first on row and then on column.
-		startTime = stopwatch.ElapsedMilliseconds;
 		Array.Sort(energyHessTriplets, (o1, o2) =>
 				(o1 == null ? (o2 == null ? 0 : -1) : o2 == null ? 1
 						: (o1.Item1 > o2.Item1 ? 1 : (o1.Item1 < o2.Item1 ? -1
 								: (o1.Item2 > o2.Item2 ? 1 : (o1.Item2 < o2.Item2 ? -1 : 0))))));
-		print(stopwatch.ElapsedMilliseconds + ": Sorting triplets done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 
 		// Sum up triplets at the same index and move them to the left, resulting in trailing nulls.
-		startTime = stopwatch.ElapsedMilliseconds;
 		Tuple<int, int, double> lastTriplet = null;
 		int lastTripletInd = -1;
 		for(int i = 0; i < energyHessTriplets.Length; i++) {
@@ -1585,10 +1575,8 @@ public class Shell : MonoBehaviour {
 				lastTriplet = triplet;
 			}
 		}
-		print(stopwatch.ElapsedMilliseconds + ": Merging triplets done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 
 		// Assemble and return system-wide energy Hessian.
-		startTime = stopwatch.ElapsedMilliseconds;
 		MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess = new MathNet.Numerics.LinearAlgebra.Double.SparseMatrix(numVertices * 3, numVertices * 3);
 		foreach(Tuple<int, int, double> triplet in energyHessTriplets) {
 			if(triplet == null) {
@@ -1596,7 +1584,6 @@ public class Shell : MonoBehaviour {
 			}
 			energyHess[triplet.Item1, triplet.Item2] = triplet.Item3;
 		}
-		print(stopwatch.ElapsedMilliseconds + ": Creating SparseMatrix done: " + (stopwatch.ElapsedMilliseconds - startTime) + "ms.");
 		return energyHess;
 	}
 
