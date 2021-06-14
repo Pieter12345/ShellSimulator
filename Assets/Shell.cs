@@ -646,8 +646,9 @@ public class Shell : MonoBehaviour {
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
-			//// Get damping force.
+			// Get damping force.
 			//VecD dampingForce = -this.dampingConstant * (energyHess * this.vertexVelocities);
+			VecD dampingForce = -this.dampingConstant * this.vertexVelocities; // Damping force using an identity matrix as energy Hessian.
 
 			// Get measurement penalty gradient.
 			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
@@ -670,7 +671,7 @@ public class Shell : MonoBehaviour {
 						energyGradient[3 * i + coord] = 0;
 						windForce[3 * i + coord] = 0;
 						gravityForce[3 * i + coord] = 0;
-						//dampingForce[3 * i + coord] = 0;
+						dampingForce[3 * i + coord] = 0;
 						penaltyEnergyGradient[3 * i + coord] = 0;
 					}
 				}
@@ -678,7 +679,7 @@ public class Shell : MonoBehaviour {
 
 			// Update the wind velocity and force based on virtual measurements error force.
 			// This virtual force is the force that we would like to include in the existing wind force.
-			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(windForce).sub(gravityForce); //.sub(dampingForce);
+			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
 			Vec3D deltaWindVelocity = this.getDeltaWindVelocity(triangles, this.vertexPositions, virtMeasurementsErrorForce);
 			double deltaWindVelocityMag = deltaWindVelocity.magnitude;
 
