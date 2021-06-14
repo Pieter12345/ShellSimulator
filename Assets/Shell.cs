@@ -709,7 +709,8 @@ public class Shell : MonoBehaviour {
 			iteration++;
 			if(stopWatch.ElapsedMilliseconds > this.MaxNewtonsMethodLoopTimeMS) {
 				print(stopWatch.ElapsedMilliseconds + "ms: Maximum time reached in Optimization Integrator update after "
-						+ iteration + " iterations. Returning without taking a step.");
+						+ iteration + " iterations. Pausing simulation without taking a step.");
+				this.doUpdate = false;
 				return;
 			}
 
