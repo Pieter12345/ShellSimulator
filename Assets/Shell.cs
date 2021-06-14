@@ -108,7 +108,6 @@ public class Shell : MonoBehaviour {
 			this.shellObj = new GameObject();
 			this.shellObj.AddComponent<MeshRenderer>();
 			this.shellObj.AddComponent<MeshFilter>();
-			//mesh = MeshHelper.createTriangleMesh(5, 5, 0);
 			//mesh = MeshHelper.createSquareMesh(5, 5, 1);
 			mesh = MeshHelper.createTriangleMesh(5, 5, 5); // 5 subdivisions leads to 561 vertices and 3072 triangles.
 			undeformedInnerEdgeLengthFactor = 1.1d;
@@ -117,7 +116,7 @@ public class Shell : MonoBehaviour {
 			undeformedInnerEdgeLengthFactor = 1d;
 		}
 
-		// Set the mesh renderer.
+		// Set the mesh material.
 		MeshRenderer meshRenderer = this.shellObj.GetComponent<MeshRenderer>();
 		meshRenderer.sharedMaterial = new Material(Shader.Find("Custom/StandardTwoSides"));
 
