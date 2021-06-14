@@ -49,6 +49,8 @@ public class Shell : MonoBehaviour {
 	// Optimization integrator specific settings.
 	public double dampingConstant = 0.001d;
 	public double directVelocityDampingFactor = 1d;
+	public double maxWindSpeed = 50d;
+	public double maxDeltaWindSpeed = 5d;
 	public double kMeasurementsPenalty = 1d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
 	private double lastLineSearchAlpha = 1d;
@@ -637,15 +639,20 @@ public class Shell : MonoBehaviour {
 			// This virtual force is the force that we would like to include in the existing wind force.
 			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
 			Vec3D deltaWindVelocity = this.getDeltaWindVelocity(triangles, this.vertexPositions, virtMeasurementsErrorForce);
-			double deltaWindVelocityMag = deltaWindVelocity.magnitude;
 
 			// Limit delta wind velocity magnitude.
-			double maxDeltaWindVelocityMag = windVelocity.magnitude / 100d + 0.001d;
-			if(deltaWindVelocityMag > maxDeltaWindVelocityMag) {
-				deltaWindVelocity.mul(maxDeltaWindVelocityMag / deltaWindVelocityMag);
+			double deltaWindSpeed = deltaWindVelocity.magnitude;
+			if(deltaWindSpeed > this.maxDeltaWindSpeed) {
+				deltaWindVelocity.mul(this.maxDeltaWindSpeed / deltaWindSpeed);
+			}
+			windVelocity += deltaWindVelocity;
+
+			// Limit wind velocity magnitude.
+			double windSpeed = windVelocity.magnitude;
+			if(windSpeed > this.maxWindSpeed) {
+				windVelocity.mul(this.maxWindSpeed / windSpeed);
 			}
 
-			windVelocity += deltaWindVelocity;
 			print("New wind velocity: " + windVelocity + " (deltaWindVelocity = " + deltaWindVelocity + ").");
 		}
 
