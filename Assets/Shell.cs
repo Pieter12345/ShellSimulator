@@ -48,6 +48,7 @@ public class Shell : MonoBehaviour {
 
 	// Optimization integrator specific settings.
 	public double dampingConstant = 1d;
+	public double directVelocityDampingFactor = 1d;
 	public double kMeasurementsPenalty = 1d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
 	private double lastLineSearchAlpha = 1d;
@@ -882,8 +883,8 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		
-		// Update vertex velocity.
-		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
+		// Update vertex velocity with a direct damping factor applied.
+		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime).mul(this.directVelocityDampingFactor);
 
 		// Update vertex positions.
 		this.vertexPositions = newVertexPositions;
