@@ -47,7 +47,7 @@ public class Shell : MonoBehaviour {
 	public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
 
 	// Optimization integrator specific settings.
-	public double dampingConstant = 1d;
+	public double dampingConstant = 0.001d;
 	public double directVelocityDampingFactor = 1d;
 	public double kMeasurementsPenalty = 1d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
@@ -727,7 +727,8 @@ public class Shell : MonoBehaviour {
 
 			// Get damping force.
 			VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat);
-			VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
+			//VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
+			VecD dampingForce = -this.dampingConstant * nextVertexVelocities; // Damping force using an identity matrix as energy Hessian.
 
 			// Get measurement penalty gradient.
 			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
@@ -1604,7 +1605,8 @@ public class Shell : MonoBehaviour {
 		double systemEnergy = this.getSystemEnergy(triangles, newVertexPositions);
 		double gravityWork = 0;
 		double windWork = -VecD.dot(windForce, deltaVertexPositions); // Approximation: Consider triangle normals and areas constant.
-		VecD dampingForce = -(this.dampingConstant / deltaTime) * (energyHess * deltaVertexPositions);
+		//VecD dampingForce = -(this.dampingConstant / deltaTime) * (energyHess * deltaVertexPositions);
+		VecD dampingForce = -(this.dampingConstant / deltaTime) * deltaVertexPositions; // Damping force using an identity matrix as energy Hessian.
 		double dampingWork = -VecD.dot(dampingForce, deltaVertexPositions) / 2d;
 		for(int i = 0; i < numVertices; i++) {
 			if(!this.verticesMovementConstraints[i]) { // Not necessary when comparing energy, but lets consider them part of the outside world.
