@@ -704,7 +704,7 @@ public class Shell : MonoBehaviour {
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
 			// Get damping force.
-			VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat);
+			VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 			//VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
 			VecD dampingForce = -this.dampingConstant * nextVertexVelocities; // Damping force using an identity matrix as energy Hessian.
 
