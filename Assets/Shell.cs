@@ -739,8 +739,22 @@ public class Shell : MonoBehaviour {
 			}
 
 			// Get E gradient.
-			VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities)
-					.multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare)
+			VecD velocityPreservingTermPart = new VecD(this.vertexVelocities).multiplyElementWise(vertexCoordMasses).div(deltaTime);
+			for(int i = 0; i < numVertices * 3; i++) {
+
+				// Limit the damping force magnitude to the velocity preserving force magnitude.
+				double velocityPreservingTermPartMag = Math.Abs(velocityPreservingTermPart[i]);
+				if(Math.Abs(dampingForce[i]) > velocityPreservingTermPartMag) {
+					dampingForce[i] = Math.Sign(dampingForce[i]) * velocityPreservingTermPartMag;
+				}
+
+				// Set the damping force to 0 when it does not go against the velocity preserving force.
+				if(Math.Sign(dampingForce[i]) == Math.Sign(velocityPreservingTermPart[i])) {
+					dampingForce[i] = 0d;
+				}
+			}
+			VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat)
+					.multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare).sub(velocityPreservingTermPart)
 					.add(energyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
 
 			// Terminate when the termination criterion has been met.
