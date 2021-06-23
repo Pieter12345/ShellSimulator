@@ -323,10 +323,6 @@ public class Shell : MonoBehaviour {
 				this.doExplititIntegrationNewmarkStep(deltaTime);
 				break;
 			}
-			case TimeSteppingMethod.IMPLICIT: {
-				this.doImplicitIntegrationStep(deltaTime);
-				break;
-			}
 			case TimeSteppingMethod.OPTIMIZATION_INTEGRATOR: {
 				this.doOptimizationIntegratorStep(deltaTime);
 				break;
@@ -442,94 +438,6 @@ public class Shell : MonoBehaviour {
 				this.vertexAccelerations[3 * i + coord] = newAcceleration[coord];
 			}
 		}
-		this.updateMesh();
-	}
-
-	private void doImplicitIntegrationStep(double deltaTime) {
-		
-		/*
-		 * Calculate all requires mesh things here, following the paper:
-		 * https://studios.disneyresearch.com/wp-content/uploads/2019/03/Discrete-Bending-Forces-and-Their-Jacobians-Paper.pdf
-		 * This should eventually be moved to methods and fields where convenient.
-		 */
-		int[] triangles = this.getMesh().triangles;
-		int numVertices = this.vertexPositions.Length;
-
-		// TODO - Create a system-wide length energy Hessian.
-		MatD forceHess = new MatD(numVertices * 3, numVertices * 3);
-		foreach(Edge edge in this.edges) {
-
-			// The length energy Hessian consists of 4 (3x3) parts that have to be inserted into the matrix.
-			MatD lengthEnergyHess = this.getEdgeLengthEnergyHess(this.vertexPositions, edge);
-			for(int i = 0; i < 3; i++) {
-				for(int j = 0; j < 3; j++) {
-
-					// ddLengthEnergy_dv1_dv1.
-					forceHess[edge.ve1 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i, j];
-
-					// ddLengthEnergy_dv2_dv2.
-					forceHess[edge.ve2 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i + 3, j + 3];
-
-					// ddLengthEnergy_dv1_dv2.
-					forceHess[edge.ve1 * 3 + i, edge.ve2 * 3 + j] = lengthEnergyHess[i, j + 3];
-
-					// ddLengthEnergy_dv2_dv1.
-					forceHess[edge.ve2 * 3 + i, edge.ve1 * 3 + j] = lengthEnergyHess[i + 3, j];
-				}
-			}
-		}
-
-		// Calculate lumped vertex mass (a third of the area of triangles that each vertex is part of).
-		// TODO - Look into adding constraints by making 1/mass === 0 for constrained variables (can be done per x, y, z of every vertex).
-		MatD inverseMassMatrix = new MatD(numVertices * 3, numVertices * 3); // Diagonal matrix with pairs of 3 equal 1/mass_i (for each x, y and z).
-		for(int i = 0; i < numVertices; i++) {
-			double vertexArea = 0d;
-			foreach(int triangleId in this.sortedVertexTriangles[i]) {
-				vertexArea += this.triangleAreas[triangleId];
-			}
-			vertexArea /= 3d;
-			double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
-			double inverseMass = 1d / mass;
-			inverseMassMatrix[3 * i, 3 * i] = inverseMass;
-			inverseMassMatrix[3 * i + 1, 3 * i + 1] = inverseMass;
-			inverseMassMatrix[3 * i + 2, 3 * i + 2] = inverseMass;
-		}
-
-
-
-
-		// Implicit differentiation following paper: https://www.cs.cmu.edu/~baraff/papers/sig98.pdf
-		//VecD vertexForces = new VecD(vertices.Length * 3); // Format: {fx1, fy1, fz1, fx2, ...}.
-		// TODO - vertexForces = vertexWindForce - vertexEnergyGradient; // TODO - THIS IS ESSENTIAL TO HAVE FORCES.
-		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexForces = -vertexEnergyGradient;
-
-		/*
-		 * Linear equation: (I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x) * delta_v = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
-		 * Format: mat * delta_v = vec
-		 * mat = I - h * M_inverse * d_f_d_v - h^2 * M_inverse * d_f_d_x
-		 * vec = h * M_inverse * (f(t0) + h * d_f_d_x * v(t0))
-		 */
-		MatD d_vertexForces_d_velocity = new MatD(numVertices * 3, numVertices * 3); // This is a zero matrix until some velocity based damping force will be implemented.
-		MatD d_vertexForces_d_pos = -forceHess; // This is the energy Hessian (switch sign from energy to force).
-		MatD identMat = new MatD(inverseMassMatrix.numRows, inverseMassMatrix.numColumns).addDiag(1.0);
-		MatD mat = identMat - deltaTime * inverseMassMatrix * d_vertexForces_d_velocity - deltaTime * deltaTime * inverseMassMatrix * d_vertexForces_d_pos;
-		VecD vec = deltaTime * inverseMassMatrix * (vertexForces + deltaTime * d_vertexForces_d_pos * this.vertexVelocities);
-		VecD deltaVelocity = this.sparseLinearSolve(mat, vec);
-		//print("mat: " + mat);
-		//print("vec: " + vec);
-		//print("deltaVelocity: " + deltaVelocity);
-
-		// Update vertex velocity.
-		this.vertexVelocities += deltaVelocity;
-
-		// Update vertex positions: pos(i + 1) = pos(i) + deltaTime * velocity(i + 1).
-		for(int i = 0; i < this.vertexPositions.Length; i++) {
-			for(int coord = 0; coord < 3; coord++) {
-				this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord];
-			}
-		}
-
 		this.updateMesh();
 	}
 
