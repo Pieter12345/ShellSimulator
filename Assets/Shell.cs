@@ -298,7 +298,11 @@ public class Shell : MonoBehaviour {
 		}
 
 		// Perform a simulation step.
-		this.simulationStep(Time.deltaTime * this.timeScale);
+		try {
+			this.simulationStep(Time.deltaTime * this.timeScale);
+		} catch (Exception e) {
+			print(e.ToString());
+		}
 	}
 
 	private void simulationStep(double deltaTime) {
