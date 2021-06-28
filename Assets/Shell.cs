@@ -392,6 +392,8 @@ public class Shell : MonoBehaviour {
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
 		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressure));
+		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
+		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
 		// Perform Newmark Time Stepping (ODE integration).
 		double gamma = 0.5d;
@@ -420,7 +422,7 @@ public class Shell : MonoBehaviour {
 			// Calculate vertex acceleration.
 			Vec3D newAcceleration = new Vec3D();
 			for(int coord = 0; coord < 3; coord++) {
-				newAcceleration[coord] = (vertexWindForce[3 * i + coord] - vertexEnergyGradient[3 * i + coord]) / mass;
+				newAcceleration[coord] = (vertexWindForce[3 * i + coord] + gravityForce[3 * i + coord] - vertexEnergyGradient[3 * i + coord]) / mass;
 			}
 
 			// Update vertex position.
