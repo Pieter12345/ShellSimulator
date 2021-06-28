@@ -20,9 +20,8 @@ public class SailMeasurements {
 		this.measurements = (Vec3D[]) measurements.Clone();
 	}
 
-	public void storeToFile(string fileName) {
-		string dirPath = Shell.storageBaseDirPath + "/SailData";
-		string filePath = dirPath + "/" + fileName + ".sailmeasurements";
+	public void storeToFile(string filePath) {
+		string dirPath = Path.GetDirectoryName(filePath);
 		MonoBehaviour.print("Storing sail measurements to file: " + filePath);
 		if(!Directory.Exists(dirPath)) {
 			Directory.CreateDirectory(dirPath);
@@ -51,8 +50,7 @@ public class SailMeasurements {
 		writer.Close();
 	}
 
-	public static SailMeasurements loadFromFile(string fileName) {
-		string filePath = Shell.storageBaseDirPath + "/SailData/" + fileName + ".sailmeasurements";
+	public static SailMeasurements loadFromFile(string filePath) {
 		MonoBehaviour.print("Loading sail measurements from file: " + filePath);
 		FileStream fs = File.OpenRead(filePath);
 		BinaryReader reader = new BinaryReader(fs);

@@ -90,10 +90,9 @@ public class MeshRecorder {
 		this.replayTime += Time.deltaTime;
 	}
 
-	public void storeToFile(string fileName) {
-		string dirPath = Shell.storageBaseDirPath + "/Recordings";
-		string filePath = dirPath + "/" + fileName + ".rec";
+	public void storeToFile(string filePath) {
 		MonoBehaviour.print("Storing sail measurements to file: " + filePath);
+		string dirPath = Path.GetDirectoryName(filePath);
 		if(!Directory.Exists(dirPath)) {
 			Directory.CreateDirectory(dirPath);
 		}
@@ -122,8 +121,7 @@ public class MeshRecorder {
 		writer.Close();
 	}
 
-	public static MeshRecorder loadFromFile(string fileName) {
-		string filePath = Shell.storageBaseDirPath + "/Recordings/" + fileName + ".rec";
+	public static MeshRecorder loadFromFile(string filePath) {
 		MonoBehaviour.print("Loading sail measurements from file: " + filePath);
 		FileStream fs = File.OpenRead(filePath);
 		BinaryReader reader = new BinaryReader(fs);

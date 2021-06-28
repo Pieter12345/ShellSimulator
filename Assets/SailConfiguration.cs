@@ -19,9 +19,8 @@ public class SailConfiguration {
 		this.vertexConstraints = (bool[]) vertexConstraints.Clone();
 	}
 
-	public void storeToFile(string fileName) {
-		string dirPath = Shell.storageBaseDirPath + "/SailData";
-		string filePath = dirPath + "/" + fileName + ".sailshapedata";
+	public void storeToFile(string filePath) {
+		string dirPath = Path.GetDirectoryName(filePath);
 		MonoBehaviour.print("Storing sail shape to file: " + filePath);
 		if(!Directory.Exists(dirPath)) {
 			Directory.CreateDirectory(dirPath);
@@ -45,8 +44,7 @@ public class SailConfiguration {
 		writer.Close();
 	}
 
-	public static SailConfiguration loadFromFile(string fileName) {
-		string filePath = Shell.storageBaseDirPath + "/SailData/" + fileName + ".sailshapedata";
+	public static SailConfiguration loadFromFile(string filePath) {
 		MonoBehaviour.print("Loading sail shape from file: " + filePath);
 		FileStream fs = File.OpenRead(filePath);
 		BinaryReader reader = new BinaryReader(fs);

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using UnityEditor;
 using UnityEngine;
 
 public class Shell : MonoBehaviour {
@@ -67,9 +68,6 @@ public class Shell : MonoBehaviour {
 
 	// Simulation recording.
 	public static string storageBaseDirPath;
-	public string MeasurementsFileName = "measurements";
-	public string MeshFileName = "sail";
-	public string RecordingFileName = "recording";
 	private MeshRecorder meshRecorder = null;
 	private bool isRecording = false;
 
@@ -2437,32 +2435,44 @@ public class Shell : MonoBehaviour {
 	}
 
 	public void onSaveSailShapeButtonPress() {
-		Mesh mesh = this.getMesh();
-		new SailConfiguration(this.vertexPositions, mesh.triangles, this.verticesMovementConstraints).storeToFile(this.MeshFileName);
+		string filePath = EditorUtility.SaveFilePanel("Save sail shape", storageBaseDirPath + "/SailData", "", "sailshapedata");
+		if(filePath.Length != 0) {
+			Mesh mesh = this.getMesh();
+			new SailConfiguration(this.vertexPositions, mesh.triangles, this.verticesMovementConstraints).storeToFile(filePath);
+		}
 	}
 
 	public void onLoadSailShapeButtonPress() {
-		SailConfiguration sailConfiguration = SailConfiguration.loadFromFile(this.MeshFileName);
-		Mesh mesh = new Mesh();
-		mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
-		mesh.triangles = sailConfiguration.triangles;
-		mesh.RecalculateNormals();
-		this.loadMesh(mesh, 1d);
-		this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
+		string filePath = EditorUtility.OpenFilePanel("Load sail shape", storageBaseDirPath + "/SailData", "sailshapedata");
+		if(filePath.Length != 0) {
+			SailConfiguration sailConfiguration = SailConfiguration.loadFromFile(filePath);
+			Mesh mesh = new Mesh();
+			mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
+			mesh.triangles = sailConfiguration.triangles;
+			mesh.RecalculateNormals();
+			this.loadMesh(mesh, 1d);
+			this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
+		}
 	}
 
 	public void onSaveSailMeasurementsButtonPress() {
-		if(this.measurementsGenerateFactor < 0f) {
-			this.measurementsGenerateFactor = 0f;
-		} else if(this.measurementsGenerateFactor > 1f) {
-			this.measurementsGenerateFactor = 1f;
+		string filePath = EditorUtility.SaveFilePanel("Save sail measurements", storageBaseDirPath + "/SailData", "", "measurements");
+		if(filePath.Length != 0) {
+			if(this.measurementsGenerateFactor < 0f) {
+				this.measurementsGenerateFactor = 0f;
+			} else if(this.measurementsGenerateFactor > 1f) {
+				this.measurementsGenerateFactor = 1f;
+			}
+			int numMeasurements = (int) (this.vertexPositions.Length * this.measurementsGenerateFactor);
+			new SailMeasurements(this.vertexPositions, MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile(filePath);
 		}
-		int numMeasurements = (int) (this.vertexPositions.Length * this.measurementsGenerateFactor);
-		new SailMeasurements(this.vertexPositions, MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile(this.MeasurementsFileName);
 	}
 
 	public void onLoadSailMeasurementsButtonPress() {
-		this.measurements = SailMeasurements.loadFromFile(this.MeasurementsFileName);
+		string filePath = EditorUtility.OpenFilePanel("Load sail measurements", storageBaseDirPath + "/SailData", "measurements");
+		if(filePath.Length != 0) {
+			this.measurements = SailMeasurements.loadFromFile(filePath);
+		}
 	}
 
 	public void onSaveRecordingButtonPress() {
@@ -2470,16 +2480,22 @@ public class Shell : MonoBehaviour {
 			print("No recording available to save.");
 			return;
 		}
-		this.meshRecorder.storeToFile(this.RecordingFileName);
+		string filePath = EditorUtility.SaveFilePanel("Save recording", storageBaseDirPath + "/Recordings", "", "rec");
+		if(filePath.Length != 0) {
+			this.meshRecorder.storeToFile(filePath);
 			print("Recording saved.");
+		}
 	}
 
 	public void onLoadRecordingButtonPress() {
-		if(this.meshRecorder != null) {
-			this.meshRecorder.stop();
+		string filePath = EditorUtility.OpenFilePanel("Load recording", storageBaseDirPath + "/Recordings", "rec");
+		if(filePath.Length != 0) {
+			if(this.meshRecorder != null) {
+				this.meshRecorder.stop();
+			}
+			this.meshRecorder = MeshRecorder.loadFromFile(filePath);
+			print("Recording loaded.");
 		}
-		this.meshRecorder = MeshRecorder.loadFromFile(this.RecordingFileName);
-		print("Recording loaded.");
 	}
 
 	private static Vector3[] vecToVec(Vec3D[] vec) {
