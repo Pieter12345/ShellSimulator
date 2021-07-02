@@ -48,6 +48,7 @@ public class Shell : MonoBehaviour {
 	public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
 
 	// Optimization integrator specific settings.
+	public bool DoStaticMinimization = false; // When set to true, velocity preserving and damping terms will be ignored.
 	public double dampingConstant = 0.001d;
 	public double directVelocityDampingFactor = 1d;
 	public double maxWindSpeed = 50d;
@@ -519,7 +520,9 @@ public class Shell : MonoBehaviour {
 
 			// Get damping force.
 			//VecD dampingForce = -this.dampingConstant * (energyHess * this.vertexVelocities);
-			VecD dampingForce = -this.dampingConstant * this.vertexVelocities; // Damping force using an identity matrix as energy Hessian.
+			VecD dampingForce = (this.DoStaticMinimization
+					? new VecD(numVertices * 3)
+					: -this.dampingConstant * this.vertexVelocities); // Damping force using an identity matrix as energy Hessian.
 
 			// Get measurement penalty gradient.
 			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
@@ -618,7 +621,6 @@ public class Shell : MonoBehaviour {
 			// Get damping force.
 			VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 			//VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
-			VecD dampingForce = -this.dampingConstant * nextVertexVelocities; // Damping force using an identity matrix as energy Hessian.
 
 			// Get measurement penalty gradient.
 			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
@@ -635,6 +637,9 @@ public class Shell : MonoBehaviour {
 					}
 				}
 			}
+			VecD dampingForce = (this.DoStaticMinimization
+				? new VecD(numVertices * 3)
+				: -this.dampingConstant * nextVertexVelocities); // Damping force using an identity matrix as energy Hessian.
 
 			// Set forces to zero for constrained vertices.
 			// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
@@ -651,18 +656,22 @@ public class Shell : MonoBehaviour {
 			}
 
 			// Get E gradient.
-			VecD velocityPreservingTermPart = new VecD(this.vertexVelocities).multiplyElementWise(vertexCoordMasses).div(deltaTime);
-			for(int i = 0; i < numVertices * 3; i++) {
+			VecD velocityPreservingTermPart = (this.DoStaticMinimization
+					? new VecD(numVertices * 3)
+					: new VecD(this.vertexVelocities).multiplyElementWise(vertexCoordMasses).div(deltaTime));
+			if(!this.DoStaticMinimization) {
+				for(int i = 0; i < numVertices * 3; i++) {
 
-				// Limit the damping force magnitude to the velocity preserving force magnitude.
-				double velocityPreservingTermPartMag = Math.Abs(velocityPreservingTermPart[i]);
-				if(Math.Abs(dampingForce[i]) > velocityPreservingTermPartMag) {
-					dampingForce[i] = Math.Sign(dampingForce[i]) * velocityPreservingTermPartMag;
-				}
+					// Limit the damping force magnitude to the velocity preserving force magnitude.
+					double velocityPreservingTermPartMag = Math.Abs(velocityPreservingTermPart[i]);
+					if(Math.Abs(dampingForce[i]) > velocityPreservingTermPartMag) {
+						dampingForce[i] = Math.Sign(dampingForce[i]) * velocityPreservingTermPartMag;
+					}
 
-				// Set the damping force to 0 when it does not go against the velocity preserving force.
-				if(Math.Sign(dampingForce[i]) == Math.Sign(velocityPreservingTermPart[i])) {
-					dampingForce[i] = 0d;
+					// Set the damping force to 0 when it does not go against the velocity preserving force.
+					if(Math.Sign(dampingForce[i]) == Math.Sign(velocityPreservingTermPart[i])) {
+						dampingForce[i] = 0d;
+					}
 				}
 			}
 			VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat)
@@ -1515,7 +1524,9 @@ public class Shell : MonoBehaviour {
 		double gravityWork = 0;
 		double windWork = -VecD.dot(windForce, deltaVertexPositions); // Approximation: Consider triangle normals and areas constant.
 		//VecD dampingForce = -(this.dampingConstant / deltaTime) * (energyHess * deltaVertexPositions);
-		VecD dampingForce = -(this.dampingConstant / deltaTime) * deltaVertexPositions; // Damping force using an identity matrix as energy Hessian.
+		VecD dampingForce = (this.DoStaticMinimization
+				? new VecD(numVertices * 3)
+				: -(this.dampingConstant / deltaTime) * deltaVertexPositions); // Damping force using an identity matrix as energy Hessian.
 		double dampingWork = -VecD.dot(dampingForce, deltaVertexPositions) / 2d;
 		for(int i = 0; i < numVertices; i++) {
 			if(!this.verticesMovementConstraints[i]) { // Not necessary when comparing energy, but lets consider them part of the outside world.
@@ -1523,7 +1534,10 @@ public class Shell : MonoBehaviour {
 				gravityWork += vertexCoordMasses[yCoordIndex] * this.gravityConstant * deltaVertexPositions[yCoordIndex];
 			}
 		}
-		VecD squareTerm = new VecD(newVertexPositions).sub(vertexPositionsFlat).sub(deltaTime * this.vertexVelocities);
+		VecD squareTerm = new VecD(newVertexPositions).sub(vertexPositionsFlat);
+		if(!this.DoStaticMinimization) {
+			squareTerm.sub(deltaTime * this.vertexVelocities);
+		}
 		return VecD.dot(VecD.multiplyElementWise(squareTerm, squareTerm), vertexCoordMasses) / (2d * deltaTime * deltaTime)
 				+ systemEnergy + gravityWork + windWork + dampingWork;
 	}
