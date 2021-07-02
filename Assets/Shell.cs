@@ -621,25 +621,25 @@ public class Shell : MonoBehaviour {
 			// Get damping force.
 			VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 			//VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
-
-			// Get measurement penalty gradient.
-			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
-			// Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
-			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
-			if(this.measurements != null) {
-				Vec3D[] measurements = this.measurements.measurements;
-				for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-					if(measurements[vertexInd] != null) {
-						for(int coord = 0; coord < 3; coord++) {
-							penaltyEnergyGradient[3 * vertexInd + coord] =
-								this.kMeasurementsPenalty * 2d * (newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
-						}
-					}
-				}
-			}
 			VecD dampingForce = (this.DoStaticMinimization
 				? new VecD(numVertices * 3)
 				: -this.dampingConstant * nextVertexVelocities); // Damping force using an identity matrix as energy Hessian.
+
+			//// Get measurement penalty gradient.
+			//// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
+			//// Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
+			//VecD penaltyEnergyGradient = new VecD(3 * numVertices);
+			//if(this.measurements != null) {
+			//	Vec3D[] measurements = this.measurements.measurements;
+			//	for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+			//		if(measurements[vertexInd] != null) {
+			//			for(int coord = 0; coord < 3; coord++) {
+			//				penaltyEnergyGradient[3 * vertexInd + coord] =
+			//					this.kMeasurementsPenalty * 2d * (newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
+			//			}
+			//		}
+			//	}
+			//}
 
 			// Set forces to zero for constrained vertices.
 			// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
@@ -650,7 +650,7 @@ public class Shell : MonoBehaviour {
 						windForce[3 * i + coord] = 0;
 						gravityForce[3 * i + coord] = 0;
 						dampingForce[3 * i + coord] = 0;
-						penaltyEnergyGradient[3 * i + coord] = 0;
+						//penaltyEnergyGradient[3 * i + coord] = 0;
 					}
 				}
 			}
