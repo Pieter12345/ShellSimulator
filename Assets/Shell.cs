@@ -148,7 +148,8 @@ public class Shell : MonoBehaviour {
 		this.sortedVertexTriangles = MeshUtils.getSortedVertexTriangles(triangles, numVertices);
 
 		// Cache mesh edges.
-		this.edges = MeshUtils.getEdges(this.sortedVertexTriangles, triangles);
+		Dictionary<int, Dictionary<int, Edge>> vertexEdgeMap = MeshUtils.getVertexEdgeMap(this.sortedVertexTriangles, triangles);
+		this.edges = MeshUtils.getEdges(vertexEdgeMap);
 
 		// Set undeformed edge lengths.
 		foreach(Edge edge in this.edges) {
@@ -185,8 +186,8 @@ public class Shell : MonoBehaviour {
 			int v2 = triangles[triangleBaseIndex + 1];
 			int v3 = triangles[triangleBaseIndex + 2];
 			Vec3D crossProd = Vec3D.cross(
-					(new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1])) * undeformedInnerEdgeLengthFactor,
-					(new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1])) * undeformedInnerEdgeLengthFactor); // TODO - Don't apply factor to outer edges.
+					new Vec3D(this.originalVertices[v2]) - new Vec3D(this.originalVertices[v1]),
+					new Vec3D(this.originalVertices[v3]) - new Vec3D(this.originalVertices[v1]));
 			double crossProdMag = crossProd.magnitude;
 
 			// Store the triangle normal and area if they exist (i.e. if the triangle has a normal and therefore an area).
@@ -195,7 +196,14 @@ public class Shell : MonoBehaviour {
 				this.undeformedTriangleAreas[triangleId] = 0;
 			} else {
 				this.undeformedTriangleNormals[triangleId] = crossProd / crossProdMag;
-				this.undeformedTriangleAreas[triangleId] = crossProdMag / 2d; // Triangle area is half of the cross product of any two of its edges.
+
+				// Get the triangle area using the edge lengths. These might have been adjusted, making the vertex positions useless to determine the undeformed edge length.
+				// This uses Heron's formula, which should be equivalent to an area of crossProdMag / 2d.
+				double a = vertexEdgeMap[v1][v2].undeformedLength;
+				double b = vertexEdgeMap[v2][v3].undeformedLength;
+				double c = vertexEdgeMap[v3][v1].undeformedLength;
+				double p = (a + b + c) / 2d;
+				this.undeformedTriangleAreas[triangleId] = Math.Sqrt(p * (p - a) * (p - b) * (p - c));
 			}
 		}
 
