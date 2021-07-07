@@ -93,14 +93,6 @@ public class Shell : MonoBehaviour {
 		// Initialize vector visualizer.
 		this.vectorVisualizer = new VectorVisualizer(this.shellObjPosition);
 
-		// Initialize fields. Doing this overwrites the values set in Unity's inspector.
-		this.kLength = 10f;
-		this.kArea = 10f;
-		this.kBend = 0.1f;
-		this.kGradientDescent = 1f;
-		this.maxGradientDescentStep = 0.01f;
-		this.windPressure = new Vector3(0f, 0f, 10f);
-
 		// Create the new object in the scene.
 		Mesh mesh;
 		double undeformedInnerEdgeLengthFactor;
