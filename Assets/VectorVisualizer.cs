@@ -11,12 +11,11 @@ public class VectorVisualizer {
 		this.offset = offset;
 	}
 
-	public void visualize(Vec3D[] positions, VecD vectors, float scale = 1f) {
-		this.visualize(new VecD(positions), vectors, scale);
+	public void visualize(Vec3D[] positions, VecD vectors, float scale = 1f, float vecThickness = 0.02f) {
+		this.visualize(new VecD(positions), vectors, scale, vecThickness);
 	}
 
-	public void visualize(VecD positions, VecD vectors, float scale = 1f) {
-		float vecThickness = 0.02f;
+	public void visualize(VecD positions, VecD vectors, float scale = 1f, float vecThickness = 0.02f) {
 		for(int i = 0; i < positions.length / 3; i++) {
 			Vector3 origin = new Vector3((float) positions[3 * i], (float) positions[3 * i + 1], (float) positions[3 * i + 2]);
 			Vector3 vec = new Vector3((float) vectors[3 * i], (float) vectors[3 * i + 1], (float) vectors[3 * i + 2]);
