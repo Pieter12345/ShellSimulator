@@ -490,7 +490,7 @@ public class Shell : MonoBehaviour {
 		double maxStepMagnitude = 1000d; //numVertices * 0.001; // TODO - Set sensible value. Optimization Integrator paper uses 1000 (mesh size dependent?).
 		int[] triangles = this.getMesh().triangles;
 
-		// Get vertex masses. These are assumed to be constant, which is an okay approximation for small steps.
+		// Get vertex masses.
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses(); // Masses per vertex coordinate. Format: {m_v1x, m_v1y, m_v1z, ...}.
 
 		// Assemble system-wide energy Hessian.
@@ -1552,7 +1552,7 @@ public class Shell : MonoBehaviour {
 
 	/**
 	 * Calculate lumped vertex mass per vertex coordinate. This will return a vector in format: {m_v1x, m_v1y, m_v1z, m_v2x, ...}.
-	 * Note that m_vix = m_viy = m_viz = m_vi for any vertex i.
+	 * Note that m_vix = m_viy = m_viz = m_vi for any vertex i, and that the masses are defined by the undeformed triangle areas.
 	 */
 	private VecD getVertexCoordinateMasses() {
 		int numVertices = this.vertexPositions.Length;
@@ -1560,7 +1560,7 @@ public class Shell : MonoBehaviour {
 		for(int i = 0; i < numVertices; i++) {
 			double vertexArea = 0d;
 			foreach(int triangleId in this.sortedVertexTriangles[i]) {
-				vertexArea += this.triangleAreas[triangleId];
+				vertexArea += this.undeformedTriangleAreas[triangleId];
 			}
 			vertexArea /= 3d;
 			double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
