@@ -49,6 +49,7 @@ public class Shell : MonoBehaviour {
 
 	// Optimization integrator specific settings.
 	public bool DoStaticMinimization = false; // When set to true, velocity preserving and damping terms will be ignored.
+	public double VelocityTerminationThreshold = 0.01d; // [m/s]. When the maximum vertex velocity after a step is below this threshold, simulation is stopped.
 	public double dampingConstant = 0.001d;
 	public double directVelocityDampingFactor = 1d;
 	public double maxWindSpeed = 50d;
@@ -797,8 +798,29 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		
-		// Update vertex velocity with a direct damping factor applied.
-		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime).mul(this.directVelocityDampingFactor);
+		// Update vertex velocity.
+		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
+
+		// Pause simulation when the maximum vertex velocity is below the set threshold.
+		double maxVertexVelocity = 0d;
+		for(int i = 0; i < numVertices; i++) {
+			int baseInd = 3 * i;
+			double vertexVelocity = new Vec3D(this.vertexVelocities[baseInd], this.vertexVelocities[baseInd + 1], this.vertexVelocities[baseInd + 2]).magnitude;
+			if(vertexVelocity > maxVertexVelocity) {
+				maxVertexVelocity = vertexVelocity;
+			}
+		}
+		print("Maximum vertex velocity after step, before direct velocity damping: " + maxVertexVelocity);
+		if(maxVertexVelocity < this.VelocityTerminationThreshold) {
+			this.doUpdate = false;
+			print("Simulation finished. Maximum vertex velocity is below the velocity termination threshold: "
+					+ maxVertexVelocity + " m/s < ." + this.VelocityTerminationThreshold + " m/s.");
+		}
+
+		// Apply direct velocity damping.
+		if(this.directVelocityDampingFactor != 0d) {
+			this.vertexVelocities.mul(this.directVelocityDampingFactor);
+		}
 
 		// Update vertex positions.
 		this.vertexPositions = newVertexPositions;
