@@ -76,6 +76,8 @@ public class Shell : MonoBehaviour {
 	// Reconstruction error.
 	private double BestMeasurementsSquaredError = Double.PositiveInfinity;
 	private double BestAverageReconstructionDistance = Double.NaN; // Average reconstruction distance at the time of the best measurements squared error.
+	private int NonImprovingStepCount = 0;
+	public int NonImprovingStepThreshold = 100; // Maximum number of consecutive simulation steps in which the best measurements error does not improve (termination threshold).
 
 	// Debugging.
 	private VectorVisualizer vectorVisualizer;
@@ -224,6 +226,7 @@ public class Shell : MonoBehaviour {
 		// Reset reconstruction error parameters.
 		this.BestMeasurementsSquaredError = Double.PositiveInfinity;
 		this.BestAverageReconstructionDistance = Double.NaN;
+		this.NonImprovingStepCount = 0;
 	}
 
 	// Update is called once per frame.
@@ -341,9 +344,19 @@ public class Shell : MonoBehaviour {
 			if(measurementsSquaredError < this.BestMeasurementsSquaredError) {
 				this.BestMeasurementsSquaredError = measurementsSquaredError;
 				this.BestAverageReconstructionDistance = averageReconstructionDistance;
+				this.NonImprovingStepCount = 0;
+			} else {
+				this.NonImprovingStepCount++;
 			}
 			print("Squared measurements error: " + measurementsSquaredError + "(best: " + this.BestMeasurementsSquaredError + ")");
 			print("Average reconstruction distance: " + averageReconstructionDistance + "(best: " + this.BestAverageReconstructionDistance + ")");
+			if(this.NonImprovingStepCount >= this.NonImprovingStepThreshold) {
+				this.doUpdate = false;
+				print("Non-improving step threshold has been reached. Reconstruction complete.");
+				print("Best squared measurements error: " + this.BestMeasurementsSquaredError
+						+ ", average reconstruction distance: " + this.BestAverageReconstructionDistance
+						+ ", max reconstruction distance: " + this.getMaxReconstructionDistance(this.vertexPositions));
+			}
 		}
 
 		// Update mesh recorder.
@@ -920,6 +933,26 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		return error;
+	}
+
+	/*
+	 * Gets the maximum of the distances between the current vertex positions and the vertex positions at the time the measurements were taken.
+	 * Returns 0 if no measurement is set.
+	 */
+	private double getMaxReconstructionDistance(Vec3D[] vertexPositions) {
+		if(this.measurements == null) {
+			return 0d;
+		}
+		double maxDiffMag = 0d;
+		Vec3D[] correctPositions = this.measurements.vertexPositions;
+		for(int i = 0; i < vertexPositions.Length; i++) {
+			Vec3D diff = correctPositions[i] - vertexPositions[i];
+			double diffMag = diff.magnitude;
+			if(diffMag > maxDiffMag) {
+				maxDiffMag = diffMag;
+			}
+		}
+		return maxDiffMag;
 	}
 
 	/*
