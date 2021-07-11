@@ -2510,6 +2510,13 @@ public class Shell : MonoBehaviour {
 		string filePath = EditorUtility.OpenFilePanel("Load sail measurements", storageBaseDirPath + "/SailData", "measurements");
 		if(filePath.Length != 0) {
 			this.measurements = SailMeasurements.loadFromFile(filePath);
+			int count = 0;
+			for(int i = 0; i < this.measurements.measurements.Length; i++) {
+				if(this.measurements.measurements[i] != null) {
+					count++;
+				}
+			}
+			print("Loaded " + count + " measurement positions.");
 		}
 	}
 
