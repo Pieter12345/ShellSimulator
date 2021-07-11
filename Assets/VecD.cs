@@ -24,6 +24,34 @@ public class VecD {
 			return sum;
 		}
 	}
+	public double min {
+		get {
+			if(this.vector.Length == 0) {
+				return double.NaN;
+			}
+			double min = this.vector[0];
+			for(int i = 1; i < this.vector.Length; i++) {
+				if(this.vector[i] < min) {
+					min = this.vector[i];
+				}
+			}
+			return min;
+		}
+	}
+	public double max {
+		get {
+			if(this.vector.Length == 0) {
+				return double.NaN;
+			}
+			double max = this.vector[0];
+			for(int i = 1; i < this.vector.Length; i++) {
+				if(this.vector[i] > max) {
+					max = this.vector[i];
+				}
+			}
+			return max;
+		}
+	}
 
 	public VecD(int size) {
 		this.vector = new double[size];
