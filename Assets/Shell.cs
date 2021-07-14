@@ -76,6 +76,7 @@ public class Shell : MonoBehaviour {
 	// Reconstruction error.
 	private double BestMeasurementsSquaredError = Double.PositiveInfinity;
 	private double BestAverageReconstructionDistance = Double.NaN; // Average reconstruction distance at the time of the best measurements squared error.
+	private double BestMaxReconstructionDistance = Double.NaN; // Max reconstruction distance (of a single vertex) at the time of the best measurements squared error.
 	private int NonImprovingStepCount = 0;
 	public int NonImprovingStepThreshold = 100; // Maximum number of consecutive simulation steps in which the best measurements error does not improve (termination threshold).
 
@@ -226,6 +227,7 @@ public class Shell : MonoBehaviour {
 		// Reset reconstruction error parameters.
 		this.BestMeasurementsSquaredError = Double.PositiveInfinity;
 		this.BestAverageReconstructionDistance = Double.NaN;
+		this.BestMaxReconstructionDistance = Double.NaN;
 		this.NonImprovingStepCount = 0;
 	}
 
@@ -341,21 +343,24 @@ public class Shell : MonoBehaviour {
 			double measurementsSquaredError = this.getSquaredMeasurementsError(this.vertexPositions);
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
 			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
+			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
 			if(measurementsSquaredError < this.BestMeasurementsSquaredError) {
 				this.BestMeasurementsSquaredError = measurementsSquaredError;
 				this.BestAverageReconstructionDistance = averageReconstructionDistance;
+				this.BestMaxReconstructionDistance = maxReconstructionDistance;
 				this.NonImprovingStepCount = 0;
 			} else {
 				this.NonImprovingStepCount++;
 			}
 			print("Squared measurements error: " + measurementsSquaredError + "(best: " + this.BestMeasurementsSquaredError + ")");
 			print("Average reconstruction distance: " + averageReconstructionDistance + "(best: " + this.BestAverageReconstructionDistance + ")");
+			print("Average reconstruction distance: " + maxReconstructionDistance + "(best: " + this.BestMaxReconstructionDistance + ")");
 			if(this.NonImprovingStepCount >= this.NonImprovingStepThreshold) {
 				this.doUpdate = false;
 				print("Non-improving step threshold has been reached. Reconstruction complete.");
 				print("Best squared measurements error: " + this.BestMeasurementsSquaredError
-						+ ", average reconstruction distance: " + this.BestAverageReconstructionDistance
-						+ ", max reconstruction distance: " + this.getMaxReconstructionDistance(this.vertexPositions));
+						+ "with average reconstruction distance: " + this.BestAverageReconstructionDistance
+						+ " and max reconstruction distance: " + this.BestMaxReconstructionDistance);
 			}
 		}
 
