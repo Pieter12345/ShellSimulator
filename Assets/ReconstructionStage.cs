@@ -1,0 +1,5 @@
+﻿public enum ReconstructionStage {
+	DISABLED,
+	RECONSTRUCT_WIND,
+	MEASUREMT_VERTICES_LOCKED
+}

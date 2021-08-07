@@ -73,10 +73,13 @@ public class Shell : MonoBehaviour {
 	private MeshRecorder meshRecorder = null;
 	private bool isRecording = false;
 
-	// Reconstruction error.
+	// Reconstruction.
+	public ReconstructionStage ReconstructionStage = ReconstructionStage.DISABLED;
 	private double BestMeasurementsSquaredError = Double.PositiveInfinity;
 	private double BestAverageReconstructionDistance = Double.NaN; // Average reconstruction distance at the time of the best measurements squared error.
 	private double BestMaxReconstructionDistance = Double.NaN; // Max reconstruction distance (of a single vertex) at the time of the best measurements squared error.
+	private Vec3D[] BestVertexPositions = null;
+	private Vector3 BestWindPressure = Vector3.zero;
 	private int NonImprovingStepCount = 0;
 	public int NonImprovingStepThreshold = 100; // Maximum number of consecutive simulation steps in which the best measurements error does not improve (termination threshold).
 
@@ -105,8 +108,13 @@ public class Shell : MonoBehaviour {
 			this.shellObj.AddComponent<MeshRenderer>();
 			this.shellObj.AddComponent<MeshFilter>();
 			//mesh = MeshHelper.createSquareMesh(5, 5, 1);
-			mesh = MeshHelper.createTriangleMesh(5, 5, 5); // 5 subdivisions leads to 561 vertices and 3072 triangles.
-			undeformedInnerEdgeLengthFactor = 1.1d;
+			//mesh = MeshHelper.createTriangleMesh(5, 5, 1);
+			//undeformedInnerEdgeLengthFactor = 1d;
+			mesh = MeshHelper.createTriangleMesh(3.5f, 7f, 4); // 5 subdivisions leads to 561 vertices and 3072 triangles.
+			undeformedInnerEdgeLengthFactor = 1.01d;
+			//mesh = MeshHelper.createFlatRectangleMesh(0.1f, 0.05f, 4);
+			//mesh = MeshHelper.createFlatRectangleMesh(5f, 5f, 1);
+			//undeformedInnerEdgeLengthFactor = 1d;
 		} else {
 			mesh = this.shellObj.GetComponent<MeshFilter>().mesh;
 			undeformedInnerEdgeLengthFactor = 1d;
@@ -121,6 +129,14 @@ public class Shell : MonoBehaviour {
 
 		// Constrain the mesh.
 		this.verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
+
+		// Constrain the mast and the boom vertices.
+		for(int i = 0; i < this.vertexPositions.Length; i++) {
+			this.verticesMovementConstraints[i] = (this.vertexPositions[i].x <= 0d || this.vertexPositions[i].y <= 0d);
+			if(this.verticesMovementConstraints[i]) {
+				print("Constraining vertex at: " + this.vertexPositions[i]);
+			}
+		}
 
 		// Set the shell position.
 		this.shellObj.transform.position = this.shellObjPosition;
@@ -228,6 +244,8 @@ public class Shell : MonoBehaviour {
 		this.BestMeasurementsSquaredError = Double.PositiveInfinity;
 		this.BestAverageReconstructionDistance = Double.NaN;
 		this.BestMaxReconstructionDistance = Double.NaN;
+		this.BestVertexPositions = null;
+		this.BestWindPressure = Vector3.zero;
 		this.NonImprovingStepCount = 0;
 	}
 
@@ -339,7 +357,7 @@ public class Shell : MonoBehaviour {
 		}
 
 		// Update and print best reconstruction error.
-		if(this.measurements != null) {
+		if(this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND && this.measurements != null) {
 			double measurementsSquaredError = this.getSquaredMeasurementsError(this.vertexPositions);
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
 			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
@@ -348,20 +366,41 @@ public class Shell : MonoBehaviour {
 				this.BestMeasurementsSquaredError = measurementsSquaredError;
 				this.BestAverageReconstructionDistance = averageReconstructionDistance;
 				this.BestMaxReconstructionDistance = maxReconstructionDistance;
+				this.BestVertexPositions = Vec3D.clone(this.vertexPositions);
+				this.BestWindPressure = this.windPressure;
 				this.NonImprovingStepCount = 0;
 			} else {
 				this.NonImprovingStepCount++;
 			}
 			print("Squared measurements error: " + measurementsSquaredError + "(best: " + this.BestMeasurementsSquaredError + ")");
 			print("Average reconstruction distance: " + averageReconstructionDistance + "(best: " + this.BestAverageReconstructionDistance + ")");
-			print("Average reconstruction distance: " + maxReconstructionDistance + "(best: " + this.BestMaxReconstructionDistance + ")");
+			print("Max reconstruction distance: " + maxReconstructionDistance + "(best: " + this.BestMaxReconstructionDistance + ")");
 			if(this.NonImprovingStepCount >= this.NonImprovingStepThreshold) {
 				this.doUpdate = false;
-				print("Non-improving step threshold has been reached. Reconstruction complete.");
+				print("Non-improving step threshold has been reached. Reconstruction step complete.");
 				print("Best squared measurements error: " + this.BestMeasurementsSquaredError
 						+ "with average reconstruction distance: " + this.BestAverageReconstructionDistance
 						+ " and max reconstruction distance: " + this.BestMaxReconstructionDistance);
+
+				// Add constraints on measurement vertices and continue reconstruction.
+				this.ReconstructionStage = ReconstructionStage.MEASUREMT_VERTICES_LOCKED;
+				this.vertexPositions = Vec3D.clone(this.BestVertexPositions);
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					if(this.measurements.measurements[i] != null) {
+						this.vertexPositions[i] = this.measurements.measurements[i].clone();
+						this.verticesMovementConstraints[i] = true;
+					}
+				}
 			}
+		} else if(this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED && this.measurements != null) {
+			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
+			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
+			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
+			print("Average reconstruction distance: " + averageReconstructionDistance);
+			print("Max reconstruction distance: " + maxReconstructionDistance);
+
+			// TODO - Implement stop criterion. -> This is implemented within the optimization integrator stepping code.
+			//this.doUpdate = false;
 		}
 
 		// Update mesh recorder.
@@ -524,7 +563,7 @@ public class Shell : MonoBehaviour {
 
 		// Update wind force if measurements are set.
 		Vec3D windVelocity = new Vec3D(this.windPressure);
-		if(this.measurements != null) {
+		if(this.measurements != null && this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND) {
 			Vec3D[] measurements = this.measurements.measurements;
 
 			// Get system-wide energy gradient.
@@ -800,9 +839,13 @@ public class Shell : MonoBehaviour {
 
 					// Just take the step if alpha gets too small.
 					if(alpha <= this.MinLineSearchAlpha) {
-						alpha = this.MinLineSearchAlpha;
+						//alpha = this.MinLineSearchAlpha;
+						alpha = 0d;
 						print(stopWatch.ElapsedMilliseconds + "ms: Alpha is getting too small. Setting alpha: " + alpha);
-						break;
+						this.doUpdate = false;
+						//this.vectorVisualizer.visualize(this.vertexPositions, step, 1f);
+						//throw new Exception("Alpha is getting too small."); // TODO - Remove temp hard fail.
+						goto newtLoopEnd;
 					}
 				}
 			}
@@ -815,6 +858,7 @@ public class Shell : MonoBehaviour {
 				newVertexPositions[i].z += alpha * step[3 * i + 2];
 			}
 		}
+		newtLoopEnd:
 		
 		// Update vertex velocity.
 		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
@@ -829,7 +873,8 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		print("Maximum vertex velocity after step, before direct velocity damping: " + maxVertexVelocity);
-		if(maxVertexVelocity < this.VelocityTerminationThreshold) {
+		if(maxVertexVelocity < this.VelocityTerminationThreshold
+				&& (this.ReconstructionStage == ReconstructionStage.DISABLED || this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED)) {
 			this.doUpdate = false;
 			print("Simulation finished. Maximum vertex velocity is below the velocity termination threshold: "
 					+ maxVertexVelocity + " m/s < ." + this.VelocityTerminationThreshold + " m/s.");
