@@ -1508,7 +1508,8 @@ MonoBehaviour:
   kGradientDescent: 0
   maxGradientDescentStep: 0
   dampingFactor: 1
-  DoStaticMinimization: 0
+  DoStaticMinimization: 1
+  VelocityTerminationThreshold: 0.001
   dampingConstant: 0.01
   directVelocityDampingFactor: 1
   maxWindSpeed: 50
@@ -1519,7 +1520,8 @@ MonoBehaviour:
   MinLineSearchAlpha: 0.000000000001
   MinNumNewtonIterations: 1
   MaxNewtonsMethodLoopTimeMS: 5000
-  vectorVisualizationType: 0
+  NonImprovingStepThreshold: 100
+  vectorVisualizationType: 5
 --- !u!4 &1530456322
 Transform:
   m_ObjectHideFlags: 0
