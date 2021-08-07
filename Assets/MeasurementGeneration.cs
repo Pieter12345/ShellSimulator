@@ -17,7 +17,7 @@ public class MeasurementGeneration {
 
 				// Generate and store the measurements.
 				string measurementsStorageDir = Shell.storageBaseDirPath + "/SailData/" + fileNameNoEx;
-				foreach(int n in new int[] {1, 5, 10}) {
+				foreach(int n in new int[] {1, 5, 10, 15}) {
 					foreach(double m in new double[] {1, 2.5, 5}) {
 						SailMeasurements measurements = new SailMeasurements(sailConf.vertexPositions,
 								MeshUtils.generateTriangularSailMeasurements(
