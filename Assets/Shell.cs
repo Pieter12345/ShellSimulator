@@ -128,7 +128,13 @@ public class Shell : MonoBehaviour {
 		this.loadMesh(mesh, undeformedInnerEdgeLengthFactor);
 
 		// Constrain the mesh.
-		this.verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
+		this.verticesMovementConstraints = this.createVertexContraints();
+
+		// Set the shell position.
+		this.shellObj.transform.position = this.shellObjPosition;
+
+	private bool[] createVertexContraints() {
+		bool[] verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
 
 		// Constrain the mast and the boom vertices.
 		for(int i = 0; i < this.vertexPositions.Length; i++) {
@@ -138,8 +144,7 @@ public class Shell : MonoBehaviour {
 			}
 		}
 
-		// Set the shell position.
-		this.shellObj.transform.position = this.shellObjPosition;
+		return verticesMovementConstraints;
 	}
 
 	private void loadMesh(Mesh mesh, double undeformedInnerEdgeLengthFactor) {
@@ -236,6 +241,9 @@ public class Shell : MonoBehaviour {
 		}
 		mesh.vertices = vertices;
 		mesh.RecalculateNormals();
+
+		// Recreate vertex constraints.
+		this.verticesMovementConstraints = this.createVertexContraints();
 
 		// Clear vector visualizer.
 		this.vectorVisualizer.clear();
