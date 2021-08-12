@@ -387,7 +387,7 @@ public class Shell : MonoBehaviour {
 				this.doUpdate = false;
 				print("Non-improving step threshold has been reached. Reconstruction step complete.");
 				print("Best squared measurements error: " + this.BestMeasurementsSquaredError
-						+ "with average reconstruction distance: " + this.BestAverageReconstructionDistance
+						+ " with average reconstruction distance: " + this.BestAverageReconstructionDistance
 						+ " and max reconstruction distance: " + this.BestMaxReconstructionDistance);
 
 				// Add constraints on measurement vertices and continue reconstruction.
@@ -404,8 +404,8 @@ public class Shell : MonoBehaviour {
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
 			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
 			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
-			print("Average reconstruction distance: " + averageReconstructionDistance);
-			print("Max reconstruction distance: " + maxReconstructionDistance);
+			print("Average reconstruction distance: " + averageReconstructionDistance
+				+ ", max reconstruction distance: " + maxReconstructionDistance);
 
 			// TODO - Implement stop criterion. -> This is implemented within the optimization integrator stepping code.
 			//this.doUpdate = false;
