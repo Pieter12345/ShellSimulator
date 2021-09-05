@@ -845,14 +845,11 @@ public class Shell : MonoBehaviour {
 					// Alpha is too high to be suitable. Decrease alpha.
 					alpha /= 2d;
 
-					// Just take the step if alpha gets too small.
+					// Just take the step if alpha gets too small. We're either at perfect reconstruction or close to it.
+					// In the case that this does occasionally introduce an error, next steps will still go towards a valid solution.
 					if(alpha <= this.MinLineSearchAlpha) {
-						//alpha = this.MinLineSearchAlpha;
 						alpha = 0d;
 						print(stopWatch.ElapsedMilliseconds + "ms: Alpha is getting too small. Setting alpha: " + alpha);
-						this.doUpdate = false;
-						//this.vectorVisualizer.visualize(this.vertexPositions, step, 1f);
-						//throw new Exception("Alpha is getting too small."); // TODO - Remove temp hard fail.
 						goto newtLoopEnd;
 					}
 				}
