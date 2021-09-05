@@ -871,7 +871,7 @@ public class Shell : MonoBehaviour {
 		}
 
 		// Apply direct velocity damping.
-		if(this.directVelocityDampingFactor != 0d) {
+		if(this.directVelocityDampingFactor != 1d) {
 			this.vertexVelocities.mul(this.directVelocityDampingFactor);
 		}
 
