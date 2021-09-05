@@ -2571,14 +2571,17 @@ public class Shell : MonoBehaviour {
 	public void onLoadSailShapeButtonPress() {
 		string filePath = EditorUtility.OpenFilePanel("Load sail shape", storageBaseDirPath + "/SailData", "sailshapedata");
 		if(filePath.Length != 0) {
-			SailConfiguration sailConfiguration = SailConfiguration.loadFromFile(filePath);
-			Mesh mesh = new Mesh();
-			mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
-			mesh.triangles = sailConfiguration.triangles;
-			mesh.RecalculateNormals();
-			this.loadMesh(mesh, 1d);
-			this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
+			this.loadSailConfiguration(SailConfiguration.loadFromFile(filePath));
 		}
+	}
+
+	private void loadSailConfiguration(SailConfiguration sailConfiguration) {
+		Mesh mesh = new Mesh();
+		mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
+		mesh.triangles = sailConfiguration.triangles;
+		mesh.RecalculateNormals();
+		this.loadMesh(mesh, 1d);
+		this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
 	}
 
 	public void onSaveSailMeasurementsButtonPress() {
