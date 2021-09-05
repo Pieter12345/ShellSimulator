@@ -75,13 +75,9 @@ public class Shell : MonoBehaviour {
 
 	// Reconstruction.
 	public ReconstructionStage ReconstructionStage = ReconstructionStage.DISABLED;
-	private double BestMeasurementsSquaredError = Double.PositiveInfinity;
-	private double BestAverageReconstructionDistance = Double.NaN; // Average reconstruction distance at the time of the best measurements squared error.
-	private double BestMaxReconstructionDistance = Double.NaN; // Max reconstruction distance (of a single vertex) at the time of the best measurements squared error.
-	private Vec3D[] BestVertexPositions = null;
-	private Vector3 BestWindPressure = Vector3.zero;
-	private int NonImprovingStepCount = 0;
-	public int NonImprovingStepThreshold = 100; // Maximum number of consecutive simulation steps in which the best measurements error does not improve (termination threshold).
+	private int stepCount = 0;
+	public int NumWindReconstructionSteps = 100; // The number of steps to take for the wind reconstruction phase.
+	public int NumSnapReconstructionSteps = 100; // The number of steps to take for the snap-vertices-to-measurements reconstruction phase.
 
 	// Debugging.
 	private VectorVisualizer vectorVisualizer;
@@ -249,12 +245,7 @@ public class Shell : MonoBehaviour {
 		this.vectorVisualizer.clear();
 
 		// Reset reconstruction error parameters.
-		this.BestMeasurementsSquaredError = Double.PositiveInfinity;
-		this.BestAverageReconstructionDistance = Double.NaN;
-		this.BestMaxReconstructionDistance = Double.NaN;
-		this.BestVertexPositions = null;
-		this.BestWindPressure = Vector3.zero;
-		this.NonImprovingStepCount = 0;
+		this.stepCount = 0;
 	}
 
 	// Update is called once per frame.
@@ -370,45 +361,39 @@ public class Shell : MonoBehaviour {
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
 			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
 			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
-			if(measurementsSquaredError < this.BestMeasurementsSquaredError) {
-				this.BestMeasurementsSquaredError = measurementsSquaredError;
-				this.BestAverageReconstructionDistance = averageReconstructionDistance;
-				this.BestMaxReconstructionDistance = maxReconstructionDistance;
-				this.BestVertexPositions = Vec3D.clone(this.vertexPositions);
-				this.BestWindPressure = this.windPressure;
-				this.NonImprovingStepCount = 0;
-			} else {
-				this.NonImprovingStepCount++;
-			}
-			print("Squared measurements error: " + measurementsSquaredError + "(best: " + this.BestMeasurementsSquaredError + ")");
-			print("Average reconstruction distance: " + averageReconstructionDistance + "(best: " + this.BestAverageReconstructionDistance + ")");
-			print("Max reconstruction distance: " + maxReconstructionDistance + "(best: " + this.BestMaxReconstructionDistance + ")");
-			if(this.NonImprovingStepCount >= this.NonImprovingStepThreshold) {
+
+			this.stepCount++;
+
+			print("Squared measurements error: " + measurementsSquaredError
+					+ ", average reconstruction distance: " + averageReconstructionDistance
+					+ ", max reconstruction distance: " + maxReconstructionDistance);
+			
+			if(this.stepCount >= this.NumWindReconstructionSteps) {
 				this.doUpdate = false;
 				print("Non-improving step threshold has been reached. Reconstruction step complete.");
-				print("Best squared measurements error: " + this.BestMeasurementsSquaredError
-						+ " with average reconstruction distance: " + this.BestAverageReconstructionDistance
-						+ " and max reconstruction distance: " + this.BestMaxReconstructionDistance);
 
 				// Add constraints on measurement vertices and continue reconstruction.
 				this.ReconstructionStage = ReconstructionStage.MEASUREMT_VERTICES_LOCKED;
-				this.vertexPositions = Vec3D.clone(this.BestVertexPositions);
 				for(int i = 0; i < this.vertexPositions.Length; i++) {
 					if(this.measurements.measurements[i] != null) {
 						this.vertexPositions[i] = this.measurements.measurements[i].clone();
 						this.verticesMovementConstraints[i] = true;
 					}
 				}
+				this.stepCount = 0; // Reset for the next reconstruction step.
 			}
 		} else if(this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED && this.measurements != null) {
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
 			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
 			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
 			print("Average reconstruction distance: " + averageReconstructionDistance
-				+ ", max reconstruction distance: " + maxReconstructionDistance);
+					+ ", max reconstruction distance: " + maxReconstructionDistance);
 
-			// TODO - Implement stop criterion. -> This is implemented within the optimization integrator stepping code.
-			//this.doUpdate = false;
+			// Stop simulation when the desired amount of reconstruction steps for this phase has been reached.
+			if(++this.stepCount >= this.NumSnapReconstructionSteps) {
+				this.doUpdate = false;
+				print("Simulation paused due to reaching the set step threshold: " + this.NumWindReconstructionSteps);
+			}
 		}
 
 		// Update mesh recorder.
