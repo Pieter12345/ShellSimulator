@@ -73,4 +73,14 @@ public class SailMeasurements {
 		reader.Close();
 		return new SailMeasurements(vertexPositions, measurements);
 	}
+
+	public int getNumMeasurements() {
+		int numMeasurements = 0;
+		foreach(VecD measurement in this.measurements) {
+			if(measurement != null) {
+				numMeasurements++;
+			}
+		}
+		return numMeasurements;
+	}
 }

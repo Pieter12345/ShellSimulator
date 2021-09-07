@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -74,6 +75,8 @@ public class Shell : MonoBehaviour {
 	private bool isRecording = false;
 
 	// Reconstruction.
+	private List<ReconstructionSetup> reconstructionSetups; // A list of reconstruction setups for automated reconstruction.
+	private int reconstructionSetupsIndex = -1;
 	public ReconstructionStage ReconstructionStage = ReconstructionStage.DISABLED;
 	private int stepCount = 0;
 	public int NumWindReconstructionSteps = 100; // The number of steps to take for the wind reconstruction phase.
@@ -128,6 +131,42 @@ public class Shell : MonoBehaviour {
 
 		// Set the shell position.
 		this.shellObj.transform.position = this.shellObjPosition;
+
+		// Initialize automated reconstruction setups.
+		this.reconstructionSetups = new List<ReconstructionSetup>();
+		foreach(double windMag in new double[] {9.6, 38.4}) {
+			foreach(double windDeg in new double[] {30, 45, 60}) {
+				foreach(int n in new int[] {1, 5, 10, 15}) {
+					foreach(double m in new double[] {1, 2.5, 5}) {
+						string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with g=9.81," +
+									" windMag=" + windMag + ", windDeg=" + windDeg;
+						string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01," +
+								" thickness=0.002, density=40, steady state with no external forces.sailshapedata";
+						this.reconstructionSetups.Add(new ReconstructionSetup {
+							sailStartConfigurationRelPath = restConfigurationSailRelPath,
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
+							resultsStorageRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".results",
+							kLength = 500f,
+							kArea = 500f,
+							kBend = 0.01f,
+							shellThickness = 0.002f,
+							shellMaterialDensity = 40f,
+							useFlatUndeformedBendState = true,
+							initialWindPressure = new Vec3D(0, 0, 0),
+							gravityConstant = 9.81d,
+							doStaticMinimization = true,
+							maxWindSpeed = this.maxWindSpeed,
+							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+							minNumNewtonIterations = this.MinNumNewtonIterations,
+							numWindReconstructionSteps = this.NumWindReconstructionSteps,
+							numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+						});
+					}
+				}
+			}
+		}
+		this.reconstructionSetupsIndex = -1;
+		this.ReconstructionStage = ReconstructionStage.DONE;
 
 	private bool[] createVertexContraints() {
 		bool[] verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
@@ -329,6 +368,31 @@ public class Shell : MonoBehaviour {
 
 	private void simulationStep(double deltaTime) {
 
+		// Load a new reconstruction setup if we are running automated reconstruction.
+		if(this.ReconstructionStage == ReconstructionStage.DONE && this.reconstructionSetupsIndex + 1 < this.reconstructionSetups.Count) {
+			this.reconstructionSetupsIndex++;
+			print("Loading reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count);
+			ReconstructionSetup reconSetup = this.reconstructionSetups[this.reconstructionSetupsIndex];
+			this.loadSailConfiguration(SailConfiguration.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailStartConfigurationRelPath));
+			this.measurements = SailMeasurements.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailMeasurementsRelPath);
+			this.kLength = reconSetup.kLength;
+			this.kArea = reconSetup.kArea;
+			this.kBend = reconSetup.kBend;
+			this.shellThickness = reconSetup.shellThickness;
+			this.shellMaterialDensity = reconSetup.shellMaterialDensity;
+			this.useFlatUndeformedBendState = reconSetup.useFlatUndeformedBendState;
+			this.windPressure = vecToVec(reconSetup.initialWindPressure);
+			this.gravityConstant = reconSetup.gravityConstant;
+			this.DoStaticMinimization = reconSetup.doStaticMinimization;
+			this.maxWindSpeed = reconSetup.maxWindSpeed;
+			this.maxDeltaWindSpeed = reconSetup.maxDeltaWindSpeed;
+			this.MinNumNewtonIterations = reconSetup.minNumNewtonIterations;
+			this.NumWindReconstructionSteps = reconSetup.numWindReconstructionSteps;
+			this.NumSnapReconstructionSteps = reconSetup.numSnapReconstructionSteps;
+
+			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
+		}
+
 		// Get the mesh.
 		Mesh mesh = this.getMesh();
 		int[] triangles = mesh.triangles;
@@ -369,8 +433,10 @@ public class Shell : MonoBehaviour {
 					+ ", max reconstruction distance: " + maxReconstructionDistance);
 			
 			if(this.stepCount >= this.NumWindReconstructionSteps) {
-				this.doUpdate = false;
 				print("Non-improving step threshold has been reached. Reconstruction step complete.");
+				if(this.reconstructionSetupsIndex >= this.reconstructionSetups.Count || this.reconstructionSetupsIndex == -1) {
+					this.doUpdate = false;
+				}
 
 				// Add constraints on measurement vertices and continue reconstruction.
 				this.ReconstructionStage = ReconstructionStage.MEASUREMT_VERTICES_LOCKED;
@@ -391,8 +457,29 @@ public class Shell : MonoBehaviour {
 
 			// Stop simulation when the desired amount of reconstruction steps for this phase has been reached.
 			if(++this.stepCount >= this.NumSnapReconstructionSteps) {
-				this.doUpdate = false;
-				print("Simulation paused due to reaching the set step threshold: " + this.NumWindReconstructionSteps);
+				if(this.reconstructionSetupsIndex >= this.reconstructionSetups.Count || this.reconstructionSetupsIndex == -1) {
+					this.doUpdate = false;
+					print("Simulation paused due to reaching the set step threshold: " + this.NumWindReconstructionSteps);
+				} else {
+
+					// We are running automated reconstruction. Store the results and continue.
+					print("Reconstruction complete.");
+					ReconstructionSetup reconSetup = this.reconstructionSetups[this.reconstructionSetupsIndex];
+					string filePath = storageBaseDirPath + "/SailData/" + reconSetup.resultsStorageRelPath;
+					string dirPath = Path.GetDirectoryName(filePath);
+					print("Storing reconstruction results to file: " + filePath);
+					if(!Directory.Exists(dirPath)) {
+						Directory.CreateDirectory(dirPath);
+					}
+					FileStream fs = (File.Exists(filePath) ? File.OpenWrite(filePath) : File.Create(filePath));
+					BinaryWriter writer = new BinaryWriter(fs);
+					writer.Write("reconstructionDistance = " + reconstructionDistance
+							+ "\naverageReconstructionDistance = " + averageReconstructionDistance
+							+ "\nmaxReconstructionDistance = " + maxReconstructionDistance
+							+ "\nnumMeasurements = " + this.measurements.getNumMeasurements());
+					writer.Close();
+				}
+				this.ReconstructionStage = ReconstructionStage.DONE;
 			}
 		}
 
