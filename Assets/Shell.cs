@@ -391,6 +391,7 @@ public class Shell : MonoBehaviour {
 			this.NumSnapReconstructionSteps = reconSetup.numSnapReconstructionSteps;
 
 			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
+			this.stepCount = 0;
 		}
 
 		// Get the mesh.
