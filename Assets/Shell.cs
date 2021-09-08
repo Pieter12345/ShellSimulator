@@ -393,6 +393,10 @@ public class Shell : MonoBehaviour {
 			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
 			this.stepCount = 0;
 		}
+		if(this.ReconstructionStage == ReconstructionStage.DONE) {
+			print("Reconstruction(s) done. Pausing simulation.");
+			this.doUpdate = false;
+		}
 
 		// Get the mesh.
 		Mesh mesh = this.getMesh();
