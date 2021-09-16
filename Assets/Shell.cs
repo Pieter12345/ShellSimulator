@@ -476,13 +476,10 @@ public class Shell : MonoBehaviour {
 					if(!Directory.Exists(dirPath)) {
 						Directory.CreateDirectory(dirPath);
 					}
-					FileStream fs = (File.Exists(filePath) ? File.OpenWrite(filePath) : File.Create(filePath));
-					BinaryWriter writer = new BinaryWriter(fs);
-					writer.Write("reconstructionDistance = " + reconstructionDistance
+					File.WriteAllText(filePath, "reconstructionDistance = " + reconstructionDistance
 							+ "\naverageReconstructionDistance = " + averageReconstructionDistance
 							+ "\nmaxReconstructionDistance = " + maxReconstructionDistance
 							+ "\nnumMeasurements = " + this.measurements.getNumMeasurements());
-					writer.Close();
 				}
 				this.ReconstructionStage = ReconstructionStage.DONE;
 			}
