@@ -470,7 +470,7 @@ public class Shell : MonoBehaviour {
 					// We are running automated reconstruction. Store the results and continue.
 					print("Reconstruction complete.");
 					ReconstructionSetup reconSetup = this.reconstructionSetups[this.reconstructionSetupsIndex];
-					string filePath = storageBaseDirPath + "/SailData/" + reconSetup.resultsStorageRelPath;
+					string filePath = storageBaseDirPath + "/Results/" + reconSetup.resultsStorageRelPath;
 					string dirPath = Path.GetDirectoryName(filePath);
 					print("Storing reconstruction results to file: " + filePath);
 					if(!Directory.Exists(dirPath)) {
