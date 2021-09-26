@@ -739,15 +739,6 @@ public class Shell : MonoBehaviour {
 		int iteration = 0;
 		while(true) {
 
-			// Limit amount of time spent to prevent endless loops.
-			iteration++;
-			if(stopWatch.ElapsedMilliseconds > this.MaxNewtonsMethodLoopTimeMS) {
-				print(stopWatch.ElapsedMilliseconds + "ms: Maximum time reached in Optimization Integrator update after "
-						+ iteration + " iterations. Pausing simulation without taking a step.");
-				this.doUpdate = false;
-				return;
-			}
-
 			// Get system-wide energy gradient.
 			this.recalcTriangleNormalsAndAreas(triangles, newVertexPositions);
 			VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
@@ -824,6 +815,15 @@ public class Shell : MonoBehaviour {
 					+ ", iteration: " + iteration + ")");
 			if(eGradientMagnitude < terminationThreshold && iteration > this.MinNumNewtonIterations) {
 				print(stopWatch.ElapsedMilliseconds + "ms: Finished on iteration: " + iteration + ".");
+				break;
+			}
+
+			// Limit amount of time spent to prevent endless loops.
+			iteration++;
+			if(stopWatch.ElapsedMilliseconds > this.MaxNewtonsMethodLoopTimeMS) {
+				print(stopWatch.ElapsedMilliseconds + "ms: Maximum time reached in Optimization Integrator update after "
+						+ iteration + " iterations. Taking non-optimal step with E gradient magnitude: "
+						+ eGradientMagnitude + " (threshold: " + terminationThreshold + ")");
 				break;
 			}
 
