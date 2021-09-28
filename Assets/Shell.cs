@@ -146,7 +146,7 @@ public class Shell : MonoBehaviour {
 						this.reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
 							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
-							resultsStorageRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".results",
+							resultsStorageRelPath = "test1/" + fileNameNoEx + "/n=" + n + ", m=" + m + ".results",
 							kLength = 500f,
 							kArea = 500f,
 							kBend = 0.01f,
