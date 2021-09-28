@@ -135,6 +135,14 @@ public class Shell : MonoBehaviour {
 
 		// Initialize automated reconstruction setups.
 		this.reconstructionSetups = new List<ReconstructionSetup>();
+		this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
+		this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
+		this.reconstructionSetupsIndex = -1;
+		this.ReconstructionStage = ReconstructionStage.DONE;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest1() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
 		foreach(double windMag in new double[] {9.6, 38.4}) {
 			foreach(double windDeg in new double[] {30, 45, 60}) {
 				foreach(int n in new int[] {1, 5, 10, 15}) {
@@ -143,7 +151,7 @@ public class Shell : MonoBehaviour {
 									" windMag=" + windMag + ", windDeg=" + windDeg;
 						string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01," +
 								" thickness=0.002, density=40, steady state with no external forces.sailshapedata";
-						this.reconstructionSetups.Add(new ReconstructionSetup {
+						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
 							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
 							resultsStorageRelPath = "test1/" + fileNameNoEx + "/n=" + n + ", m=" + m + ".results",
@@ -167,8 +175,47 @@ public class Shell : MonoBehaviour {
 				}
 			}
 		}
-		this.reconstructionSetupsIndex = -1;
-		this.ReconstructionStage = ReconstructionStage.DONE;
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest2() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		foreach(double windMag in new double[] {38.4}) {
+			foreach(double windDeg in new double[] {45}) {
+				foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
+					int n = (int) nm[0];
+					double m = nm[1];
+					foreach(double stiffnessFactor in new double[] {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9}) {
+						string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with g=9.81," +
+									" windMag=" + windMag + ", windDeg=" + windDeg;
+						string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01," +
+								" thickness=0.002, density=40, steady state with no external forces.sailshapedata";
+						reconstructionSetups.Add(new ReconstructionSetup {
+							sailStartConfigurationRelPath = restConfigurationSailRelPath,
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
+							resultsStorageRelPath = "test2/" + fileNameNoEx.Replace(", ", ",") + "/n=" + n + ",m=" + m + ",stiffFac=" + stiffnessFactor + ".results",
+							kLength = (float) (500d * stiffnessFactor),
+							kArea = (float) (500d * stiffnessFactor),
+							kBend = 0.01f,
+							shellThickness = 0.002f,
+							shellMaterialDensity = 40f,
+							useFlatUndeformedBendState = true,
+							initialWindPressureVec = new Vec3D(0, 0, 0),
+							initialWindPressure = 0d,
+							gravityConstant = 9.81d,
+							doStaticMinimization = true,
+							maxWindSpeed = this.maxWindSpeed,
+							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+							minNumNewtonIterations = this.MinNumNewtonIterations,
+							numWindReconstructionSteps = this.NumWindReconstructionSteps,
+							numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+						});
+					}
+				}
+			}
+		}
+		return reconstructionSetups;
+	}
 
 	private bool[] createVertexContraints() {
 		bool[] verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
