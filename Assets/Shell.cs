@@ -76,7 +76,7 @@ public class Shell : MonoBehaviour {
 	private bool isRecording = false;
 
 	// Reconstruction.
-	private List<ReconstructionSetup> reconstructionSetups; // A list of reconstruction setups for automated reconstruction.
+	private List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>(); // A list of reconstruction setups for automated reconstruction.
 	private int reconstructionSetupsIndex = -1;
 	public ReconstructionStage ReconstructionStage = ReconstructionStage.DISABLED;
 	private int stepCount = 0;
@@ -134,11 +134,11 @@ public class Shell : MonoBehaviour {
 		this.shellObj.transform.position = this.shellObjPosition;
 
 		// Initialize automated reconstruction setups.
-		this.reconstructionSetups = new List<ReconstructionSetup>();
-		this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
-		this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
-		this.reconstructionSetupsIndex = -1;
-		this.ReconstructionStage = ReconstructionStage.DONE;
+		if(this.ReconstructionStage != ReconstructionStage.DISABLED) {
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
+			this.ReconstructionStage = ReconstructionStage.DONE;
+		}
 	}
 
 	private List<ReconstructionSetup> getReconstructionSetupsTest1() {
