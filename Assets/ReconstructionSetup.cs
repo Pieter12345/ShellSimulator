@@ -11,7 +11,8 @@ public class ReconstructionSetup {
 	public float shellThickness;
 	public float shellMaterialDensity;
 	public bool useFlatUndeformedBendState;
-	public Vec3D initialWindPressure;
+	public Vec3D initialWindPressureVec;
+	public double initialWindPressure;
 	public double gravityConstant;
 	public bool doStaticMinimization;
 	public double maxWindSpeed;

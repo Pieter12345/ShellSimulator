@@ -35,7 +35,8 @@ public class Shell : MonoBehaviour {
 	public TimeSteppingMethod timeSteppingMethod = TimeSteppingMethod.GRADIENT_DESCENT;
 	private bool doUpdate = false;
 	public double timeScale = 1f;
-	public Vector3 windPressure; // [N/m^2]. TODO - Could also apply scalar pressure in triangle normal directions.
+	public Vector3 windPressureVec; // [N/m^2] Wind pressure vector, applied to triangles through triangle normal direction.
+	public double windPressure; // [N/m^2] Static wind pressure, applied to triangles in triangle normal direction.
 	public double gravityConstant = 9.81d;
 
 	public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
@@ -152,7 +153,8 @@ public class Shell : MonoBehaviour {
 							shellThickness = 0.002f,
 							shellMaterialDensity = 40f,
 							useFlatUndeformedBendState = true,
-							initialWindPressure = new Vec3D(0, 0, 0),
+							initialWindPressureVec = new Vec3D(0, 0, 0),
+							initialWindPressure = 0d,
 							gravityConstant = 9.81d,
 							doStaticMinimization = true,
 							maxWindSpeed = this.maxWindSpeed,
@@ -381,7 +383,8 @@ public class Shell : MonoBehaviour {
 			this.shellThickness = reconSetup.shellThickness;
 			this.shellMaterialDensity = reconSetup.shellMaterialDensity;
 			this.useFlatUndeformedBendState = reconSetup.useFlatUndeformedBendState;
-			this.windPressure = vecToVec(reconSetup.initialWindPressure);
+			this.windPressureVec = vecToVec(reconSetup.initialWindPressureVec);
+			this.windPressure = reconSetup.initialWindPressure;
 			this.gravityConstant = reconSetup.gravityConstant;
 			this.DoStaticMinimization = reconSetup.doStaticMinimization;
 			this.maxWindSpeed = reconSetup.maxWindSpeed;
@@ -494,7 +497,7 @@ public class Shell : MonoBehaviour {
 	private void doGradientDescentStep() {
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressure));
+		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressureVec), this.windPressure);
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 		VecD step = this.kGradientDescent * (vertexWindForce + gravityForce - vertexEnergyGradient);
@@ -532,7 +535,7 @@ public class Shell : MonoBehaviour {
 		// Calculate vertex energy gradient array and vertex wind force array.
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressure));
+		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressureVec), this.windPressure);
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
@@ -644,7 +647,7 @@ public class Shell : MonoBehaviour {
 		}
 
 		// Update wind force if measurements are set.
-		Vec3D windVelocity = new Vec3D(this.windPressure);
+		Vec3D windPressureVec = new Vec3D(this.windPressureVec);
 		if(this.measurements != null && this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND) {
 			Vec3D[] measurements = this.measurements.measurements;
 
@@ -653,7 +656,7 @@ public class Shell : MonoBehaviour {
 			VecD energyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
 
 			// Get wind force.
-			VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, windVelocity);
+			VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, windPressureVec, this.windPressure);
 
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
@@ -709,7 +712,7 @@ public class Shell : MonoBehaviour {
 				windVelocity.mul(this.maxWindSpeed / windSpeed);
 			}
 
-			print("New wind velocity: " + windVelocity + " (deltaWindVelocity = " + deltaWindVelocity + ").");
+			print("New wind pressure: " + windPressureVec + " (deltaWindPressure = " + deltaWindVelocity + ").");
 			
 			// Visualize reconstruction error vectors.
 			if(this.vectorVisualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF) {
@@ -744,7 +747,7 @@ public class Shell : MonoBehaviour {
 			VecD energyGradient = this.getSystemEnergyGradient(triangles, newVertexPositions);
 
 			// Get wind force.
-			VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windVelocity);
+			VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windPressureVec, this.windPressure);
 
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
@@ -872,7 +875,7 @@ public class Shell : MonoBehaviour {
 			double alpha = this.lastLineSearchAlpha;
 			double bestAlpha = double.NaN;
 			double e = this.getE(triangles, vertexPositionsFlat, newVertexPositions,
-					vertexCoordMasses, windVelocity, energyHess, deltaTime);
+					vertexCoordMasses, windPressureVec, this.windPressure, energyHess, deltaTime);
 			double bestE = e;
 			double c = 1d;
 			long lineSearchLoopStartTime = stopWatch.ElapsedMilliseconds;
@@ -892,7 +895,7 @@ public class Shell : MonoBehaviour {
 				// Terminate when there is sufficient E decrease. Adjust alpha otherwise.
 				this.recalcTriangleNormalsAndAreas(triangles, newNewVertexPositions);
 				double newE = this.getE(triangles, vertexPositionsFlat, newNewVertexPositions,
-						vertexCoordMasses, windVelocity, energyHess, deltaTime);
+						vertexCoordMasses, windPressureVec, this.windPressure, energyHess, deltaTime);
 				if(newE <= bestE) {
 				//if(newE <= e + c * alpha * VecD.dot(eGradient, step)) {
 					
@@ -968,7 +971,7 @@ public class Shell : MonoBehaviour {
 		this.vertexPositions = newVertexPositions;
 
 		// Update wind velocity.
-		this.windPressure = new Vector3((float) windVelocity[0], (float) windVelocity[1], (float) windVelocity[2]);
+		this.windPressureVec = new Vector3((float) windPressureVec[0], (float) windPressureVec[1], (float) windPressureVec[2]);
 
 		// Update mesh.
 		this.updateMesh();
@@ -998,25 +1001,25 @@ public class Shell : MonoBehaviour {
 			return new Vec3D();
 		}
 
-		// Determine the delta wind velocity direction.
+		// Determine the delta wind pressure direction.
 		// For the direction, the direction of the sum of virtual measurements error forces is used.
 		// For the magnitude, we first determine the wind force produced by the unit wind direction and then scale it to on average match the virtual error forces.
-		Vec3D deltaWindVelocity = new Vec3D();
+		Vec3D deltaWindPressureVec = new Vec3D();
 		double averageVirtMeasurementsErrorForceMagnitude = 0d;
 		for(int i = 0; i < numVertices; i++) {
 			Vec3D virtMeasurementErrorForce = new Vec3D(
 					virtMeasurementsErrorForce[3 * i], virtMeasurementsErrorForce[3 * i + 1], virtMeasurementsErrorForce[3 * i + 2]);
-			deltaWindVelocity += virtMeasurementErrorForce;
+			deltaWindPressureVec += virtMeasurementErrorForce;
 			averageVirtMeasurementsErrorForceMagnitude += virtMeasurementErrorForce.magnitude;
 		}
-		double magnitude = deltaWindVelocity.magnitude;
+		double magnitude = deltaWindPressureVec.magnitude;
 		if(magnitude == 0d) {
 			return new Vec3D();
 		}
-		deltaWindVelocity /= magnitude;
+		deltaWindPressureVec /= magnitude;
 		averageVirtMeasurementsErrorForceMagnitude /= numMeasurements;
 
-		VecD deltaVertexUnitWindForce = this.getVertexWindForce(triangles, vertexPositions, deltaWindVelocity);
+		VecD deltaVertexUnitWindForce = this.getVertexWindForce(triangles, vertexPositions, deltaWindPressureVec, 0d);
 		double averageUnitDeltaWindForceMagnitude = 0d;
 		for(int i = 0; i < numVertices; i++) {
 			Vec3D deltaWindForce = new Vec3D(
@@ -1025,9 +1028,9 @@ public class Shell : MonoBehaviour {
 		}
 		averageUnitDeltaWindForceMagnitude /= numVertices;
 		double deltaWindForceMagnitude = averageVirtMeasurementsErrorForceMagnitude / averageUnitDeltaWindForceMagnitude;
-		deltaWindVelocity.mul(deltaWindForceMagnitude);
+		deltaWindPressureVec.mul(deltaWindForceMagnitude);
 
-		return deltaWindVelocity;
+		return deltaWindPressureVec;
 	}
 
 	/*
@@ -1691,10 +1694,10 @@ public class Shell : MonoBehaviour {
 	}
 
 	private double getE(int[] triangles, VecD vertexPositionsFlat, Vec3D[] newVertexPositions, VecD vertexCoordMasses,
-			VecD windVelocity, MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess, double deltaTime) {
+			VecD windPressureVec, double windPressure, MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess, double deltaTime) {
 		int numVertices = newVertexPositions.Length;
 
-		VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windVelocity);
+		VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windPressureVec, windPressure);
 		for(int i = 0; i < numVertices; i++) {
 			if(this.verticesMovementConstraints[i]) {
 				for(int coord = 0; coord < 3; coord++) {
@@ -1748,10 +1751,14 @@ public class Shell : MonoBehaviour {
 	}
 
 	/*
-	 * Calculates the wind force acting on each vertex.
+	 * Calculates the wind forces acting on the vertices.
+	 * These forces are the sum of:
+	 * - The projection of the wind pressure vector onto each triangle normal, multiplied by the triangle area.
+	 * - The wind vector scalar multiplied by each triangle area.
+	 * Each triangle force is then distributed evenly over the vertices defining that triangle.
 	 * Returns the wind force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
 	 */
-	private VecD getVertexWindForce(int[] triangles, VecD[] vertices, VecD windPressure) {
+	private VecD getVertexWindForce(int[] triangles, VecD[] vertices, VecD windPressureVec, double windPressure) {
 
 		// Initialize vertex wind force array.
 		VecD vertexWindForce = new VecD(vertices.Length * 3);
@@ -1770,7 +1777,7 @@ public class Shell : MonoBehaviour {
 				continue; // Triangle has a zero-area and no normal, so the projected wind force is zero as well.
 			}
 			double triangleArea = this.triangleAreas[triangleId];
-			VecD triangleVertexWindForce = (VecD.dot(windPressure, triangleNormal) * triangleArea / 3d) * triangleNormal;
+			VecD triangleVertexWindForce = ((VecD.dot(windPressureVec, triangleNormal) + windPressure) * triangleArea / 3d) * triangleNormal;
 
 			// Add a third of the total triangle wind force to each of its vertices.
 			for(int coord = 0; coord < 3; coord++) {
