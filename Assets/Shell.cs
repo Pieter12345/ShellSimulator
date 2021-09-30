@@ -54,8 +54,8 @@ public class Shell : MonoBehaviour {
 	public double VelocityTerminationThreshold = 0.01d; // [m/s]. When the maximum vertex velocity after a step is below this threshold, simulation is stopped.
 	public double dampingConstant = 0.001d;
 	public double directVelocityDampingFactor = 1d;
-	public double maxWindSpeed = 50d;
-	public double maxDeltaWindSpeed = 5d;
+	private double maxWindSpeed = 50d; // TODO - Remove if unused.
+	private double maxDeltaWindSpeed = 5d; // TODO - Remove if unused.
 	public double kMeasurementsPenalty = 1d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
 	private double lastLineSearchAlpha = 1d;
@@ -777,25 +777,14 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
-			// Update the wind velocity and force based on virtual measurements error force.
-			// This virtual force is the force that we would like to include in the existing wind force.
-			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
-			Vec3D deltaWindVelocity = this.getDeltaWindVelocity(triangles, this.vertexPositions, virtMeasurementsErrorForce);
+			// Compute the force that should be put onto the sail by the wind in order to result in a force that pulls the sail towards to measurements.
+			// Note that the penalty force constant has to be large enough for the sail to converge (and not oscillate or explode).
+			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(gravityForce);
+			Vec3D newWindPressureVec = this.getWindPressureVec(triangles, this.vertexPositions, virtMeasurementsErrorForce);
+			Vec3D deltaWindPressureVec = newWindPressureVec - windPressureVec;
+			windPressureVec = newWindPressureVec;
 
-			// Limit delta wind velocity magnitude.
-			double deltaWindSpeed = deltaWindVelocity.magnitude;
-			if(deltaWindSpeed > this.maxDeltaWindSpeed) {
-				deltaWindVelocity.mul(this.maxDeltaWindSpeed / deltaWindSpeed);
-			}
-			windVelocity += deltaWindVelocity;
-
-			// Limit wind velocity magnitude.
-			double windSpeed = windVelocity.magnitude;
-			if(windSpeed > this.maxWindSpeed) {
-				windVelocity.mul(this.maxWindSpeed / windSpeed);
-			}
-
-			print("New wind pressure: " + windPressureVec + " (deltaWindPressure = " + deltaWindVelocity + ").");
+			print("New wind pressure: " + windPressureVec + " (delta wind pressure = " + deltaWindPressureVec + ").");
 			
 			// Visualize reconstruction error vectors.
 			if(this.vectorVisualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF) {
@@ -1065,7 +1054,7 @@ public class Shell : MonoBehaviour {
 		}
 	}
 
-	private Vec3D getDeltaWindVelocity(int[] triangles, Vec3D[] vertexPositions, VecD virtMeasurementsErrorForce) {
+	private Vec3D getWindPressureVec(int[] triangles, Vec3D[] vertexPositions, VecD virtMeasurementsErrorForce) {
 		int numVertices = vertexPositions.Length;
 
 		// Set the virtual measurements error force to 0 for points without measurements.
@@ -1084,25 +1073,25 @@ public class Shell : MonoBehaviour {
 			return new Vec3D();
 		}
 
-		// Determine the delta wind pressure direction.
+		// Determine the wind pressure direction.
 		// For the direction, the direction of the sum of virtual measurements error forces is used.
 		// For the magnitude, we first determine the wind force produced by the unit wind direction and then scale it to on average match the virtual error forces.
-		Vec3D deltaWindPressureVec = new Vec3D();
+		Vec3D windPressureVec = new Vec3D();
 		double averageVirtMeasurementsErrorForceMagnitude = 0d;
 		for(int i = 0; i < numVertices; i++) {
 			Vec3D virtMeasurementErrorForce = new Vec3D(
 					virtMeasurementsErrorForce[3 * i], virtMeasurementsErrorForce[3 * i + 1], virtMeasurementsErrorForce[3 * i + 2]);
-			deltaWindPressureVec += virtMeasurementErrorForce;
+			windPressureVec += virtMeasurementErrorForce;
 			averageVirtMeasurementsErrorForceMagnitude += virtMeasurementErrorForce.magnitude;
 		}
-		double magnitude = deltaWindPressureVec.magnitude;
+		double magnitude = windPressureVec.magnitude;
 		if(magnitude == 0d) {
 			return new Vec3D();
 		}
-		deltaWindPressureVec /= magnitude;
+		windPressureVec /= magnitude;
 		averageVirtMeasurementsErrorForceMagnitude /= numMeasurements;
 
-		VecD deltaVertexUnitWindForce = this.getVertexWindForce(triangles, vertexPositions, deltaWindPressureVec, 0d);
+		VecD deltaVertexUnitWindForce = this.getVertexWindForce(triangles, vertexPositions, windPressureVec, 0d);
 		double averageUnitDeltaWindForceMagnitude = 0d;
 		for(int i = 0; i < numVertices; i++) {
 			Vec3D deltaWindForce = new Vec3D(
@@ -1111,9 +1100,9 @@ public class Shell : MonoBehaviour {
 		}
 		averageUnitDeltaWindForceMagnitude /= numVertices;
 		double deltaWindForceMagnitude = averageVirtMeasurementsErrorForceMagnitude / averageUnitDeltaWindForceMagnitude;
-		deltaWindPressureVec.mul(deltaWindForceMagnitude);
+		windPressureVec.mul(deltaWindForceMagnitude);
 
-		return deltaWindPressureVec;
+		return windPressureVec;
 	}
 
 	/*
