@@ -20,4 +20,5 @@ public class ReconstructionSetup {
 	public int minNumNewtonIterations;
 	public int numWindReconstructionSteps;
 	public int numSnapReconstructionSteps;
+	public Tuple<Vec3D, double>[] measurementsIgnoreSpheres = null; // Used to ignore measurements within a radius from a position.
 }

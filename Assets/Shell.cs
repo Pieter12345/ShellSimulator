@@ -476,6 +476,20 @@ public class Shell : MonoBehaviour {
 			this.NumWindReconstructionSteps = reconSetup.numWindReconstructionSteps;
 			this.NumSnapReconstructionSteps = reconSetup.numSnapReconstructionSteps;
 
+			// Remove measurements if they should be ignored.
+			if(reconSetup.measurementsIgnoreSpheres != null) {
+				Vec3D[] measurements = this.measurements.measurements;
+				for(int i = 0; i < measurements.Length; i++) {
+					if(measurements[i] != null) {
+						foreach(Tuple<Vec3D, double> measurementsIgnoreSphere in reconSetup.measurementsIgnoreSpheres) {
+							if((measurementsIgnoreSphere.Item1 - measurements[i]).squareMagnitude <= measurementsIgnoreSphere.Item2 * measurementsIgnoreSphere.Item2) {
+								measurements[i] = null;
+							}
+						}
+					}
+				}
+			}
+
 			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
 			this.stepCount = 0;
 		}

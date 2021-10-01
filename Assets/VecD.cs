@@ -8,11 +8,16 @@ public class VecD {
 	public int length { get { return this.vector.Length; } }
 	public double magnitude {
 		get {
+			return Math.Sqrt(this.squareMagnitude);
+		}
+	}
+	public double squareMagnitude {
+		get {
 			double sum = 0;
 			for(int i = 0; i < this.vector.Length; i++) {
 				sum += this.vector[i] * this.vector[i];
 			}
-			return Math.Sqrt(sum);
+			return sum;
 		}
 	}
 	public double sum {
