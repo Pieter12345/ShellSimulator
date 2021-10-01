@@ -800,18 +800,6 @@ public class Shell : MonoBehaviour {
 
 			print("New wind pressure: " + windPressureVec + " (delta wind pressure = " + deltaWindPressureVec + ").");
 			
-			// Visualize reconstruction error vectors.
-			if(this.vectorVisualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF) {
-				VecD measurementsError = new VecD(numVertices * 3);
-				for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-					if(measurements[vertexInd] != null) {
-						for(int coord = 0; coord < 3; coord++) {
-							measurementsError[3 * vertexInd + coord] = measurements[vertexInd][coord] - this.vertexPositions[vertexInd][coord];
-						}
-					}
-				}
-				this.vectorVisualizer.visualize(this.vertexPositions, measurementsError, 1f);
-			}
 		}
 
 		// Perform Newton's method, setting steps until the termination criterion has been met.
@@ -1061,6 +1049,20 @@ public class Shell : MonoBehaviour {
 
 		// Update mesh.
 		this.updateMesh();
+
+		// Visualize reconstruction error vectors.
+		if(this.vectorVisualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF && this.measurements != null) {
+			Vec3D[] measurements = this.measurements.measurements;
+			VecD measurementsError = new VecD(numVertices * 3);
+			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+				if(measurements[vertexInd] != null) {
+					for(int coord = 0; coord < 3; coord++) {
+						measurementsError[3 * vertexInd + coord] = measurements[vertexInd][coord] - this.vertexPositions[vertexInd][coord];
+					}
+				}
+			}
+			this.vectorVisualizer.visualize(this.vertexPositions, measurementsError, 1f);
+		}
 
 		// Visualize velocity vectors.
 		if(this.vectorVisualizationType == VisualizationType.VERTEX_VELOCITIES) {
