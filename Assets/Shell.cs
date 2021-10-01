@@ -138,6 +138,7 @@ public class Shell : MonoBehaviour {
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
 	}
@@ -248,6 +249,60 @@ public class Shell : MonoBehaviour {
 					numWindReconstructionSteps = this.NumWindReconstructionSteps,
 					numSnapReconstructionSteps = this.NumSnapReconstructionSteps
 				});
+			}
+		}
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest5() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
+				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
+		foreach(double windMag in new double[] {38.4}) {
+			foreach(double windDeg in new double[] {45}) {
+				string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with g=9.81,"
+							+ " windMag=" + windMag + ", windDeg=" + windDeg;
+				string fileNameNoExShort = "nv=561, kL=500, kA=500, kB=0.01, t=0.002, d=40, ss with g=9.81, wm=" + windMag + ", wd=" + windDeg;
+				foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
+					int n = (int) nm[0];
+					double m = nm[1];
+					foreach(Tuple<Vec3D, double>[] measurementsIgnoreSpheres in new Tuple<Vec3D, double>[][] {
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 1.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 1.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 7d, 0d), 2.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1d)}}) {
+						string ignoreSpheresStr = "{";
+						foreach(Tuple<Vec3D, double> measurementsIgnoreSphere in measurementsIgnoreSpheres) {
+							Vec3D origin = measurementsIgnoreSphere.Item1;
+							double radius = measurementsIgnoreSphere.Item2;
+							if(ignoreSpheresStr.Length > 1) {
+								ignoreSpheresStr += ", ";
+							}
+							ignoreSpheresStr += "{" + origin.ToString() + ", " + radius + "}";
+						}
+						reconstructionSetups.Add(new ReconstructionSetup {
+							sailStartConfigurationRelPath = restConfigurationSailRelPath,
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
+							resultsStorageRelPath = "test5/" + fileNameNoExShort.Replace(", ", ",") + "/n=" + n + ",m=" + m
+									+ ",ignoreSpheres=" + ignoreSpheresStr.Replace(", ", ",") + ".results",
+							kLength = 500f,
+							kArea = 500f,
+							kBend = 0.01f,
+							shellThickness = 0.002f,
+							shellMaterialDensity = 40f,
+							useFlatUndeformedBendState = true,
+							initialWindPressureVec = new Vec3D(0, 0, 0),
+							initialWindPressure = 0d,
+							gravityConstant = 9.81d,
+							doStaticMinimization = true,
+							maxWindSpeed = this.maxWindSpeed,
+							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+							minNumNewtonIterations = this.MinNumNewtonIterations,
+							numWindReconstructionSteps = this.NumWindReconstructionSteps,
+							numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+						});
+					}
+				}
 			}
 		}
 		return reconstructionSetups;
