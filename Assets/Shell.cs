@@ -538,7 +538,7 @@ public class Shell : MonoBehaviour {
 					+ ", max reconstruction distance: " + maxReconstructionDistance);
 			
 			if(this.stepCount >= this.NumWindReconstructionSteps) {
-				print("Non-improving step threshold has been reached. Reconstruction step complete.");
+				print("Step threshold has been reached. Wind reconstruction step complete.");
 				if(this.reconstructionSetupsIndex >= this.reconstructionSetups.Count || this.reconstructionSetupsIndex == -1) {
 					this.doUpdate = false;
 				}
