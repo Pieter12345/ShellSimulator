@@ -649,7 +649,7 @@ public class Shell : MonoBehaviour {
 	private void doGradientDescentStep() {
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressureVec), this.windPressure);
+		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 		VecD step = this.kGradientDescent * (vertexWindForce + gravityForce - vertexEnergyGradient);
@@ -687,7 +687,7 @@ public class Shell : MonoBehaviour {
 		// Calculate vertex energy gradient array and vertex wind force array.
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
-		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new VecD(this.windPressureVec), this.windPressure);
+		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
@@ -1837,7 +1837,7 @@ public class Shell : MonoBehaviour {
 	}
 
 	private double getE(int[] triangles, VecD vertexPositionsFlat, Vec3D[] newVertexPositions, VecD vertexCoordMasses,
-			VecD windPressureVec, double windPressure, MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess, double deltaTime) {
+			Vec3D windPressureVec, double windPressure, MathNet.Numerics.LinearAlgebra.Double.SparseMatrix energyHess, double deltaTime) {
 		int numVertices = newVertexPositions.Length;
 
 		VecD windForce = this.getVertexWindForce(triangles, newVertexPositions, windPressureVec, windPressure);
@@ -1901,7 +1901,7 @@ public class Shell : MonoBehaviour {
 	 * Each triangle force is then distributed evenly over the vertices defining that triangle.
 	 * Returns the wind force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
 	 */
-	private VecD getVertexWindForce(int[] triangles, VecD[] vertices, VecD windPressureVec, double windPressure) {
+	private VecD getVertexWindForce(int[] triangles, Vec3D[] vertices, Vec3D windPressureVec, double windPressure) {
 
 		// Initialize vertex wind force array.
 		VecD vertexWindForce = new VecD(vertices.Length * 3);
