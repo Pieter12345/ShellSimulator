@@ -139,6 +139,7 @@ public class Shell : MonoBehaviour {
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
@@ -234,6 +235,41 @@ public class Shell : MonoBehaviour {
 					sailStartConfigurationRelPath = restConfigurationSailRelPath,
 					sailMeasurementsRelPath = "test3/" + measurementsDirName + "/n=" + n + ",m=" + m + ".measurements",
 					resultsStorageRelPath = "test3/" + measurementsDirName + "/n=" + n + ",m=" + m + ".results",
+					kLength = 500f,
+					kArea = 500f,
+					kBend = 0.01f,
+					shellThickness = 0.002f,
+					shellMaterialDensity = 40f,
+					useFlatUndeformedBendState = true,
+					initialWindPressureVec = new Vec3D(0, 0, 0),
+					initialWindPressure = 0d,
+					gravityConstant = 9.81d,
+					doStaticMinimization = true,
+					maxWindSpeed = this.maxWindSpeed,
+					maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+					minNumNewtonIterations = this.MinNumNewtonIterations,
+					numWindReconstructionSteps = this.NumWindReconstructionSteps,
+					numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+				});
+			}
+		}
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest4() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
+				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
+		foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
+			int n = (int) nm[0];
+			double m = nm[1];
+			foreach(double noiseMagSlope in new double[] {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}) {
+				string measurementsDirName = "numVerts=561,kLength=500,kArea=500,kBend=0.01,thickness=0.002,density=40,"
+						+ "steady state with g=9.81,windMag=38.4,windDeg=60,noiseMagSlope=" + noiseMagSlope;
+				reconstructionSetups.Add(new ReconstructionSetup {
+					sailStartConfigurationRelPath = restConfigurationSailRelPath,
+					sailMeasurementsRelPath = "test4/" + measurementsDirName + "/n=" + n + ",m=" + m + ".measurements",
+					resultsStorageRelPath = "test4/" + measurementsDirName + "/n=" + n + ",m=" + m + ".results",
 					kLength = 500f,
 					kArea = 500f,
 					kBend = 0.01f,
