@@ -63,6 +63,7 @@ public class Shell : MonoBehaviour {
 	public double MinLineSearchAlpha = 0.000001d;
 	public int MinNumNewtonIterations = 0; // Minimum number of Newton steps to do before allowing termination.
 	public double MaxNewtonsMethodLoopTimeMS = 10000;
+	public double windNoiseFuncMagnitudeSlope = 0d;
 
 	// Cached vertex/triangle properties.
 	private Vec3D[] triangleNormals;
@@ -1920,7 +1921,14 @@ public class Shell : MonoBehaviour {
 				continue; // Triangle has a zero-area and no normal, so the projected wind force is zero as well.
 			}
 			double triangleArea = this.triangleAreas[triangleId];
-			VecD triangleVertexWindForce = ((VecD.dot(windPressureVec, triangleNormal) + windPressure) * triangleArea / 3d) * triangleNormal;
+			double windNoiseMagnitudeFactor = 1d;
+			if(this.windNoiseFuncMagnitudeSlope != 0d) {
+				double xTriangleMiddle = (vertices[v1].x + vertices[v2].x + vertices[v3].x) / 3d;
+				double sailWidth = 3.5d;
+				double c = sailWidth / 2;
+				windNoiseMagnitudeFactor = 1d + this.windNoiseFuncMagnitudeSlope * (xTriangleMiddle / c - 1d);
+			}
+			VecD triangleVertexWindForce = ((VecD.dot(windPressureVec, triangleNormal) + windPressure) * windNoiseMagnitudeFactor * triangleArea / 3d) * triangleNormal;
 
 			// Add a third of the total triangle wind force to each of its vertices.
 			for(int coord = 0; coord < 3; coord++) {
