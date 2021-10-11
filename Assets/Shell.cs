@@ -346,16 +346,16 @@ public class Shell : MonoBehaviour {
 	}
 
 	private bool[] createVertexContraints() {
-		bool[] verticesMovementConstraints = MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
+		//return MeshHelper.createOuterEdgeVertexContraints(this.vertexPositions, this.edges);
 
 		// Constrain the mast and the boom vertices.
+		bool[] verticesMovementConstraints = new bool[this.vertexPositions.Length];
 		for(int i = 0; i < this.vertexPositions.Length; i++) {
-			this.verticesMovementConstraints[i] = (this.vertexPositions[i].x <= 0d || this.vertexPositions[i].y <= 0d);
-			if(this.verticesMovementConstraints[i]) {
+			verticesMovementConstraints[i] = (this.vertexPositions[i].x <= 0d || this.vertexPositions[i].y <= 0d);
+			if(verticesMovementConstraints[i]) {
 				print("Constraining vertex at: " + this.vertexPositions[i]);
 			}
 		}
-
 		return verticesMovementConstraints;
 	}
 
