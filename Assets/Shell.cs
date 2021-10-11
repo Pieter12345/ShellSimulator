@@ -625,7 +625,7 @@ public class Shell : MonoBehaviour {
 
 			this.stepCount++;
 
-			print("Squared measurements error: " + measurementsSquaredError
+			print("Step: " + this.stepCount + ", Squared measurements error: " + measurementsSquaredError
 					+ ", average reconstruction distance: " + averageReconstructionDistance
 					+ ", max reconstruction distance: " + maxReconstructionDistance);
 			
