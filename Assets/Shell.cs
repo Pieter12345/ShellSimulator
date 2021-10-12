@@ -899,6 +899,13 @@ public class Shell : MonoBehaviour {
 		Vec3D[] newVertexPositions = new Vec3D[numVertices];
 		for(int i = 0; i < numVertices; i++) {
 
+			// Reset vertex velocity for constrained vertices. This is necessary when constraints are dynamically added while the mesh had a velocity.
+			if(this.verticesMovementConstraints[i]) {
+				for(int coord = 0; coord < 3; coord++) {
+					this.vertexVelocities[i * 3 + coord] = 0d;
+				}
+			}
+
 			// Set initial guess: pos + deltaTime * velocity.
 			newVertexPositions[i] = new Vec3D();
 			for(int coord = 0; coord < 3; coord++) {
