@@ -317,6 +317,7 @@ public class Shell : MonoBehaviour {
 							}
 							ignoreSpheresStr += "{" + origin.ToString() + ", " + radius + "}";
 						}
+						ignoreSpheresStr += "}";
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
 							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
