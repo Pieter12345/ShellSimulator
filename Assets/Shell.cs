@@ -305,9 +305,12 @@ public class Shell : MonoBehaviour {
 					double m = nm[1];
 					foreach(Tuple<Vec3D, double>[] measurementsIgnoreSpheres in new Tuple<Vec3D, double>[][] {
 							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 1.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 2.5d)},
 							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 1.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 2.5d)},
 							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 7d, 0d), 2.5d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1d)}}) {
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1.5d)}}) {
 						string ignoreSpheresStr = "{";
 						foreach(Tuple<Vec3D, double> measurementsIgnoreSphere in measurementsIgnoreSpheres) {
 							Vec3D origin = measurementsIgnoreSphere.Item1;
