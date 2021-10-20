@@ -337,7 +337,8 @@ public class Shell : MonoBehaviour {
 							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
 							minNumNewtonIterations = this.MinNumNewtonIterations,
 							numWindReconstructionSteps = this.NumWindReconstructionSteps,
-							numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+							numSnapReconstructionSteps = this.NumSnapReconstructionSteps,
+							measurementsIgnoreSpheres = measurementsIgnoreSpheres
 						});
 					}
 				}
