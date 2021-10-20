@@ -551,10 +551,16 @@ public class Shell : MonoBehaviour {
 	private void simulationStep(double deltaTime) {
 
 		// Load a new reconstruction setup if we are running automated reconstruction.
-		if(this.ReconstructionStage == ReconstructionStage.DONE && this.reconstructionSetupsIndex + 1 < this.reconstructionSetups.Count) {
+		while(this.ReconstructionStage == ReconstructionStage.DONE && this.reconstructionSetupsIndex + 1 < this.reconstructionSetups.Count) {
 			this.reconstructionSetupsIndex++;
 			print("Loading reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count);
 			ReconstructionSetup reconSetup = this.reconstructionSetups[this.reconstructionSetupsIndex];
+			string resultsFilePath = storageBaseDirPath + "/Results/" + reconSetup.resultsStorageRelPath;
+			if(File.Exists(resultsFilePath)) {
+				print("Skipping reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count
+						+ " because a result file for this reconstruction already exists.");
+				continue;
+			}
 			this.loadSailConfiguration(SailConfiguration.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailStartConfigurationRelPath));
 			this.measurements = SailMeasurements.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailMeasurementsRelPath);
 			this.kLength = reconSetup.kLength;
@@ -589,6 +595,7 @@ public class Shell : MonoBehaviour {
 
 			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
 			this.stepCount = 0;
+			break;
 		}
 		if(this.ReconstructionStage == ReconstructionStage.DONE) {
 			print("Reconstruction(s) done. Pausing simulation.");
