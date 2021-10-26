@@ -441,7 +441,7 @@ public class Shell : MonoBehaviour {
 			}
 		}
 
-		print("Loaded mesh with " + mesh.vertices.Length + " vertices, " + this.edges.Count + " edges and " + mesh.triangles.Length + " triangles.");
+		print("Loaded mesh with " + mesh.vertices.Length + " vertices, " + this.edges.Count + " edges and " + (mesh.triangles.Length / 3) + " triangles.");
 	}
 
 	private void reset() {
