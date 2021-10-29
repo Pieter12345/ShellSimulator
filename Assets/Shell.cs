@@ -97,6 +97,9 @@ public class Shell : MonoBehaviour {
 
 	// Start is called before the first frame update.
 	void Start() {
+		//MeasurementGeneration.generateMeasurements();
+		//MeasurementGeneration.generateTest3Measurements();
+		//MeasurementGeneration.generateTest4Measurements();
 
 		// Initialize vector visualizer.
 		this.vectorVisualizer = new VectorVisualizer(this.shellObjPosition);
@@ -111,7 +114,7 @@ public class Shell : MonoBehaviour {
 			//mesh = MeshHelper.createSquareMesh(5, 5, 1);
 			//mesh = MeshHelper.createTriangleMesh(5, 5, 1);
 			//undeformedInnerEdgeLengthFactor = 1d;
-			mesh = MeshHelper.createTriangleMesh(3.5f, 7f, 4); // 5 subdivisions leads to 561 vertices and 3072 triangles.
+			mesh = MeshHelper.createTriangleMesh(3.5f, 7f, 5); // 5 subdivisions leads to 561 vertices and 1024 triangles.
 			undeformedInnerEdgeLengthFactor = 1.01d;
 			//mesh = MeshHelper.createFlatRectangleMesh(0.1f, 0.05f, 4);
 			//mesh = MeshHelper.createFlatRectangleMesh(5f, 5f, 1);
@@ -134,36 +137,78 @@ public class Shell : MonoBehaviour {
 		// Set the shell position.
 		this.shellObj.transform.position = this.shellObjPosition;
 
+		//// Load the default sail and open a measurements load dialog. TODO - Remove temporary direct load.
+		//this.loadSailConfiguration(SailConfiguration.loadFromFile(storageBaseDirPath
+		//		+ "/SailData/numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with no external forces.sailshapedata"));
+		//this.onLoadSailMeasurementsButtonPress();
+
 		// Initialize automated reconstruction setups.
 		if(this.ReconstructionStage != ReconstructionStage.DISABLED) {
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
-			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
-			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
+			//this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
+			//this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
+
+		// TODO - Remove temp test.
+		//this.onLoadSailShapeButtonPress();
+		//this.recalcTriangleNormalsAndAreas(mesh.triangles, this.vertexPositions);
+		//int numRuns = 10;
+		//Stopwatch stopWatch = Stopwatch.StartNew();
+		//for(int i = 0; i < numRuns; i++) {
+		//	double startTime = stopWatch.ElapsedMilliseconds;
+		//	MathNet.Numerics.LinearAlgebra.Double.SparseMatrix mat = this.getSystemEnergyHessianSparseRepresentation(this.vertexPositions, this.getMesh().triangles);
+		//	print("getSystemEnergyHessianSparseRepresentation returned after " + (stopWatch.ElapsedMilliseconds - startTime) + "ms. " + mat.RowCount + "x" + mat.ColumnCount);
+		//}
+		//print("getSystemEnergyHessianSparseRepresentation returned after average " + (stopWatch.ElapsedMilliseconds / numRuns) + "ms.");
+
+		//// TODO - Remove temp test.
+		//this.kLength = 1;
+		//this.kArea = 1;
+		//this.kBend = 1;
+		//this.onLoadSailShapeButtonPress();
+		//this.recalcTriangleNormalsAndAreas(mesh.triangles, this.vertexPositions);
+		//MathNet.Numerics.LinearAlgebra.Double.SparseMatrix mat1 = this.getSystemEnergyHessianSparseRepresentation(this.vertexPositions, this.getMesh().triangles);
+		//MathNet.Numerics.LinearAlgebra.Double.SparseMatrix mat2 = this.getSystemEnergyHessianSparseRepresentationMultiThreadedTriplets(this.vertexPositions, this.getMesh().triangles);
+		//MathNet.Numerics.LinearAlgebra.Double.SparseMatrix mat3 = this.getSystemEnergyHessianSparseRepresentationMultiThreaded(this.vertexPositions, this.getMesh().triangles);
+		//for(int row = 0; row < mat1.RowCount; row++) {
+		//	for(int col = 0; col < mat1.ColumnCount; col++) {
+		//		double v1 = mat1[row, col];
+		//		double v2 = mat2[row, col];
+		//		double v3 = mat3[row, col];
+		//		//if(v1 != v2 || v2 != v3) {
+		//		if(v3 != v2) {
+		//			print("Mismatching value in Hessian implementations: row = " + row + ", col = " + col + ", v1 = " + v1 + ", v2 = " + v2 + ", v3 = " + v3
+		//					+ ", v3 - v2 = " + (v3 - v2));
+		//		}
+		//	}
+		//}
+		//print("mat1: " + new MatD(mat1.ToArray()).toFancyString());
+		//print("mat2: " + new MatD(mat2.ToArray()).toFancyString());
+		//print("Test finished.");
 	}
 
 	private List<ReconstructionSetup> getReconstructionSetupsTest1() {
 		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
-		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
-				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
-		foreach(double windMag in new double[] {9.6, 38.4}) {
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(double windMag in new double[] {64.6963, 1035.1}) {
 			foreach(double windDeg in new double[] {30, 45, 60}) {
 				foreach(int n in new int[] {1, 5, 10, 15}) {
 					foreach(double m in new double[] {1, 2.5, 5}) {
-						string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with g=9.81,"
-									+ " windMag=" + windMag + ", windDeg=" + windDeg;
+						string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+								+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
 							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
 							resultsStorageRelPath = "test1/" + fileNameNoEx + "/n=" + n + ", m=" + m + ".results",
-							kLength = 500f,
-							kArea = 500f,
-							kBend = 0.01f,
-							shellThickness = 0.002f,
-							shellMaterialDensity = 40f,
+							kLength = 15621f,
+							kArea = 8125f,
+							kBend = 10f,
+							shellThickness = 0.00025f,
+							shellMaterialDensity = 920f,
 							useFlatUndeformedBendState = true,
 							initialWindPressureVec = new Vec3D(0, 0, 0),
 							initialWindPressure = 0d,
@@ -184,25 +229,26 @@ public class Shell : MonoBehaviour {
 
 	private List<ReconstructionSetup> getReconstructionSetupsTest2() {
 		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
-		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
-				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
-		foreach(double windMag in new double[] {38.4}) {
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(double windMag in new double[] {1035.1}) {
 			foreach(double windDeg in new double[] {45}) {
 				foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
 					int n = (int) nm[0];
 					double m = nm[1];
-					foreach(double stiffnessFactor in new double[] {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9}) {
-						string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with g=9.81,"
-									+ " windMag=" + windMag + ", windDeg=" + windDeg;
+					foreach(double stiffnessFactor in new double[] {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1,
+							1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.5, 3.0, 3.5, 4.0}) {
+						string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+								+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
 							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
-							resultsStorageRelPath = "test2/" + fileNameNoEx.Replace(", ", ",") + "/n=" + n + ",m=" + m + ",stiffFac=" + stiffnessFactor + ".results",
-							kLength = (float) (500d * stiffnessFactor),
-							kArea = (float) (500d * stiffnessFactor),
-							kBend = 0.01f,
-							shellThickness = 0.002f,
-							shellMaterialDensity = 40f,
+							resultsStorageRelPath = "test2/" + fileNameNoEx + "/n=" + n + ",m=" + m + ",stiffFac=" + stiffnessFactor + ".results",
+							kLength = (float) (15621d * stiffnessFactor),
+							kArea = (float) (8125d * stiffnessFactor),
+							kBend = 10f,
+							shellThickness = 0.00025f,
+							shellMaterialDensity = 920f,
 							useFlatUndeformedBendState = true,
 							initialWindPressureVec = new Vec3D(0, 0, 0),
 							initialWindPressure = 0d,
@@ -223,23 +269,23 @@ public class Shell : MonoBehaviour {
 
 	private List<ReconstructionSetup> getReconstructionSetupsTest3() {
 		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
-		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
-				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
 		foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
 			int n = (int) nm[0];
 			double m = nm[1];
 			foreach(double windPressFac in new double[] {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}) {
-				string measurementsDirName = "numVerts=561,kLength=500,kArea=500,kBend=0.01,thickness=0.002,density=40,"
-						+ "steady state with g=9.81,windMag=38.4,windDeg=45,windPressFac=" + windPressFac;
+				string measurementsDirName = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=1035.1,wd=45,windPressFac=" + windPressFac;
 				reconstructionSetups.Add(new ReconstructionSetup {
 					sailStartConfigurationRelPath = restConfigurationSailRelPath,
 					sailMeasurementsRelPath = "test3/" + measurementsDirName + "/n=" + n + ",m=" + m + ".measurements",
 					resultsStorageRelPath = "test3/" + measurementsDirName + "/n=" + n + ",m=" + m + ".results",
-					kLength = 500f,
-					kArea = 500f,
-					kBend = 0.01f,
-					shellThickness = 0.002f,
-					shellMaterialDensity = 40f,
+					kLength = 15621f,
+					kArea = 8125f,
+					kBend = 10f,
+					shellThickness = 0.00025f,
+					shellMaterialDensity = 920f,
 					useFlatUndeformedBendState = true,
 					initialWindPressureVec = new Vec3D(0, 0, 0),
 					initialWindPressure = 0d,
@@ -258,23 +304,23 @@ public class Shell : MonoBehaviour {
 
 	private List<ReconstructionSetup> getReconstructionSetupsTest4() {
 		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
-		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
-				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
 		foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
 			int n = (int) nm[0];
 			double m = nm[1];
 			foreach(double noiseMagSlope in new double[] {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}) {
-				string measurementsDirName = "numVerts=561,kLength=500,kArea=500,kBend=0.01,thickness=0.002,density=40,"
-						+ "steady state with g=9.81,windMag=38.4,windDeg=60,noiseMagSlope=" + noiseMagSlope;
+				string measurementsDirName = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=1035.1,wd=60,noiseMagSlope=" + noiseMagSlope;
 				reconstructionSetups.Add(new ReconstructionSetup {
 					sailStartConfigurationRelPath = restConfigurationSailRelPath,
 					sailMeasurementsRelPath = "test4/" + measurementsDirName + "/n=" + n + ",m=" + m + ".measurements",
 					resultsStorageRelPath = "test4/" + measurementsDirName + "/n=" + n + ",m=" + m + ".results",
-					kLength = 500f,
-					kArea = 500f,
-					kBend = 0.01f,
-					shellThickness = 0.002f,
-					shellMaterialDensity = 40f,
+					kLength = 15621f,
+					kArea = 8125f,
+					kBend = 10f,
+					shellThickness = 0.00025f,
+					shellMaterialDensity = 920f,
 					useFlatUndeformedBendState = true,
 					initialWindPressureVec = new Vec3D(0, 0, 0),
 					initialWindPressure = 0d,
@@ -293,13 +339,12 @@ public class Shell : MonoBehaviour {
 
 	private List<ReconstructionSetup> getReconstructionSetupsTest5() {
 		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
-		string restConfigurationSailRelPath = "numVerts=561, kLength=500, kArea=500, kBend=0.01,"
-				+ " thickness=0.002, density=40, steady state with no external forces.sailshapedata";
-		foreach(double windMag in new double[] {38.4}) {
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(double windMag in new double[] {1035.1}) {
 			foreach(double windDeg in new double[] {45}) {
-				string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40, steady state with g=9.81,"
-							+ " windMag=" + windMag + ", windDeg=" + windDeg;
-				string fileNameNoExShort = "nv=561, kL=500, kA=500, kB=0.01, t=0.002, d=40, ss with g=9.81, wm=" + windMag + ", wd=" + windDeg;
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 				foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
 					int n = (int) nm[0];
 					double m = nm[1];
@@ -324,13 +369,13 @@ public class Shell : MonoBehaviour {
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
 							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
-							resultsStorageRelPath = "test5/" + fileNameNoExShort.Replace(", ", ",") + "/n=" + n + ",m=" + m
+							resultsStorageRelPath = "test5/" + fileNameNoEx + "/n=" + n + ",m=" + m
 									+ ",ignoreSpheres=" + ignoreSpheresStr.Replace(", ", ",") + ".results",
-							kLength = 500f,
-							kArea = 500f,
-							kBend = 0.01f,
-							shellThickness = 0.002f,
-							shellMaterialDensity = 40f,
+							kLength = 15621f,
+							kArea = 8125f,
+							kBend = 10f,
+							shellThickness = 0.00025f,
+							shellMaterialDensity = 920f,
 							useFlatUndeformedBendState = true,
 							initialWindPressureVec = new Vec3D(0, 0, 0),
 							initialWindPressure = 0d,

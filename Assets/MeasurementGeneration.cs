@@ -6,12 +6,12 @@ public class MeasurementGeneration {
 	public static void generateMeasurements() {
 		double sailWidth = 3.5d;
 		double sailHeight = 7d;
-		foreach(string windMag in new string[] {"9.6", "38.4"}) {
+		foreach(string windMag in new string[] {"64.6963", "1035.1"}) {
 			foreach(string windDeg in new string[] {"30", "45", "60"}) {
 
 				// Load the sail configuration.
-				string fileNameNoEx = "numVerts=561, kLength=500, kArea=500, kBend=0.01, thickness=0.002, density=40,"
-						+ " steady state with g=9.81, windMag=" + windMag + ", windDeg=" + windDeg;
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 				SailConfiguration sailConf = SailConfiguration.loadFromFile(
 						Shell.storageBaseDirPath + "/SailData/" + fileNameNoEx + ".sailshapedata");
 
@@ -22,7 +22,7 @@ public class MeasurementGeneration {
 						SailMeasurements measurements = new SailMeasurements(sailConf.vertexPositions,
 								MeshUtils.generateTriangularSailMeasurements(
 										sailConf.vertexPositions, sailWidth, sailHeight, n, m));
-						string measurementsFilePath = measurementsStorageDir + "/" + "n=" + n + ", m=" + m + ".measurements";
+						string measurementsFilePath = measurementsStorageDir + "/" + "n=" + n + ",m=" + m + ".measurements";
 						measurements.storeToFile(measurementsFilePath);
 						MonoBehaviour.print("Generated measurements: " + measurementsFilePath);
 					}
@@ -40,8 +40,8 @@ public class MeasurementGeneration {
 			foreach(double windPressFac in new double[] {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}) {
 
 				// Load the sail configuration.
-				string fileNameNoEx = "numVerts=561,kLength=500,kArea=500,kBend=0.01,thickness=0.002,density=40,"
-						+ "steady state with g=9.81,windMag=38.4,windDeg=45,windPressFac=" + windPressFac;
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=1035.1,wd=45,windPressFac=" + windPressFac;
 				SailConfiguration sailConf = SailConfiguration.loadFromFile(
 						Shell.storageBaseDirPath + "/SailData/test3/" + fileNameNoEx + ".sailshapedata");
 
@@ -66,8 +66,8 @@ public class MeasurementGeneration {
 			foreach(double noiseMagSlope in new double[] {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}) {
 
 				// Load the sail configuration.
-				string fileNameNoEx = "numVerts=561,kLength=500,kArea=500,kBend=0.01,thickness=0.002,density=40,"
-						+ "steady state with g=9.81,windMag=38.4,windDeg=60,noiseMagSlope=" + noiseMagSlope;
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=1035.1,wd=45,noiseMagSlope=" + noiseMagSlope;
 				SailConfiguration sailConf = SailConfiguration.loadFromFile(
 						Shell.storageBaseDirPath + "/SailData/test4/" + fileNameNoEx + ".sailshapedata");
 
