@@ -705,12 +705,15 @@ public class Shell : MonoBehaviour {
 
 				// Add constraints on measurement vertices and continue reconstruction.
 				this.ReconstructionStage = ReconstructionStage.MEASUREMT_VERTICES_LOCKED;
+				int numVerticesConstrained = 0;
 				for(int i = 0; i < this.vertexPositions.Length; i++) {
 					if(this.measurements.measurements[i] != null) {
 						this.vertexPositions[i] = this.measurements.measurements[i].clone();
 						this.verticesMovementConstraints[i] = true;
+						numVerticesConstrained++;
 					}
 				}
+				print("Measurement vertices locked: " + numVerticesConstrained);
 				this.stepCount = 0; // Reset for the next reconstruction step.
 			}
 		} else if(this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED && this.measurements != null) {
