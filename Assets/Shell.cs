@@ -1220,14 +1220,17 @@ public class Shell : MonoBehaviour {
 
 		// Pause simulation when the maximum vertex velocity is below the set threshold.
 		double maxVertexVelocity = 0d;
+		double averageVertexVelocity = 0d;
 		for(int i = 0; i < numVertices; i++) {
 			int baseInd = 3 * i;
 			double vertexVelocity = new Vec3D(this.vertexVelocities[baseInd], this.vertexVelocities[baseInd + 1], this.vertexVelocities[baseInd + 2]).magnitude;
+			averageVertexVelocity += vertexVelocity;
 			if(vertexVelocity > maxVertexVelocity) {
 				maxVertexVelocity = vertexVelocity;
 			}
 		}
-		print("Maximum vertex velocity after step, before direct velocity damping: " + maxVertexVelocity);
+		averageVertexVelocity /= numVertices;
+		print("Vertex velocity after step, before direct velocity damping: Max = " + maxVertexVelocity+ ", average = " + averageVertexVelocity);
 		if(maxVertexVelocity < this.VelocityTerminationThreshold
 				&& (this.ReconstructionStage == ReconstructionStage.DISABLED || this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED)) {
 			this.doUpdate = false;
