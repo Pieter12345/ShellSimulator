@@ -904,7 +904,10 @@ public class Shell : MonoBehaviour {
 		}
 
 		// Update wind force if measurements are set.
+		Vec3D startWindPressureVec = new Vec3D(this.windPressureVec);
 		Vec3D windPressureVec = new Vec3D(this.windPressureVec);
+		Vec3D deltaWindPressureVec = null;
+		double penaltyEnergy = 0d;
 		if(this.measurements != null && this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND) {
 			Vec3D[] measurements = this.measurements.measurements;
 
@@ -924,15 +927,16 @@ public class Shell : MonoBehaviour {
 					? new VecD(numVertices * 3)
 					: -this.dampingConstant * this.vertexVelocities); // Damping force using an identity matrix as energy Hessian.
 
-			// Get measurement penalty gradient.
-			// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
-			// Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
+			// Get measurement penalty energy and its gradient.
+			// Energy fi_penalty = kPenalty * sum(all i) {measurement_i exists ? (x_i - measurement_i)^2 : 0}
+			// Energy gradient d_fi_penalty_dx = measurement(x) exists ? kPenalty * 2 * (x - measurement(x)) : 0
 			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
 			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
 				if(measurements[vertexInd] != null) {
 					for(int coord = 0; coord < 3; coord++) {
-						penaltyEnergyGradient[3 * vertexInd + coord] =
-							this.kMeasurementsPenalty * 2d * (this.vertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
+						double coordDiff = this.vertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
+						penaltyEnergy += this.kMeasurementsPenalty * coordDiff * coordDiff;
+						penaltyEnergyGradient[3 * vertexInd + coord] = this.kMeasurementsPenalty * 2d * coordDiff;
 					}
 				}
 			}
@@ -955,11 +959,12 @@ public class Shell : MonoBehaviour {
 			// Note that the penalty force constant has to be large enough for the sail to converge (and not oscillate or explode).
 			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(gravityForce);
 			Vec3D newWindPressureVec = this.getWindPressureVec(triangles, this.vertexPositions, virtMeasurementsErrorForce);
-			Vec3D deltaWindPressureVec = newWindPressureVec - windPressureVec;
-			windPressureVec = newWindPressureVec;
+			deltaWindPressureVec = newWindPressureVec - windPressureVec;
+		}
 
-			print("New wind pressure: " + windPressureVec + " (delta wind pressure = " + deltaWindPressureVec + ").");
-			
+		deltaWindPressureVecApplication:
+		if(deltaWindPressureVec != null) {
+			windPressureVec = startWindPressureVec + deltaWindPressureVec;
 		}
 
 		// Perform Newton's method, setting steps until the termination criterion has been met.
@@ -1182,7 +1187,34 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		newtLoopEnd:
-		
+
+		// During wind reconstruction, validate that the measurements penalty energy has not increased, otherwise repeat the step with half the delta wind pressure.
+		if(this.measurements != null && this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND) {
+			VecD[] measurements = this.measurements.measurements;
+			
+			// Get measurement penalty energy.
+			double newPenaltyEnergy = 0d;
+			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
+				if(measurements[vertexInd] != null) {
+					for(int coord = 0; coord < 3; coord++) {
+						double coordDiff = newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
+						newPenaltyEnergy += this.kMeasurementsPenalty * coordDiff * coordDiff;
+					}
+				}
+			}
+
+			// Retry step with halved delta wind pressure if the measurements penalty energy has increased.
+			if(newPenaltyEnergy > penaltyEnergy) {
+				deltaWindPressureVec.div(2d);
+				if(deltaWindPressureVec.magnitude < 0.1d) {
+					print("Delta wind pressure vector is getting too small. Taking non-optimal penalty increasing step.");
+				} else {
+					goto deltaWindPressureVecApplication;
+				}
+			}
+			print("Penalty energy changed from " + penaltyEnergy + " to " + newPenaltyEnergy + ".");
+		}
+
 		// Update vertex velocity.
 		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 
