@@ -202,8 +202,8 @@ public class Shell : MonoBehaviour {
 								+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
-							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
-							resultsStorageRelPath = "test1/" + fileNameNoEx + "/n=" + n + ", m=" + m + ".results",
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ",m=" + m + ".measurements",
+							resultsStorageRelPath = "test1/" + fileNameNoEx + "/n=" + n + ",m=" + m + ".results",
 							kLength = 15621f,
 							kArea = 8125f,
 							kBend = 10f,
@@ -242,7 +242,7 @@ public class Shell : MonoBehaviour {
 								+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
-							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ",m=" + m + ".measurements",
 							resultsStorageRelPath = "test2/" + fileNameNoEx + "/n=" + n + ",m=" + m + ",stiffFac=" + stiffnessFactor + ".results",
 							kLength = (float) (15621d * stiffnessFactor),
 							kArea = (float) (8125d * stiffnessFactor),
@@ -368,7 +368,7 @@ public class Shell : MonoBehaviour {
 						ignoreSpheresStr += "}";
 						reconstructionSetups.Add(new ReconstructionSetup {
 							sailStartConfigurationRelPath = restConfigurationSailRelPath,
-							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ", m=" + m + ".measurements",
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ",m=" + m + ".measurements",
 							resultsStorageRelPath = "test5/" + fileNameNoEx + "/n=" + n + ",m=" + m
 									+ ",ignoreSpheres=" + ignoreSpheresStr.Replace(", ", ",") + ".results",
 							kLength = 15621f,
