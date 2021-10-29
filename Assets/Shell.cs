@@ -624,6 +624,17 @@ public class Shell : MonoBehaviour {
 			this.NumWindReconstructionSteps = reconSetup.numWindReconstructionSteps;
 			this.NumSnapReconstructionSteps = reconSetup.numSnapReconstructionSteps;
 
+			int numMeasurements = 0;
+			for(int i = 0; i < measurements.measurements.Length; i++) {
+				if(measurements.measurements[i] != null) {
+					numMeasurements++;
+				}
+			}
+			print("Loaded reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count
+					+ "\n\tSail start configuration: " + reconSetup.sailStartConfigurationRelPath
+					+ "\n\tMeasurements and truth configuration: " + reconSetup.sailMeasurementsRelPath
+					+ "\n\tNumber of measurements: " + numMeasurements);
+
 			// Remove measurements if they should be ignored.
 			if(reconSetup.measurementsIgnoreSpheres != null) {
 				Vec3D[] measurements = this.measurements.measurements;
