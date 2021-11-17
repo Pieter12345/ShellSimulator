@@ -1273,6 +1273,11 @@ public class Shell : MonoBehaviour {
 		if(this.vectorVisualizationType == VisualizationType.VERTEX_VELOCITIES) {
 			this.vectorVisualizer.visualize(this.vertexPositions, this.vertexVelocities, 0.2f);
 		}
+
+		// Visualize step.
+		if(this.vectorVisualizationType == VisualizationType.STEP) {
+			this.vectorVisualizer.visualize(this.vertexPositions, new VecD(newVertexPositions).sub(vertexPositionsFlat), 10f);
+		}
 	}
 
 	private Vec3D getWindPressureVec(int[] triangles, Vec3D[] vertexPositions, VecD virtMeasurementsErrorForce) {
