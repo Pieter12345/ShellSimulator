@@ -67,7 +67,7 @@ public class MeasurementGeneration {
 
 				// Load the sail configuration.
 				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
-						+ " ss with g=9.81,wm=1035.1,wd=45,noiseMagSlope=" + noiseMagSlope;
+						+ " ss with g=9.81,wm=1035.1,wd=60,noiseMagSlope=" + noiseMagSlope;
 				SailConfiguration sailConf = SailConfiguration.loadFromFile(
 						Shell.storageBaseDirPath + "/SailData/test4/" + fileNameNoEx + ".sailshapedata");
 
