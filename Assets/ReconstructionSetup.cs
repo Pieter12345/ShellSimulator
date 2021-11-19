@@ -13,6 +13,8 @@ public class ReconstructionSetup {
 	public bool useFlatUndeformedBendState;
 	public Vec3D initialWindPressureVec;
 	public double initialWindPressure;
+	public int initialPositionNoiseRandomSeed = 0;
+	public double initialPositionNoiseMagnitude = 0d; // Applied in random directions to all non-constrained vertex positions on mesh load.
 	public double gravityConstant;
 	public bool doStaticMinimization;
 	public double maxWindSpeed;

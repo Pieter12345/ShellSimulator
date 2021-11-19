@@ -649,6 +649,18 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
+			// Apply noise to all individual vertices of the loaded mesh to allow for giving slightly different initial sail configurations.
+			if(reconSetup.initialPositionNoiseMagnitude != 0d) {
+				System.Random random = new System.Random(reconSetup.initialPositionNoiseRandomSeed);
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					if(!this.verticesMovementConstraints[i]) {
+						Vec3D randomVec = new Vec3D(random.Next(-10000, 10000), random.Next(-10000, 10000), random.Next(-10000, 10000));
+						randomVec *= reconSetup.initialPositionNoiseMagnitude / randomVec.magnitude;
+						this.vertexPositions[i].add(randomVec);
+					}
+				}
+			}
+
 			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
 			this.stepCount = 0;
 			break;
