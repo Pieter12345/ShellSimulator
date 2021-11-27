@@ -600,11 +600,13 @@ public class Shell : MonoBehaviour {
 			this.reconstructionSetupsIndex++;
 			print("Loading reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count);
 			ReconstructionSetup reconSetup = this.reconstructionSetups[this.reconstructionSetupsIndex];
-			string resultsFilePath = storageBaseDirPath + "/Results/" + reconSetup.resultsStorageRelPath;
-			if(File.Exists(resultsFilePath)) {
-				print("Skipping reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count
-						+ " because a result file for this reconstruction already exists.");
-				continue;
+			if(reconSetup.resultsStorageRelPath != null) {
+				string resultsFilePath = storageBaseDirPath + "/Results/" + reconSetup.resultsStorageRelPath;
+				if(File.Exists(resultsFilePath)) {
+					print("Skipping reconstruction setup " + (this.reconstructionSetupsIndex + 1) + "/" + this.reconstructionSetups.Count
+							+ " because a result file for this reconstruction already exists.");
+					continue;
+				}
 			}
 			this.loadSailConfiguration(SailConfiguration.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailStartConfigurationRelPath));
 			this.measurements = SailMeasurements.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailMeasurementsRelPath);
@@ -745,16 +747,24 @@ public class Shell : MonoBehaviour {
 					// We are running automated reconstruction. Store the results and continue.
 					print("Reconstruction complete.");
 					ReconstructionSetup reconSetup = this.reconstructionSetups[this.reconstructionSetupsIndex];
-					string filePath = storageBaseDirPath + "/Results/" + reconSetup.resultsStorageRelPath;
-					string dirPath = Path.GetDirectoryName(filePath);
-					print("Storing reconstruction results to file: " + filePath);
-					if(!Directory.Exists(dirPath)) {
-						Directory.CreateDirectory(dirPath);
+					if(reconSetup.resultsStorageRelPath != null) {
+						string filePath = storageBaseDirPath + "/Results/" + reconSetup.resultsStorageRelPath;
+						string dirPath = Path.GetDirectoryName(filePath);
+						print("Storing reconstruction results to file: " + filePath);
+						if(!Directory.Exists(dirPath)) {
+							Directory.CreateDirectory(dirPath);
+						}
+						File.WriteAllText(filePath, "reconstructionDistance = " + reconstructionDistance
+								+ "\naverageReconstructionDistance = " + averageReconstructionDistance
+								+ "\nmaxReconstructionDistance = " + maxReconstructionDistance
+								+ "\nnumMeasurements = " + this.measurements.getNumMeasurements());
+					} else {
+						print("Not storing reconstruction results because no result file was provided. Results:"
+								+ "\n\treconstructionDistance = " + reconstructionDistance
+								+ "\n\taverageReconstructionDistance = " + averageReconstructionDistance
+								+ "\n\tmaxReconstructionDistance = " + maxReconstructionDistance
+								+ "\n\tnumMeasurements = " + this.measurements.getNumMeasurements());
 					}
-					File.WriteAllText(filePath, "reconstructionDistance = " + reconstructionDistance
-							+ "\naverageReconstructionDistance = " + averageReconstructionDistance
-							+ "\nmaxReconstructionDistance = " + maxReconstructionDistance
-							+ "\nnumMeasurements = " + this.measurements.getNumMeasurements());
 				}
 				this.ReconstructionStage = ReconstructionStage.DONE;
 			}
