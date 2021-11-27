@@ -943,15 +943,15 @@ public class Shell : MonoBehaviour {
 					: -this.dampingConstant * this.vertexVelocities); // Damping force using an identity matrix as energy Hessian.
 
 			// Get measurement penalty energy and its gradient.
-			// Energy fi_penalty = kPenalty * sum(all i) {measurement_i exists ? (x_i - measurement_i)^2 : 0}
-			// Energy gradient d_fi_penalty_dx = measurement(x) exists ? kPenalty * 2 * (x - measurement(x)) : 0
+			// Energy fi_penalty = kPenalty * sum(all i) {measurement_i exists ? 1/2 * (x_i - measurement_i)^2 : 0}
+			// Energy gradient d_fi_penalty_dx = measurement(x) exists ? kPenalty * (x - measurement(x)) : 0
 			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
 			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
 				if(measurements[vertexInd] != null) {
 					for(int coord = 0; coord < 3; coord++) {
 						double coordDiff = this.vertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
-						penaltyEnergy += this.kMeasurementsPenalty * coordDiff * coordDiff;
-						penaltyEnergyGradient[3 * vertexInd + coord] = this.kMeasurementsPenalty * 2d * coordDiff;
+						penaltyEnergy += this.kMeasurementsPenalty / 2d * coordDiff * coordDiff;
+						penaltyEnergyGradient[3 * vertexInd + coord] = this.kMeasurementsPenalty * coordDiff;
 					}
 				}
 			}
@@ -1030,7 +1030,7 @@ public class Shell : MonoBehaviour {
 			//		if(measurements[vertexInd] != null) {
 			//			for(int coord = 0; coord < 3; coord++) {
 			//				penaltyEnergyGradient[3 * vertexInd + coord] =
-			//					this.kMeasurementsPenalty * 2d * (newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
+			//					this.kMeasurementsPenalty * (newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
 			//			}
 			//		}
 			//	}
@@ -1213,7 +1213,7 @@ public class Shell : MonoBehaviour {
 				if(measurements[vertexInd] != null) {
 					for(int coord = 0; coord < 3; coord++) {
 						double coordDiff = newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
-						newPenaltyEnergy += this.kMeasurementsPenalty * coordDiff * coordDiff;
+						newPenaltyEnergy += this.kMeasurementsPenalty / 2d * coordDiff * coordDiff;
 					}
 				}
 			}
