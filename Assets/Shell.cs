@@ -83,8 +83,8 @@ public class Shell : MonoBehaviour {
 	public ReconstructionStage ReconstructionStage = ReconstructionStage.DISABLED;
 	private int stepCount = 0;
 	public double MaxVertexMoveToMeasurementsStep = 0.05; // Max distance per step to move vertices towards their corresponding measurements with to snap to measurements.
-	public int NumWindReconstructionSteps = 100; // The number of steps to take for the wind reconstruction phase.
-	public int NumSnapReconstructionSteps = 100; // The number of steps to take for the snap-vertices-to-measurements reconstruction phase.
+	public int NumWindReconstructionSteps1 = 100; // The number of steps to take for the first wind reconstruction phase.
+	public int NumWindReconstructionSteps2 = 100; // The number of steps to take for the second wind reconstruction phase.
 
 	// Debugging.
 	private VectorVisualizer vectorVisualizer;
@@ -219,8 +219,8 @@ public class Shell : MonoBehaviour {
 							maxWindSpeed = this.maxWindSpeed,
 							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
 							minNumNewtonIterations = this.MinNumNewtonIterations,
-							numWindReconstructionSteps = this.NumWindReconstructionSteps,
-							numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+							numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+							numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
 						});
 					}
 				}
@@ -259,8 +259,8 @@ public class Shell : MonoBehaviour {
 							maxWindSpeed = this.maxWindSpeed,
 							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
 							minNumNewtonIterations = this.MinNumNewtonIterations,
-							numWindReconstructionSteps = this.NumWindReconstructionSteps,
-							numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+							numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+							numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
 						});
 					}
 				}
@@ -296,8 +296,8 @@ public class Shell : MonoBehaviour {
 					maxWindSpeed = this.maxWindSpeed,
 					maxDeltaWindSpeed = this.maxDeltaWindSpeed,
 					minNumNewtonIterations = this.MinNumNewtonIterations,
-					numWindReconstructionSteps = this.NumWindReconstructionSteps,
-					numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+					numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+					numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
 				});
 			}
 		}
@@ -331,8 +331,8 @@ public class Shell : MonoBehaviour {
 					maxWindSpeed = this.maxWindSpeed,
 					maxDeltaWindSpeed = this.maxDeltaWindSpeed,
 					minNumNewtonIterations = this.MinNumNewtonIterations,
-					numWindReconstructionSteps = this.NumWindReconstructionSteps,
-					numSnapReconstructionSteps = this.NumSnapReconstructionSteps
+					numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+					numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
 				});
 			}
 		}
@@ -386,8 +386,8 @@ public class Shell : MonoBehaviour {
 							maxWindSpeed = this.maxWindSpeed,
 							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
 							minNumNewtonIterations = this.MinNumNewtonIterations,
-							numWindReconstructionSteps = this.NumWindReconstructionSteps,
-							numSnapReconstructionSteps = this.NumSnapReconstructionSteps,
+							numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+							numWindReconstructionSteps2 = this.NumWindReconstructionSteps2,
 							measurementsIgnoreSpheres = measurementsIgnoreSpheres
 						});
 					}
@@ -625,8 +625,8 @@ public class Shell : MonoBehaviour {
 			this.maxWindSpeed = reconSetup.maxWindSpeed;
 			this.maxDeltaWindSpeed = reconSetup.maxDeltaWindSpeed;
 			this.MinNumNewtonIterations = reconSetup.minNumNewtonIterations;
-			this.NumWindReconstructionSteps = reconSetup.numWindReconstructionSteps;
-			this.NumSnapReconstructionSteps = reconSetup.numSnapReconstructionSteps;
+			this.NumWindReconstructionSteps1 = reconSetup.numWindReconstructionSteps1;
+			this.NumWindReconstructionSteps2 = reconSetup.numWindReconstructionSteps2;
 
 			int numMeasurements = 0;
 			for(int i = 0; i < measurements.measurements.Length; i++) {
@@ -745,57 +745,32 @@ public class Shell : MonoBehaviour {
 			}
 		}
 
-		// Update and print best reconstruction error.
+		// Update and print best reconstruction error. The step method is responsible for the wind reconstruction itself.
+		// Also update the max delta wind speed to at first move quickly and later more precise towards the target.
 		if(this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND && this.measurements != null) {
+			this.stepCount++;
+
 			double measurementsSquaredError = this.getSquaredMeasurementsError(this.vertexPositions);
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
 			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
 			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
 
-			this.stepCount++;
-
 			print("Step: " + this.stepCount + ", Squared measurements error: " + measurementsSquaredError
 					+ ", average reconstruction distance: " + averageReconstructionDistance
 					+ ", max reconstruction distance: " + maxReconstructionDistance);
 			
-			// TODO - Implement differently if this works.
-			if(this.stepCount >= this.NumWindReconstructionSteps - 100) {
+			// Set max delta wind speed.
+			if(this.stepCount >= this.NumWindReconstructionSteps1) {
 				this.maxDeltaWindSpeed = 1d;
 			} else {
-				this.maxDeltaWindSpeed = 1d + 49d * (1d - this.stepCount / (this.NumWindReconstructionSteps - 100d)); // Linear from 50 to 1.
+				this.maxDeltaWindSpeed = 1d + 49d * (1d - this.stepCount / (double) this.NumWindReconstructionSteps1); // Linear from 50 to 1.
 			}
-
-			if(this.stepCount >= this.NumWindReconstructionSteps) {
+			
+			// Stop simulation when the desired amount of reconstruction steps for this phase has been reached.
+			if(this.stepCount >= this.NumWindReconstructionSteps1 + this.NumWindReconstructionSteps2) {
 				print("Step threshold has been reached. Wind reconstruction step complete.");
 				if(this.reconstructionSetupsIndex >= this.reconstructionSetups.Count || this.reconstructionSetupsIndex == -1) {
 					this.doUpdate = false;
-				}
-
-				// Add constraints on measurement vertices and continue reconstruction.
-				this.ReconstructionStage = ReconstructionStage.MEASUREMT_VERTICES_LOCKED;
-				int numVerticesConstrained = 0;
-				for(int i = 0; i < this.vertexPositions.Length; i++) {
-					if(this.measurements.measurements[i] != null) {
-						this.vertexPositions[i] = this.measurements.measurements[i].clone();
-						this.verticesMovementConstraints[i] = true;
-						numVerticesConstrained++;
-					}
-				}
-				print("Measurement vertices locked: " + numVerticesConstrained);
-				this.stepCount = 0; // Reset for the next reconstruction step.
-			}
-		} else if(this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED && this.measurements != null) {
-			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
-			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
-			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
-			print("Average reconstruction distance: " + averageReconstructionDistance
-					+ ", max reconstruction distance: " + maxReconstructionDistance);
-
-			// Stop simulation when the desired amount of reconstruction steps for this phase has been reached.
-			if(++this.stepCount >= this.NumSnapReconstructionSteps) {
-				if(this.reconstructionSetupsIndex >= this.reconstructionSetups.Count || this.reconstructionSetupsIndex == -1) {
-					this.doUpdate = false;
-					print("Simulation paused due to reaching the set step threshold: " + this.NumWindReconstructionSteps);
 				} else {
 
 					// We are running automated reconstruction. Store the results and continue.
@@ -821,6 +796,7 @@ public class Shell : MonoBehaviour {
 					}
 				}
 				this.ReconstructionStage = ReconstructionStage.DONE;
+				this.stepCount = 0;
 			}
 		}
 
@@ -1327,7 +1303,7 @@ public class Shell : MonoBehaviour {
 		averageVertexVelocity /= numVertices;
 		print("Vertex velocity after step, before direct velocity damping: Max = " + maxVertexVelocity+ ", average = " + averageVertexVelocity);
 		if(maxVertexVelocity < this.VelocityTerminationThreshold
-				&& (this.ReconstructionStage == ReconstructionStage.DISABLED || this.ReconstructionStage == ReconstructionStage.MEASUREMT_VERTICES_LOCKED)) {
+				&& (this.ReconstructionStage == ReconstructionStage.DISABLED || this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND)) {
 			this.doUpdate = false;
 			print("Simulation finished. Maximum vertex velocity is below the velocity termination threshold: "
 					+ maxVertexVelocity + " m/s < ." + this.VelocityTerminationThreshold + " m/s.");

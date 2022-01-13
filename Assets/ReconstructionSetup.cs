@@ -20,7 +20,7 @@ public class ReconstructionSetup {
 	public double maxWindSpeed;
 	public double maxDeltaWindSpeed;
 	public int minNumNewtonIterations;
-	public int numWindReconstructionSteps;
-	public int numSnapReconstructionSteps;
+	public int numWindReconstructionSteps1;
+	public int numWindReconstructionSteps2;
 	public Tuple<Vec3D, double>[] measurementsIgnoreSpheres = null; // Used to ignore measurements within a radius from a position.
 }
