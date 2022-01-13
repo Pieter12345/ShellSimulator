@@ -57,6 +57,7 @@ public class Shell : MonoBehaviour {
 	private double maxWindSpeed = 50d; // TODO - Remove if unused.
 	private double maxDeltaWindSpeed = 5d; // TODO - Remove if unused.
 	public double kMeasurementsPenalty = 1d;
+	public double kMeasurementSprings = 0d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
 	private double lastLineSearchAlpha = 1d;
 	public double MaxLineSearchTimeMS = 10000;
@@ -1023,6 +1024,9 @@ public class Shell : MonoBehaviour {
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
+			// Get measurements force.
+			VecD measurementsForce = this.getVertexMeasurementSpringForce(this.vertexPositions, this.measurements);
+
 			// Get damping force.
 			VecD nextVertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 			//VecD dampingForce = -this.dampingConstant * (energyHess * nextVertexVelocities);
@@ -1054,6 +1058,7 @@ public class Shell : MonoBehaviour {
 						energyGradient[3 * i + coord] = 0;
 						windForce[3 * i + coord] = 0;
 						gravityForce[3 * i + coord] = 0;
+						measurementsForce[3 * i + coord] = 0;
 						dampingForce[3 * i + coord] = 0;
 						//penaltyEnergyGradient[3 * i + coord] = 0;
 					}
@@ -2026,6 +2031,8 @@ public class Shell : MonoBehaviour {
 			}
 		}
 
+		double measurementSpringEnergy = this.getVertexMeasurementSpringEnergy(newVertexPositions, this.measurements);
+
 		VecD deltaVertexPositions = new VecD(newVertexPositions).sub(vertexPositionsFlat);
 		double systemEnergy = this.getSystemEnergy(triangles, newVertexPositions);
 		double gravityWork = 0;
@@ -2046,7 +2053,7 @@ public class Shell : MonoBehaviour {
 			squareTerm.sub(deltaTime * this.vertexVelocities);
 		}
 		return VecD.dot(VecD.multiplyElementWise(squareTerm, squareTerm), vertexCoordMasses) / (2d * deltaTime * deltaTime)
-				+ systemEnergy + gravityWork + windWork + dampingWork;
+				+ systemEnergy + gravityWork + measurementSpringEnergy + windWork + dampingWork;
 	}
 
 	/**
@@ -2127,6 +2134,68 @@ public class Shell : MonoBehaviour {
 			gravityForce[yCoord] = -vertexCoordMasses[yCoord] * this.gravityConstant;
 		}
 		return gravityForce;
+	}
+
+	/*
+	 * Calculates the measurements spring force acting on each vertex. This is an artificial force that should only be used during reconstruction.
+	 * Measurement spring forces are equivalent to placing springs between measurements and their corresponding vertices.
+	 * springForce[i] = kMeasurementSprings * (vertexPositions[i] - measurements[i]) for all coordinates of measurement i if it exists.
+	 * Returns the measurement spring force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+	 */
+	private VecD getVertexMeasurementSpringForce(Vec3D[] vertexPositions, SailMeasurements measurements) {
+		if(measurements == null) {
+			return new VecD(3 * vertexPositions.Length);
+		}
+		return this.getVertexMeasurementSpringForce(vertexPositions, measurements.measurements);
+	}
+
+	/*
+	 * Calculates the measurements spring force acting on each vertex. This is an artificial force that should only be used during reconstruction.
+	 * Measurement spring forces are equivalent to placing springs between measurements and their corresponding vertices.
+	 * springForce[i] = kMeasurementSprings * (measurements[i] - vertexPositions[i]) for all coordinates of measurement i if it exists.
+	 * Returns the measurement spring force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+	 */
+	private VecD getVertexMeasurementSpringForce(Vec3D[] vertexPositions, Vec3D[] measurements) {
+		VecD measurementSpringForces = new VecD(3 * vertexPositions.Length);
+		for(int vertexInd = 0; vertexInd < vertexPositions.Length; vertexInd++) {
+			if(measurements[vertexInd] != null) {
+				for(int coord = 0; coord < 3; coord++) {
+					measurementSpringForces[3 * vertexInd + coord] =
+						this.kMeasurementSprings * (measurements[vertexInd][coord] - vertexPositions[vertexInd][coord]);
+				}
+			}
+		}
+		return measurementSpringForces;
+	}
+
+	/*
+	 * Calculates the total measurements spring energy (sum of measurement spring energies). This is an artificial energy that should only be used during reconstruction.
+	 * springEnergy[i] = 1/2 * kMeasurementSprings * (vertexPositions[i] - measurements[i])^2 for all coordinates of measurement i if it exists.
+	 * Returns the measurement spring force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+	 */
+	private double getVertexMeasurementSpringEnergy(Vec3D[] vertexPositions, SailMeasurements measurements) {
+		if(measurements == null) {
+			return 0d;
+		}
+		return this.getVertexMeasurementSpringEnergy(vertexPositions, measurements.measurements);
+	}
+
+	/*
+	 * Calculates the total measurements spring energy (sum of measurement spring energies). This is an artificial energy that should only be used during reconstruction.
+	 * springEnergy[i] = 1/2 * kMeasurementSprings * (vertexPositions[i] - measurements[i])^2 for all coordinates of measurement i if it exists.
+	 * Returns the measurement spring force in format: {v1x, v1y, v1z, v2x, v2y, v2z, ...}.
+	 */
+	private double getVertexMeasurementSpringEnergy(Vec3D[] vertexPositions, Vec3D[] measurements) {
+		double measurementSpringEnergy = 0d;
+		for(int vertexInd = 0; vertexInd < vertexPositions.Length; vertexInd++) {
+			if(measurements[vertexInd] != null) {
+				for(int coord = 0; coord < 3; coord++) {
+					double diff = vertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
+					measurementSpringEnergy += this.kMeasurementSprings / 2d * diff * diff;
+				}
+			}
+		}
+		return measurementSpringEnergy;
 	}
 
 	private double getEdgeLengthEnergy(Vec3D[] vertexPositions, Edge edge) {
