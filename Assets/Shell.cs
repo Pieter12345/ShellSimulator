@@ -82,6 +82,7 @@ public class Shell : MonoBehaviour {
 	private int reconstructionSetupsIndex = -1;
 	public ReconstructionStage ReconstructionStage = ReconstructionStage.DISABLED;
 	private int stepCount = 0;
+	public double MaxVertexMoveToMeasurementsStep = 0.05; // Max distance per step to move vertices towards their corresponding measurements with to snap to measurements.
 	public int NumWindReconstructionSteps = 100; // The number of steps to take for the wind reconstruction phase.
 	public int NumSnapReconstructionSteps = 100; // The number of steps to take for the snap-vertices-to-measurements reconstruction phase.
 
@@ -652,11 +653,10 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
-			// Snap vertices to their corresponding measurements.
+			// Constrain vertices that have corresponding measurements. They will be smoothly snapped to these measurements later.
 			int numVerticesConstrained = 0;
 			for(int i = 0; i < this.vertexPositions.Length; i++) {
 				if(this.measurements.measurements[i] != null) {
-					this.vertexPositions[i] = this.measurements.measurements[i].clone();
 					this.verticesMovementConstraints[i] = true;
 					numVerticesConstrained++;
 				}
@@ -675,7 +675,7 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
-			this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
+			this.ReconstructionStage = ReconstructionStage.MOVING_VERTICES_TO_MEASUREMENTS;
 			this.stepCount = 0;
 			break;
 		}
@@ -707,6 +707,41 @@ public class Shell : MonoBehaviour {
 			case TimeSteppingMethod.OPTIMIZATION_INTEGRATOR: {
 				this.doOptimizationIntegratorStep(deltaTime);
 				break;
+			}
+		}
+
+		// Move the vertices towards their corresponding measurements. This is the more smooth version of snapping vertices to measurements.
+		if(this.ReconstructionStage == ReconstructionStage.MOVING_VERTICES_TO_MEASUREMENTS) {
+
+			// Perform steps.
+			bool allTargetsReached = true;
+			for(int i = 0; i < this.vertexPositions.Length; i++) {
+				if(this.measurements.measurements[i] != null && this.verticesMovementConstraints[i]) {
+
+					// Get limited step from vertex towards its corresponding measurement.
+					Vec3D step = this.measurements.measurements[i] - this.vertexPositions[i];
+					if(step.x == 0 && step.y == 0 && step.z == 0) {
+						continue; // Already at target.
+					}
+					double stepMag = step.magnitude;
+					if(stepMag > MaxVertexMoveToMeasurementsStep) {
+						step.div(stepMag).mul(MaxVertexMoveToMeasurementsStep);
+					}
+
+					// Apply step, or snap to the measurement position if the step might be non-zero due to double precision.
+					if(stepMag < 0.00001) {
+						this.vertexPositions[i] = this.measurements.measurements[i].clone();
+					} else {
+						this.vertexPositions[i].add(step);
+						allTargetsReached = false;
+					}
+				}
+			}
+
+			// Continue with the next reconstruction stage when all vertices have reached their corresponding measurements.
+			if(allTargetsReached) {
+				this.ReconstructionStage = ReconstructionStage.RECONSTRUCT_WIND;
+				this.stepCount = 0;
 			}
 		}
 
