@@ -54,8 +54,8 @@ public class Shell : MonoBehaviour {
 	public double VelocityTerminationThreshold = 0.01d; // [m/s]. When the maximum vertex velocity after a step is below this threshold, simulation is stopped.
 	public double dampingConstant = 0.001d;
 	public double directVelocityDampingFactor = 1d;
-	private double maxWindSpeed = 50d; // TODO - Remove if unused.
-	private double maxDeltaWindSpeed = 5d; // TODO - Remove if unused.
+	public double maxWindSpeed = 50d;
+	public double maxDeltaWindSpeed = 5d;
 	public double kMeasurementsPenalty = 1d;
 	public double kMeasurementSprings = 0d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
@@ -652,6 +652,17 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
+			// Snap vertices to their corresponding measurements.
+			int numVerticesConstrained = 0;
+			for(int i = 0; i < this.vertexPositions.Length; i++) {
+				if(this.measurements.measurements[i] != null) {
+					this.vertexPositions[i] = this.measurements.measurements[i].clone();
+					this.verticesMovementConstraints[i] = true;
+					numVerticesConstrained++;
+				}
+			}
+			print("Measurement vertices locked: " + numVerticesConstrained);
+
 			// Apply noise to all individual vertices of the loaded mesh to allow for giving slightly different initial sail configurations.
 			if(reconSetup.initialPositionNoiseMagnitude != 0d) {
 				System.Random random = new System.Random(reconSetup.initialPositionNoiseRandomSeed);
@@ -712,6 +723,13 @@ public class Shell : MonoBehaviour {
 					+ ", average reconstruction distance: " + averageReconstructionDistance
 					+ ", max reconstruction distance: " + maxReconstructionDistance);
 			
+			// TODO - Implement differently if this works.
+			if(this.stepCount >= this.NumWindReconstructionSteps - 100) {
+				this.maxDeltaWindSpeed = 1d;
+			} else {
+				this.maxDeltaWindSpeed = 1d + 49d * (1d - this.stepCount / (this.NumWindReconstructionSteps - 100d)); // Linear from 50 to 1.
+			}
+
 			if(this.stepCount >= this.NumWindReconstructionSteps) {
 				print("Step threshold has been reached. Wind reconstruction step complete.");
 				if(this.reconstructionSetupsIndex >= this.reconstructionSetups.Count || this.reconstructionSetupsIndex == -1) {
@@ -956,6 +974,7 @@ public class Shell : MonoBehaviour {
 			// Get measurement penalty energy and its gradient.
 			// Energy fi_penalty = kPenalty * sum(all i) {measurement_i exists ? 1/2 * (x_i - measurement_i)^2 : 0}
 			// Energy gradient d_fi_penalty_dx = measurement(x) exists ? kPenalty * (x - measurement(x)) : 0
+			// TODO - Remove if replacement measurement forces work.
 			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
 			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
 				if(measurements[vertexInd] != null) {
@@ -967,25 +986,35 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
-			// Set forces to zero for constrained vertices.
-			// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
-			for(int i = 0; i < numVertices; i++) {
-				if(this.verticesMovementConstraints[i]) {
-					for(int coord = 0; coord < 3; coord++) {
-						energyGradient[3 * i + coord] = 0;
-						windForce[3 * i + coord] = 0;
-						gravityForce[3 * i + coord] = 0;
-						dampingForce[3 * i + coord] = 0;
-						penaltyEnergyGradient[3 * i + coord] = 0;
-					}
-				}
-			}
+			// TODO - Re-enable if necessary. Compensating forces on constrained vertices doesn't work if the forces are 0...
+			//// Set forces to zero for constrained vertices.
+			//// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
+			//for(int i = 0; i < numVertices; i++) {
+			//	if(this.verticesMovementConstraints[i]) {
+			//		for(int coord = 0; coord < 3; coord++) {
+			//			energyGradient[3 * i + coord] = 0;
+			//			windForce[3 * i + coord] = 0;
+			//			gravityForce[3 * i + coord] = 0;
+			//			dampingForce[3 * i + coord] = 0;
+			//			penaltyEnergyGradient[3 * i + coord] = 0;
+			//		}
+			//	}
+			//}
 
 			// Compute the force that should be put onto the sail by the wind in order to result in a force that pulls the sail towards to measurements.
 			// Note that the penalty force constant has to be large enough for the sail to converge (and not oscillate or explode).
-			VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(gravityForce);
+			//VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(gravityForce);
+			VecD virtMeasurementsErrorForce = new VecD(energyGradient).sub(gravityForce);
 			Vec3D newWindPressureVec = this.getWindPressureVec(triangles, this.vertexPositions, virtMeasurementsErrorForce);
+			double newWindPressureVecMag = newWindPressureVec.magnitude;
+			if(newWindPressureVecMag > this.maxWindSpeed) {
+				newWindPressureVec.div(newWindPressureVecMag).mul(this.maxWindSpeed);
+			}
 			deltaWindPressureVec = newWindPressureVec - windPressureVec;
+			double deltaWindPressureVecMag = deltaWindPressureVec.magnitude;
+			if(deltaWindPressureVecMag > this.maxDeltaWindSpeed) {
+				deltaWindPressureVec.div(deltaWindPressureVecMag).mul(this.maxDeltaWindSpeed);
+			}
 		}
 
 		deltaWindPressureVecApplication:
@@ -1086,7 +1115,7 @@ public class Shell : MonoBehaviour {
 			}
 			VecD eGradient = new VecD(newVertexPositions).sub(vertexPositionsFlat)
 					.multiplyElementWise(vertexCoordMasses).div(deltaTimeSquare).sub(velocityPreservingTermPart)
-					.add(energyGradient).sub(windForce).sub(gravityForce).sub(dampingForce);
+					.add(energyGradient).sub(windForce).sub(gravityForce).sub(measurementsForce).sub(dampingForce);
 
 			// Terminate when the termination criterion has been met.
 			double eGradientMagnitude = eGradient.magnitude;
@@ -1233,15 +1262,16 @@ public class Shell : MonoBehaviour {
 				}
 			}
 
-			// Retry step with halved delta wind pressure if the measurements penalty energy has increased.
-			if(newPenaltyEnergy > penaltyEnergy) {
-				deltaWindPressureVec.div(2d);
-				if(deltaWindPressureVec.magnitude < 0.1d) {
-					print("Delta wind pressure vector is getting too small. Taking non-optimal penalty increasing step.");
-				} else {
-					goto deltaWindPressureVecApplication;
-				}
-			}
+			// TODO - Remove wind line search if the replacement measurement springs work.
+			//// Retry step with halved delta wind pressure if the measurements penalty energy has increased.
+			//if(newPenaltyEnergy > penaltyEnergy) {
+			//	deltaWindPressureVec.div(2d);
+			//	if(deltaWindPressureVec.magnitude < 10d) {
+			//		print("Delta wind pressure vector is getting too small. Taking non-optimal penalty increasing step.");
+			//	} else {
+			//		goto deltaWindPressureVecApplication;
+			//	}
+			//}
 			print("Penalty energy changed from " + penaltyEnergy + " to " + newPenaltyEnergy + ".");
 		}
 
