@@ -148,8 +148,8 @@ public class Shell : MonoBehaviour {
 		if(this.ReconstructionStage != ReconstructionStage.DISABLED) {
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
-			//this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
-			//this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
