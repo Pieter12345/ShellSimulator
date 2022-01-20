@@ -56,7 +56,6 @@ public class Shell : MonoBehaviour {
 	public double directVelocityDampingFactor = 1d;
 	public double maxWindSpeed = 50d;
 	public double maxDeltaWindSpeed = 5d;
-	public double kMeasurementsPenalty = 1d;
 	public double kMeasurementSprings = 0d;
 	public double eGradientMagnitudeTerminationThreshold = 0.5d;
 	private double lastLineSearchAlpha = 1d;
@@ -959,78 +958,37 @@ public class Shell : MonoBehaviour {
 		}
 
 		// Update wind force if measurements are set.
-		Vec3D startWindPressureVec = new Vec3D(this.windPressureVec);
 		Vec3D windPressureVec = new Vec3D(this.windPressureVec);
-		Vec3D deltaWindPressureVec = null;
-		double penaltyEnergy = 0d;
 		if(this.measurements != null && this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND) {
-			Vec3D[] measurements = this.measurements.measurements;
 
 			// Get system-wide energy gradient.
 			this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
 			VecD energyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
 
-			// Get wind force.
-			VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, windPressureVec, this.windPressure);
-
 			// Get gravity force.
 			VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
-			// Get damping force.
-			//VecD dampingForce = -this.dampingConstant * (energyHess * this.vertexVelocities);
-			VecD dampingForce = (this.DoStaticMinimization
-					? new VecD(numVertices * 3)
-					: -this.dampingConstant * this.vertexVelocities); // Damping force using an identity matrix as energy Hessian.
-
-			// Get measurement penalty energy and its gradient.
-			// Energy fi_penalty = kPenalty * sum(all i) {measurement_i exists ? 1/2 * (x_i - measurement_i)^2 : 0}
-			// Energy gradient d_fi_penalty_dx = measurement(x) exists ? kPenalty * (x - measurement(x)) : 0
-			// TODO - Remove if replacement measurement forces work.
-			VecD penaltyEnergyGradient = new VecD(3 * numVertices);
-			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-				if(measurements[vertexInd] != null) {
-					for(int coord = 0; coord < 3; coord++) {
-						double coordDiff = this.vertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
-						penaltyEnergy += this.kMeasurementsPenalty / 2d * coordDiff * coordDiff;
-						penaltyEnergyGradient[3 * vertexInd + coord] = this.kMeasurementsPenalty * coordDiff;
-					}
-				}
-			}
-
-			// TODO - Re-enable if necessary. Compensating forces on constrained vertices doesn't work if the forces are 0...
-			//// Set forces to zero for constrained vertices.
-			//// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
-			//for(int i = 0; i < numVertices; i++) {
-			//	if(this.verticesMovementConstraints[i]) {
-			//		for(int coord = 0; coord < 3; coord++) {
-			//			energyGradient[3 * i + coord] = 0;
-			//			windForce[3 * i + coord] = 0;
-			//			gravityForce[3 * i + coord] = 0;
-			//			dampingForce[3 * i + coord] = 0;
-			//			penaltyEnergyGradient[3 * i + coord] = 0;
-			//		}
-			//	}
-			//}
-
-			// Compute the force that should be put onto the sail by the wind in order to result in a force that pulls the sail towards to measurements.
-			// Note that the penalty force constant has to be large enough for the sail to converge (and not oscillate or explode).
-			//VecD virtMeasurementsErrorForce = (-penaltyEnergyGradient).add(energyGradient).sub(gravityForce);
+			// Compute the force that should be put onto the sail by the wind in order to result in static force equilibrium.
 			VecD virtMeasurementsErrorForce = new VecD(energyGradient).sub(gravityForce);
+
+			// Compute the wind pressure vector that best represents the desired force.
 			Vec3D newWindPressureVec = this.getWindPressureVec(triangles, this.vertexPositions, virtMeasurementsErrorForce);
+
+			// Limit new wind pressure vector magnitude.
 			double newWindPressureVecMag = newWindPressureVec.magnitude;
 			if(newWindPressureVecMag > this.maxWindSpeed) {
 				newWindPressureVec.div(newWindPressureVecMag).mul(this.maxWindSpeed);
 			}
-			deltaWindPressureVec = newWindPressureVec - windPressureVec;
+
+			// Compute and limit delta wind pressure vector magnitude.
+			Vec3D deltaWindPressureVec = newWindPressureVec - windPressureVec;
 			double deltaWindPressureVecMag = deltaWindPressureVec.magnitude;
 			if(deltaWindPressureVecMag > this.maxDeltaWindSpeed) {
 				deltaWindPressureVec.div(deltaWindPressureVecMag).mul(this.maxDeltaWindSpeed);
 			}
-		}
 
-		deltaWindPressureVecApplication:
-		if(deltaWindPressureVec != null) {
-			windPressureVec = startWindPressureVec + deltaWindPressureVec;
+			// Apply delta wind velocity.
+			windPressureVec += deltaWindPressureVec;
 		}
 
 		// Perform Newton's method, setting steps until the termination criterion has been met.
@@ -1074,22 +1032,6 @@ public class Shell : MonoBehaviour {
 				? new VecD(numVertices * 3)
 				: -this.dampingConstant * nextVertexVelocities); // Damping force using an identity matrix as energy Hessian.
 
-			//// Get measurement penalty gradient.
-			//// Energy fi_penalty = kPenalty * sum(measurements k) {(x - k)^2}
-			//// Energy gradient d_fi_penalty_dx = kPenalty * sum(measurements k) {2 * (x - k)}
-			//VecD penaltyEnergyGradient = new VecD(3 * numVertices);
-			//if(this.measurements != null) {
-			//	Vec3D[] measurements = this.measurements.measurements;
-			//	for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-			//		if(measurements[vertexInd] != null) {
-			//			for(int coord = 0; coord < 3; coord++) {
-			//				penaltyEnergyGradient[3 * vertexInd + coord] =
-			//					this.kMeasurementsPenalty * (newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord]);
-			//			}
-			//		}
-			//	}
-			//}
-
 			// Set forces to zero for constrained vertices.
 			// This causes the E gradient to be zero for them as well, causing it not to get in the way of the minimization problem.
 			for(int i = 0; i < numVertices; i++) {
@@ -1100,7 +1042,6 @@ public class Shell : MonoBehaviour {
 						gravityForce[3 * i + coord] = 0;
 						measurementsForce[3 * i + coord] = 0;
 						dampingForce[3 * i + coord] = 0;
-						//penaltyEnergyGradient[3 * i + coord] = 0;
 					}
 				}
 			}
@@ -1258,34 +1199,6 @@ public class Shell : MonoBehaviour {
 		}
 		newtLoopEnd:
 
-		// During wind reconstruction, validate that the measurements penalty energy has not increased, otherwise repeat the step with half the delta wind pressure.
-		if(this.measurements != null && this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND) {
-			VecD[] measurements = this.measurements.measurements;
-			
-			// Get measurement penalty energy.
-			double newPenaltyEnergy = 0d;
-			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-				if(measurements[vertexInd] != null) {
-					for(int coord = 0; coord < 3; coord++) {
-						double coordDiff = newVertexPositions[vertexInd][coord] - measurements[vertexInd][coord];
-						newPenaltyEnergy += this.kMeasurementsPenalty / 2d * coordDiff * coordDiff;
-					}
-				}
-			}
-
-			// TODO - Remove wind line search if the replacement measurement springs work.
-			//// Retry step with halved delta wind pressure if the measurements penalty energy has increased.
-			//if(newPenaltyEnergy > penaltyEnergy) {
-			//	deltaWindPressureVec.div(2d);
-			//	if(deltaWindPressureVec.magnitude < 10d) {
-			//		print("Delta wind pressure vector is getting too small. Taking non-optimal penalty increasing step.");
-			//	} else {
-			//		goto deltaWindPressureVecApplication;
-			//	}
-			//}
-			print("Penalty energy changed from " + penaltyEnergy + " to " + newPenaltyEnergy + ".");
-		}
-
 		// Update vertex velocity.
 		this.vertexVelocities = new VecD(newVertexPositions).sub(vertexPositionsFlat).div(deltaTime);
 
@@ -1301,7 +1214,7 @@ public class Shell : MonoBehaviour {
 			}
 		}
 		averageVertexVelocity /= numVertices;
-		print("Vertex velocity after step, before direct velocity damping: Max = " + maxVertexVelocity+ ", average = " + averageVertexVelocity);
+		print("Vertex velocity after step, before direct velocity damping: Max = " + maxVertexVelocity + ", average = " + averageVertexVelocity);
 		if(maxVertexVelocity < this.VelocityTerminationThreshold
 				&& (this.ReconstructionStage == ReconstructionStage.DISABLED || this.ReconstructionStage == ReconstructionStage.RECONSTRUCT_WIND)) {
 			this.doUpdate = false;
