@@ -150,6 +150,7 @@ public class Shell : MonoBehaviour {
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest6());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
 
@@ -391,6 +392,42 @@ public class Shell : MonoBehaviour {
 						});
 					}
 				}
+			}
+		}
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest6() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
+			int n = (int) nm[0];
+			double m = nm[1];
+			for(int randomSeed = 0; randomSeed < 10; randomSeed++) {
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920 ss with g=9.81,wm=1035.1,wd=60";
+				reconstructionSetups.Add(new ReconstructionSetup {
+					sailStartConfigurationRelPath = restConfigurationSailRelPath,
+					sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ",m=" + m + ".measurements",
+					resultsStorageRelPath = "test6/" + fileNameNoEx + ",randomSeed=" + randomSeed + "/n=" + n + ",m=" + m + ".results",
+					kLength = 15621f,
+					kArea = 8125f,
+					kBend = 10f,
+					shellThickness = 0.00025f,
+					shellMaterialDensity = 920f,
+					useFlatUndeformedBendState = true,
+					initialWindPressureVec = new Vec3D(0, 0, 0),
+					initialWindPressure = 0d,
+					gravityConstant = 9.81d,
+					doStaticMinimization = true,
+					maxWindSpeed = this.maxWindSpeed,
+					maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+					minNumNewtonIterations = this.MinNumNewtonIterations,
+					numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+					numWindReconstructionSteps2 = this.NumWindReconstructionSteps2,
+					initialPositionNoiseMagnitude = 0.01,
+					initialPositionNoiseRandomSeed = randomSeed
+				});
 			}
 		}
 		return reconstructionSetups;
