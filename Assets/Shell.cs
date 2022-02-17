@@ -86,8 +86,8 @@ public class Shell : MonoBehaviour {
 	public int NumWindReconstructionSteps2 = 100; // The number of steps to take for the second wind reconstruction phase.
 
 	// Debugging.
-	private VectorVisualizer vectorVisualizer;
-	public VisualizationType vectorVisualizationType = VisualizationType.NONE;
+	private Visualizer visualizer;
+	public VisualizationType visualizationType = VisualizationType.NONE;
 
 	void Awake() {
 		storageBaseDirPath = Application.dataPath + "/StoredData";
@@ -102,8 +102,8 @@ public class Shell : MonoBehaviour {
 		//MeasurementGeneration.generateTest3Measurements();
 		//MeasurementGeneration.generateTest4Measurements();
 
-		// Initialize vector visualizer.
-		this.vectorVisualizer = new VectorVisualizer(this.shellObjPosition);
+		// Initialize visualizer.
+		this.visualizer = new Visualizer(this.shellObjPosition);
 
 		// Create the new object in the scene.
 		Mesh mesh;
@@ -545,8 +545,8 @@ public class Shell : MonoBehaviour {
 		// Recreate vertex constraints.
 		this.verticesMovementConstraints = this.createVertexContraints();
 
-		// Clear vector visualizer.
-		this.vectorVisualizer.clear();
+		// Clear visualizer.
+		this.visualizer.clear();
 
 		// Reset reconstruction error parameters.
 		this.stepCount = 0;
@@ -727,8 +727,8 @@ public class Shell : MonoBehaviour {
 		// Compute triangle normals and areas.
 		this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
 
-		// Clear previous vector visualizations.
-		this.vectorVisualizer.clear();
+		// Clear previous visualizations.
+		this.visualizer.clear();
 
 		// Update the vertices using the chosen time stepping method.
 		switch(this.timeSteppingMethod) {
@@ -1274,7 +1274,7 @@ public class Shell : MonoBehaviour {
 		this.updateMesh();
 
 		// Visualize reconstruction error vectors.
-		if(this.vectorVisualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF && this.measurements != null) {
+		if(this.visualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF && this.measurements != null) {
 			Vec3D[] measurements = this.measurements.measurements;
 			VecD measurementsError = new VecD(numVertices * 3);
 			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
@@ -1284,17 +1284,34 @@ public class Shell : MonoBehaviour {
 					}
 				}
 			}
-			this.vectorVisualizer.visualize(this.vertexPositions, measurementsError, 1f);
+			this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, 1f);
 		}
 
 		// Visualize velocity vectors.
-		if(this.vectorVisualizationType == VisualizationType.VERTEX_VELOCITIES) {
-			this.vectorVisualizer.visualize(this.vertexPositions, this.vertexVelocities, 0.2f);
+		if(this.visualizationType == VisualizationType.VERTEX_VELOCITIES) {
+			this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, 0.2f);
 		}
 
 		// Visualize step.
-		if(this.vectorVisualizationType == VisualizationType.STEP) {
-			this.vectorVisualizer.visualize(this.vertexPositions, new VecD(newVertexPositions).sub(vertexPositionsFlat), 10f);
+		if(this.visualizationType == VisualizationType.STEP) {
+			this.visualizer.visualizeVectors(this.vertexPositions, new VecD(newVertexPositions).sub(vertexPositionsFlat), 10f);
+		}
+		
+		// Visualize vertex positions.
+		if(this.visualizationType == VisualizationType.VERTEX_POSITIONS) {
+			this.visualizer.visualizePoints(newVertexPositions, 0.1f);
+		}
+
+		// Visualize measurements.
+		if(this.visualizationType == VisualizationType.MEASUREMENTS && this.measurements != null) {
+			Vec3D[] measurements = this.measurements.measurements;
+			List<Vec3D> measurementPositions = new List<Vec3D>();
+			for(int i = 0; i < measurements.Length; i++) {
+				if(measurements[i] != null) {
+					measurementPositions.Add(measurements[i]);
+				}
+			}
+			this.visualizer.visualizePoints(measurementPositions.ToArray(), 0.1f);
 		}
 	}
 
