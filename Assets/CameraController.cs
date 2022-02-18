@@ -16,6 +16,17 @@ public class CameraController : MonoBehaviour {
 
 	void Update() {
 
+		// Handle cursor capture. Capture on left mouse button release to allow UI buttons to function.
+		if(Input.GetKeyDown(KeyCode.Escape)) {
+			Cursor.lockState = CursorLockMode.None;
+		}
+		if(this.isLeftMouseBtnDown != Input.GetMouseButton(0)) {
+			this.isLeftMouseBtnDown = !this.isLeftMouseBtnDown;
+			if(!this.isLeftMouseBtnDown) { // On left mouse button release.
+				Cursor.lockState = CursorLockMode.Locked;
+			}
+		}
+
 		// Get mouse input.
 		float horizontal = Input.GetAxis("Mouse X");
 		float vertical = Input.GetAxis("Mouse Y");
@@ -39,17 +50,6 @@ public class CameraController : MonoBehaviour {
 		// Update camera position.
 		Vector3 normalizedInputVelocity = this.getNormalizedInputVelocity();
 		this.transform.Translate(normalizedInputVelocity * Time.deltaTime * this.movementSpeed);
-
-		// Handle cursor capture. Capture on left mouse button release to allow UI buttons to function.
-		if(Input.GetKeyDown(KeyCode.Escape)) {
-			Cursor.lockState = CursorLockMode.None;
-		}
-		if(this.isLeftMouseBtnDown != Input.GetMouseButton(0)) {
-			this.isLeftMouseBtnDown = !this.isLeftMouseBtnDown;
-			if(!this.isLeftMouseBtnDown) { // On left mouse button release.
-				Cursor.lockState = CursorLockMode.Locked;
-			}
-		}
 	}
 
 	private Vector3 getNormalizedInputVelocity() {
