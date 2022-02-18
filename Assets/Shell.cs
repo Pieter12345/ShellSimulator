@@ -2165,11 +2165,13 @@ public class Shell : MonoBehaviour {
 	 */
 	private VecD getVertexMeasurementSpringForce(Vec3D[] vertexPositions, Vec3D[] measurements) {
 		VecD measurementSpringForces = new VecD(3 * vertexPositions.Length);
-		for(int vertexInd = 0; vertexInd < vertexPositions.Length; vertexInd++) {
-			if(measurements[vertexInd] != null) {
-				for(int coord = 0; coord < 3; coord++) {
-					measurementSpringForces[3 * vertexInd + coord] =
-						this.kMeasurementSprings * (measurements[vertexInd][coord] - vertexPositions[vertexInd][coord]);
+		if(this.kMeasurementSprings != 0d) {
+			for(int vertexInd = 0; vertexInd < vertexPositions.Length; vertexInd++) {
+				if(measurements[vertexInd] != null) {
+					for(int coord = 0; coord < 3; coord++) {
+						measurementSpringForces[3 * vertexInd + coord] =
+							this.kMeasurementSprings * (measurements[vertexInd][coord] - vertexPositions[vertexInd][coord]);
+					}
 				}
 			}
 		}
