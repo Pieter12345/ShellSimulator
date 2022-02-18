@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Shell : MonoBehaviour {
 
@@ -88,6 +89,8 @@ public class Shell : MonoBehaviour {
 	// Debugging.
 	private Visualizer visualizer;
 	public VisualizationType visualizationType = VisualizationType.NONE;
+	private Text avgReconDistTextObj;
+	private Text maxReconDistTextObj;
 
 	void Awake() {
 		storageBaseDirPath = Application.dataPath + "/StoredData";
@@ -101,6 +104,10 @@ public class Shell : MonoBehaviour {
 		//MeasurementGeneration.generateMeasurements();
 		//MeasurementGeneration.generateTest3Measurements();
 		//MeasurementGeneration.generateTest4Measurements();
+
+		// Initialize game object references.
+		this.avgReconDistTextObj = GameObject.Find("AvgReconDistText").GetComponent<Text>();
+		this.maxReconDistTextObj = GameObject.Find("MaxReconDistText").GetComponent<Text>();
 
 		// Initialize visualizer.
 		this.visualizer = new Visualizer(this.shellObjPosition);
@@ -794,6 +801,8 @@ public class Shell : MonoBehaviour {
 			print("Step: " + this.stepCount + ", Squared measurements error: " + measurementsSquaredError
 					+ ", average reconstruction distance: " + averageReconstructionDistance
 					+ ", max reconstruction distance: " + maxReconstructionDistance);
+			this.avgReconDistTextObj.text = this.avgReconDistTextObj.text.Split(':')[0] + ": " + averageReconstructionDistance + "m";
+			this.maxReconDistTextObj.text = this.maxReconDistTextObj.text.Split(':')[0] + ": " + maxReconstructionDistance + "m";
 			
 			// Set max delta wind speed.
 			if(this.stepCount >= this.NumWindReconstructionSteps1) {
@@ -834,6 +843,9 @@ public class Shell : MonoBehaviour {
 				this.ReconstructionStage = ReconstructionStage.DONE;
 				this.stepCount = 0;
 			}
+		} else {
+			this.avgReconDistTextObj.text = this.avgReconDistTextObj.text.Split(':')[0] + ": -";
+			this.maxReconDistTextObj.text = this.maxReconDistTextObj.text.Split(':')[0] + ": -";
 		}
 
 		// Update mesh recorder.
