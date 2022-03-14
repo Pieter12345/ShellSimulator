@@ -279,4 +279,55 @@ public class MeshUtils {
 		}
 		return measurements;
 	}
+
+	/**
+	 * Generates farthest point sampling measurements from the given vertex positions.
+	 * The first selected point is the first unconstrained vertex position.
+	 * Vertices that are movement-constrained will not be considered for measurement selection.
+	 */
+	public static Vec3D[] generateFarthestPointSamplingSailMeasurements(Vec3D[] vertexPositions, int numMeasurements, bool[] vertexMovementConstraints) {
+		Vec3D[] measurements = new Vec3D[vertexPositions.Length];
+		if(measurements.Length == 0 || numMeasurements == 0) {
+			return measurements;
+		}
+
+		// Select first measurement.
+		for(int i = 0; i < vertexPositions.Length; i++) {
+			if(vertexMovementConstraints != null && !vertexMovementConstraints[i]) {
+				measurements[i] = vertexPositions[i].clone();
+				break;
+			}
+		}
+
+		for(int measurementNum = 1; measurementNum < numMeasurements; measurementNum++) {
+			double bestDist = 0;
+			int bestDistInd = -1;
+			for(int i = 0; i < vertexPositions.Length; i++) {
+				if(measurements[i] == null && vertexMovementConstraints != null && !vertexMovementConstraints[i]) {
+					double setDist = Double.MaxValue;
+					for(int j = 0; j < vertexPositions.Length; j++) {
+						if(measurements[j] != null) {
+							double dist = (measurements[j] - vertexPositions[i]).magnitude;
+							if(dist < setDist) {
+								setDist = dist;
+								if(setDist <= bestDist) {
+									break; // Set distance is already too small to make this vertex a candidate.
+								}
+							}
+						}
+					}
+					if(setDist > bestDist) {
+						bestDist = setDist;
+						bestDistInd = i;
+					}
+				}
+			}
+			if(bestDistInd != -1) {
+				measurements[bestDistInd] = vertexPositions[bestDistInd].clone();
+			} else {
+				break; // No more vertices available.
+			}
+		}
+		return measurements;
+	}
 }
