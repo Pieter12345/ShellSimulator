@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class MeasurementGeneration {
 
-	public static void generateMeasurements() {
+	public static void generateLineDensityMeasurements() {
 		double sailWidth = 3.5d;
 		double sailHeight = 7d;
 		foreach(string windMag in new string[] {"64.6963", "1035.1"}) {
@@ -31,7 +31,31 @@ public class MeasurementGeneration {
 		}
 	}
 
-	public static void generateTest3Measurements() {
+	public static void generateFarthestFirstMeasurements() {
+		foreach(string windMag in new string[] {"64.6963", "1035.1"}) {
+			foreach(string windDeg in new string[] {"30", "45", "60"}) {
+
+				// Load the sail configuration.
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
+				SailConfiguration sailConf = SailConfiguration.loadFromFile(
+						Shell.storageBaseDirPath + "/SailData/" + fileNameNoEx + ".sailshapedata");
+
+				// Generate and store the measurements.
+				string measurementsStorageDir = Shell.storageBaseDirPath + "/SailData/" + fileNameNoEx;
+				foreach(int n in new int[] {5, 10, 20, 30, 40, 50, 70, 90, 110, 130, 140, 150, 160}) {
+					SailMeasurements measurements = new SailMeasurements(sailConf.vertexPositions,
+							MeshUtils.generateFarthestPointSamplingSailMeasurements(
+									sailConf.vertexPositions, n, sailConf.vertexConstraints));
+					string measurementsFilePath = measurementsStorageDir + "/" + "n=" + n + ".measurements";
+					measurements.storeToFile(measurementsFilePath);
+					MonoBehaviour.print("Generated measurements: " + measurementsFilePath);
+				}
+			}
+		}
+	}
+
+	public static void generateTest3LineDensityMeasurements() {
 		double sailWidth = 3.5d;
 		double sailHeight = 7d;
 		foreach(double[] nm in new double[][] {new double[] {5, 2.5}, new double[] {15, 5}}) {
