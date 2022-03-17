@@ -101,7 +101,7 @@ public class Shell : MonoBehaviour {
 
 	// Start is called before the first frame update.
 	void Start() {
-		//MeasurementGeneration.generateMeasurements();
+		//MeasurementGeneration.generateFarthestFirstMeasurements();
 		//MeasurementGeneration.generateTest3Measurements();
 		//MeasurementGeneration.generateTest4Measurements();
 
@@ -152,12 +152,12 @@ public class Shell : MonoBehaviour {
 
 		// Initialize automated reconstruction setups.
 		if(this.ReconstructionStage != ReconstructionStage.DISABLED) {
-			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest6());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1FarthestFirst());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
 
@@ -230,6 +230,41 @@ public class Shell : MonoBehaviour {
 							numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
 						});
 					}
+				}
+			}
+		}
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest1FarthestFirst() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(double windMag in new double[] {64.6963, 1035.1}) {
+			foreach(double windDeg in new double[] {30, 45, 60}) {
+				foreach(int n in new int[] {5, 10, 20, 30, 40, 50, 70, 90, 110, 130, 140, 150, 160}) {
+					string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+							+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
+					reconstructionSetups.Add(new ReconstructionSetup {
+						sailStartConfigurationRelPath = restConfigurationSailRelPath,
+						sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ".measurements",
+						resultsStorageRelPath = "test1/" + fileNameNoEx + "/n=" + n + ".results",
+						kLength = 15621f,
+						kArea = 8125f,
+						kBend = 10f,
+						shellThickness = 0.00025f,
+						shellMaterialDensity = 920f,
+						useFlatUndeformedBendState = true,
+						initialWindPressureVec = new Vec3D(0, 0, 0),
+						initialWindPressure = 0d,
+						gravityConstant = 9.81d,
+						doStaticMinimization = true,
+						maxWindSpeed = this.maxWindSpeed,
+						maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+						minNumNewtonIterations = this.MinNumNewtonIterations,
+						numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+						numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
+					});
 				}
 			}
 		}
