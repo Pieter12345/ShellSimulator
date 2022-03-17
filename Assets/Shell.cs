@@ -447,9 +447,6 @@ public class Shell : MonoBehaviour {
 		bool[] verticesMovementConstraints = new bool[this.vertexPositions.Length];
 		for(int i = 0; i < this.vertexPositions.Length; i++) {
 			verticesMovementConstraints[i] = (this.vertexPositions[i].x <= 0d || this.vertexPositions[i].y <= 0d);
-			if(verticesMovementConstraints[i]) {
-				print("Constraining vertex at: " + this.vertexPositions[i]);
-			}
 		}
 		return verticesMovementConstraints;
 	}
