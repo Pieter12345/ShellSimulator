@@ -860,6 +860,7 @@ public class Shell : MonoBehaviour {
 		if(this.ReconstructionStage == ReconstructionStage.DONE) {
 			print("Reconstruction(s) done. Pausing simulation.");
 			this.doUpdate = false;
+			return;
 		}
 
 		// Get the mesh.
