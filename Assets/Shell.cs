@@ -152,12 +152,12 @@ public class Shell : MonoBehaviour {
 
 		// Initialize automated reconstruction setups.
 		if(this.ReconstructionStage != ReconstructionStage.DISABLED) {
-			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5());
-			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest6());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest1FarthestFirst());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest2FarthestFirst());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest3FarthestFirst());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4FarthestFirst());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5FarthestFirst());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest6FarthestFirst());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
 
@@ -542,6 +542,62 @@ public class Shell : MonoBehaviour {
 		return reconstructionSetups;
 	}
 
+	private List<ReconstructionSetup> getReconstructionSetupsTest5FarthestFirst() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(double windMag in new double[] {1035.1}) {
+			foreach(double windDeg in new double[] {45}) {
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920"
+						+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
+				foreach(int n in new int[] {30, 50, 110}) {
+					foreach(Tuple<Vec3D, double>[] measurementsIgnoreSpheres in new Tuple<Vec3D, double>[][] {
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 1.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 2.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 1.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 2.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 7d, 0d), 2.5d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1d)},
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1.5d)}}) {
+						string ignoreSpheresStr = "{";
+						foreach(Tuple<Vec3D, double> measurementsIgnoreSphere in measurementsIgnoreSpheres) {
+							Vec3D origin = measurementsIgnoreSphere.Item1;
+							double radius = measurementsIgnoreSphere.Item2;
+							if(ignoreSpheresStr.Length > 1) {
+								ignoreSpheresStr += ", ";
+							}
+							ignoreSpheresStr += "{" + origin.ToString() + ", " + radius + "}";
+						}
+						ignoreSpheresStr += "}";
+						reconstructionSetups.Add(new ReconstructionSetup {
+							sailStartConfigurationRelPath = restConfigurationSailRelPath,
+							sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ".measurements",
+							resultsStorageRelPath = "test5/" + fileNameNoEx + "/n=" + n
+									+ ",ignoreSpheres=" + ignoreSpheresStr.Replace(", ", ",") + ".results",
+							kLength = 15621f,
+							kArea = 8125f,
+							kBend = 10f,
+							shellThickness = 0.00025f,
+							shellMaterialDensity = 920f,
+							useFlatUndeformedBendState = true,
+							initialWindPressureVec = new Vec3D(0, 0, 0),
+							initialWindPressure = 0d,
+							gravityConstant = 9.81d,
+							doStaticMinimization = true,
+							maxWindSpeed = this.maxWindSpeed,
+							maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+							minNumNewtonIterations = this.MinNumNewtonIterations,
+							numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+							numWindReconstructionSteps2 = this.NumWindReconstructionSteps2,
+							measurementsIgnoreSpheres = measurementsIgnoreSpheres
+						});
+					}
+				}
+			}
+		}
+		return reconstructionSetups;
+	}
+
 	private List<ReconstructionSetup> getReconstructionSetupsTest6() {
 		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
 		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
@@ -555,6 +611,40 @@ public class Shell : MonoBehaviour {
 					sailStartConfigurationRelPath = restConfigurationSailRelPath,
 					sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ",m=" + m + ".measurements",
 					resultsStorageRelPath = "test6/" + fileNameNoEx + ",randomSeed=" + randomSeed + "/n=" + n + ",m=" + m + ".results",
+					kLength = 15621f,
+					kArea = 8125f,
+					kBend = 10f,
+					shellThickness = 0.00025f,
+					shellMaterialDensity = 920f,
+					useFlatUndeformedBendState = true,
+					initialWindPressureVec = new Vec3D(0, 0, 0),
+					initialWindPressure = 0d,
+					gravityConstant = 9.81d,
+					doStaticMinimization = true,
+					maxWindSpeed = this.maxWindSpeed,
+					maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+					minNumNewtonIterations = this.MinNumNewtonIterations,
+					numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+					numWindReconstructionSteps2 = this.NumWindReconstructionSteps2,
+					initialPositionNoiseMagnitude = 0.01,
+					initialPositionNoiseRandomSeed = randomSeed
+				});
+			}
+		}
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsTest6FarthestFirst() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
+				+ " steady state without external forces.sailshapedata";
+		foreach(int n in new int[] {30, 50, 110}) {
+			for(int randomSeed = 0; randomSeed < 10; randomSeed++) {
+				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920 ss with g=9.81,wm=1035.1,wd=60";
+				reconstructionSetups.Add(new ReconstructionSetup {
+					sailStartConfigurationRelPath = restConfigurationSailRelPath,
+					sailMeasurementsRelPath = fileNameNoEx + "/n=" + n + ".measurements",
+					resultsStorageRelPath = "test6/" + fileNameNoEx + ",randomSeed=" + randomSeed + "/n=" + n + ".results",
 					kLength = 15621f,
 					kArea = 8125f,
 					kBend = 10f,
