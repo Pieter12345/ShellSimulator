@@ -52,9 +52,9 @@ public class Visualizer {
 
 	public void visualizePoints(Vector3 relPosition, float radius = 0.1f) {
 		Vector3 position = relPosition + this.origin;
-		GameObject gameObj = GameObject.CreatePrimitive(PrimitiveType.Sphere); // Defaults to 1m diameter, origin at center. TODO - Check.
+		GameObject gameObj = GameObject.CreatePrimitive(PrimitiveType.Sphere); // Defaults to 1m diameter, origin at center.
 		gameObj.transform.position = position;
-		gameObj.transform.localScale = new Vector3(radius, radius, radius);
+		gameObj.transform.localScale = new Vector3(radius * 2f, radius * 2f, radius * 2f); // Factor 2 to scale the radius, rather than the diameter.
 		this.visualizationGameObjects.Add(gameObj);
 	}
 
