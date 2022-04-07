@@ -643,7 +643,7 @@ public class Shell : MonoBehaviour {
 		string restConfigurationSailRelPath = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920,"
 				+ " steady state without external forces.sailshapedata";
 		foreach(int n in new int[] {30, 50, 110}) {
-			for(int randomSeed = 0; randomSeed < 10; randomSeed++) {
+			for(int randomSeed = 0; randomSeed < 20; randomSeed++) {
 				string fileNameNoEx = "nv=561,kL=15621,kA=8125,kB=10,t=0.00025,d=920 ss with g=9.81,wm=1035.1,wd=60";
 				reconstructionSetups.Add(new ReconstructionSetup {
 					sailStartConfigurationRelPath = restConfigurationSailRelPath,
