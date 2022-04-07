@@ -949,7 +949,7 @@ public class Shell : MonoBehaviour {
 
 			this.ReconstructionStage = ReconstructionStage.MOVING_VERTICES_TO_MEASUREMENTS;
 			this.stepCount = 0;
-			break;
+			return;
 		}
 		if(this.ReconstructionStage == ReconstructionStage.DONE) {
 			print("Reconstruction(s) done. Pausing simulation.");
