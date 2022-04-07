@@ -552,13 +552,17 @@ public class Shell : MonoBehaviour {
 						+ " ss with g=9.81,wm=" + windMag + ",wd=" + windDeg;
 				foreach(int n in new int[] {30, 50, 110}) {
 					foreach(Tuple<Vec3D, double>[] measurementsIgnoreSpheres in new Tuple<Vec3D, double>[][] {
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 1.5d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 2.5d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 1.5d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 2.5d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 7d, 0d), 2.5d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1d)},
-							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d / 3d, 7d / 3d, 0d), 1.5d)}}) {
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 0d, 0d), 1.75d)}, // Mast-boom corner, half sail width radius.
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(3.5d, 0d, 0d), 1.75d)}, // End of boom corner, half sail width radius.
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(0d, 7d, 0d), 3.5d)}, // Top of mast corner, half sail height radius.
+
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(1d, 2.5d, 0d), 1.75d)}, // Sail middle, very large radius
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(1d, 2.5d, 0d), 1.25d)}, // Sail middle, likely the most important vertices.
+
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(1d, 3d, 0d), 1d)}, // Sail left bottom area small.
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(2.5d, 3d, 0d), 1d)}, // Sail right bottom area small.
+							new Tuple<Vec3D, double>[] {new Tuple<Vec3D, double>(new Vec3D(1.75d, 1.5d, 0d), 1d)} // Sail middle small.
+						}) {
 						string ignoreSpheresStr = "{";
 						foreach(Tuple<Vec3D, double> measurementsIgnoreSphere in measurementsIgnoreSpheres) {
 							Vec3D origin = measurementsIgnoreSphere.Item1;
