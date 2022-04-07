@@ -144,7 +144,12 @@ class ParDiSoLib {
 			ref n, a, ia, ja, idum, ref nrhs,
 			iparm, ref msglvl, ddum, ddum, ref error);
 		if(error != 0) {
-			throw new Exception("ERROR during symbolic factorization: " + error);
+			switch(error) {
+				case -10: throw new Exception("[ParDiSo] No licence file pardiso.lic found.");
+				case -11: throw new Exception("[ParDiSo] License is expired.");
+				case -12: throw new Exception("[ParDiSo] Invalid license for username or hostname.");
+				default: throw new Exception("ERROR during symbolic factorization: " + error);
+			}
 		}
 		//MonoBehaviour.print("\nReordering completed ... ");
 		//MonoBehaviour.print("Number of nonzeros in factors = " + iparm[17]);
