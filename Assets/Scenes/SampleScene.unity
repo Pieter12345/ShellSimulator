@@ -1684,7 +1684,7 @@ MonoBehaviour:
   MaxVertexMoveToMeasurementsStep: 0.05
   NumWindReconstructionSteps1: 100
   NumWindReconstructionSteps2: 100
-  visualizationType: 0
+  visualizationType: 8
 --- !u!4 &1530456322
 Transform:
   m_ObjectHideFlags: 0
