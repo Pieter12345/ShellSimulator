@@ -91,6 +91,7 @@ public class Shell : MonoBehaviour {
 	private Visualizer visualizer;
 	public VisualizationType visualizationType = VisualizationType.NONE;
 	public float visualizationObjectScale = 1f;
+	public Color visualizationObjectColor = Color.gray;
 	private Text avgReconDistTextObj;
 	private Text maxReconDistTextObj;
 
@@ -972,7 +973,7 @@ public class Shell : MonoBehaviour {
 				// Visualize vertex constraints.
 				for(int i = 0; i < this.vertexPositions.Length; i++) {
 					if(this.verticesMovementConstraints[i]) {
-						this.visualizer.visualizePoints(this.vertexPositions[i]);
+						this.visualizer.visualizePoints(this.vertexPositions[i], this.visualizationObjectColor);
 					}
 				}
 
@@ -1180,16 +1181,16 @@ public class Shell : MonoBehaviour {
 							measurementPositions.Add(measurements[i]);
 						}
 					}
-					this.visualizer.visualizePoints(measurementPositions.ToArray(), this.visualizationObjectScale);
+					this.visualizer.visualizePoints(measurementPositions.ToArray(), this.visualizationObjectColor, this.visualizationObjectScale);
 				}
 				break;
 			}
 			case VisualizationType.VERTEX_POSITIONS: {
-				this.visualizer.visualizePoints(this.vertexPositions, this.visualizationObjectScale);
+				this.visualizer.visualizePoints(this.vertexPositions, this.visualizationObjectColor, this.visualizationObjectScale);
 				break;
 			}
 			case VisualizationType.VERTEX_VELOCITIES: {
-				this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, this.visualizationObjectScale);
+				this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, this.visualizationObjectColor, this.visualizationObjectScale);
 				break;
 			}
 			case VisualizationType.VERTEX_MEASUREMENT_DIFF: {
@@ -1203,19 +1204,19 @@ public class Shell : MonoBehaviour {
 							}
 						}
 					}
-					this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, this.visualizationObjectScale);
+					this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, this.visualizationObjectColor, this.visualizationObjectScale);
 				}
 				break;
 			}
 			case VisualizationType.WIND_FORCE: {
 				this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
 				VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
-				this.visualizer.visualizeVectors(this.vertexPositions, windForce, this.visualizationObjectScale);
+				this.visualizer.visualizeVectors(this.vertexPositions, windForce, this.visualizationObjectColor, this.visualizationObjectScale);
 				break;
 			}
 			case VisualizationType.ENERGY_GRADIENT: {
 				VecD energyGradient = getSystemEnergyGradient(triangles, this.vertexPositions);
-				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient, this.visualizationObjectScale);
+				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient, this.visualizationObjectColor, this.visualizationObjectScale);
 				break;
 			}
 		}
@@ -1636,7 +1637,7 @@ public class Shell : MonoBehaviour {
 
 		// Visualize step.
 		if(this.visualizationType == VisualizationType.STEP) {
-			this.visualizer.visualizeVectors(this.vertexPositions, new VecD(newVertexPositions).sub(vertexPositionsFlat), 10f);
+			this.visualizer.visualizeVectors(this.vertexPositions, new VecD(newVertexPositions).sub(vertexPositionsFlat), this.visualizationObjectColor, 10f);
 		}
 	}
 
