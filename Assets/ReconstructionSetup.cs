@@ -11,6 +11,9 @@ public class ReconstructionSetup {
 	public float shellThickness;
 	public float shellMaterialDensity;
 	public bool useFlatUndeformedBendState;
+	public int numRestShapeSubdivisions = 0; // Additional subdivisions applied to the sail rest shape.
+	public bool isRealWorldDataTest = false; // Convenient property to perform additional real-world-data specific actions.
+	public int numRealWorldDataFarthestFirstMarkers = 0; // Amount of farthest-first selected markers to use from the measurements data.
 	public Vec3D initialWindPressureVec;
 	public double initialWindPressure;
 	public int initialPositionNoiseRandomSeed = 0;

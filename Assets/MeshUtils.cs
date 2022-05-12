@@ -313,7 +313,7 @@ public class MeshUtils {
 
 		// Select first measurement.
 		for(int i = 0; i < vertexPositions.Length; i++) {
-			if(vertexMovementConstraints != null && !vertexMovementConstraints[i]) {
+			if(vertexMovementConstraints != null && !vertexMovementConstraints[i] && vertexPositions[i] != null) {
 				measurements[i] = vertexPositions[i].clone();
 				break;
 			}
@@ -323,7 +323,7 @@ public class MeshUtils {
 			double bestDist = 0;
 			int bestDistInd = -1;
 			for(int i = 0; i < vertexPositions.Length; i++) {
-				if(measurements[i] == null && vertexMovementConstraints != null && !vertexMovementConstraints[i]) {
+				if(measurements[i] == null && vertexMovementConstraints != null && !vertexMovementConstraints[i] && vertexPositions[i] != null) {
 					double setDist = Double.MaxValue;
 					for(int j = 0; j < vertexPositions.Length; j++) {
 						if(measurements[j] != null) {

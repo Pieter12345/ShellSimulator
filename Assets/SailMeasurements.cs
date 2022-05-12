@@ -7,6 +7,7 @@ public class SailMeasurements {
 	
 	/*
 	 * Vertex positions at the time the measurements were taken. This can be used as ground truth.
+	 * This is null when the ground truth configuration is unknown.
 	 */
 	public Vec3D[] vertexPositions { get; }
 
@@ -16,7 +17,7 @@ public class SailMeasurements {
 	public Vec3D[] measurements { get; }
 
 	public SailMeasurements(Vec3D[] vertexPositions, Vec3D[] measurements) {
-		this.vertexPositions = (Vec3D[]) vertexPositions.Clone();
+		this.vertexPositions = (vertexPositions == null ? null : (Vec3D[]) vertexPositions.Clone());
 		this.measurements = (Vec3D[]) measurements.Clone();
 	}
 

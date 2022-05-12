@@ -42,6 +42,7 @@ public class Shell : MonoBehaviour {
 
 	public float measurementsGenerateFactor = 0.1f; // Defines the number of generated measurements by multiplying this with the amount of vertices.
 	private SailMeasurements measurements = null;
+	private Vec3D[] realDataTruthMeasurements = null; // Contains a subset of measurements to estimate the reconstruction distance with.
 
 	// Gradient descent specific settings.
 	public double kGradientDescent;
@@ -882,7 +883,8 @@ public class Shell : MonoBehaviour {
 					continue;
 				}
 			}
-			this.loadSailConfiguration(SailConfiguration.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailStartConfigurationRelPath));
+			this.loadSailConfiguration(SailConfiguration.loadFromFile(
+					storageBaseDirPath + "/SailData/" + reconSetup.sailStartConfigurationRelPath), reconSetup.numRestShapeSubdivisions);
 			this.measurements = SailMeasurements.loadFromFile(storageBaseDirPath + "/SailData/" + reconSetup.sailMeasurementsRelPath);
 			this.kLength = reconSetup.kLength;
 			this.kArea = reconSetup.kArea;
@@ -900,9 +902,61 @@ public class Shell : MonoBehaviour {
 			this.NumWindReconstructionSteps1 = reconSetup.numWindReconstructionSteps1;
 			this.NumWindReconstructionSteps2 = reconSetup.numWindReconstructionSteps2;
 
+			// Enlarge measurements array if necessary if the mesh was subdivided.
+			if(reconSetup.numRestShapeSubdivisions > 0 && this.measurements.measurements.Length < this.vertexPositions.Length) {
+				Vec3D[] measurements = new Vec3D[this.vertexPositions.Length];
+				for(int i = 0; i < this.measurements.measurements.Length; i++) {
+					measurements[i] = this.measurements.measurements[i];
+				}
+				for(int i = this.measurements.measurements.Length; i < measurements.Length; i++) {
+					measurements[i] = null;
+				}
+				this.measurements = new SailMeasurements(null, measurements);
+			}
+
+			// Perform real-world data specific operations. This code is written specifically for one mesh.
+			if(reconSetup.isRealWorldDataTest) {
+
+				// Generate constraints along the mast.
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					this.verticesMovementConstraints[i] = false;
+				}
+				foreach(Edge edge in this.edges) {
+					if(!edge.hasSideFlaps()) {
+						if(this.vertexPositions[edge.ve1].x <= 0 || this.vertexPositions[edge.ve1].y <= 0.5) {
+							this.verticesMovementConstraints[edge.ve1] = true;
+						}
+						if(this.vertexPositions[edge.ve2].x <= 0 || this.vertexPositions[edge.ve2].y <= 0.5) {
+							this.verticesMovementConstraints[edge.ve2] = true;
+						}
+					}
+				}
+
+				// Visualize vertex constraints.
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					if(this.verticesMovementConstraints[i]) {
+						this.visualizer.visualizePoints(this.vertexPositions[i]);
+					}
+				}
+
+				// Sample n measurements from the measurements array.
+				Vec3D[] originalMeasurements = this.measurements.measurements;
+				int n = reconSetup.numRealWorldDataFarthestFirstMarkers;
+				Vec3D[] measurements = MeshUtils.generateFarthestPointSamplingSailMeasurements(originalMeasurements, n, this.verticesMovementConstraints);
+				this.measurements = new SailMeasurements(null, measurements);
+
+				// Use the measurements to estimate the reconstruction distance.
+				this.realDataTruthMeasurements = new Vec3D[this.vertexPositions.Length];
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					if(originalMeasurements[i] != null) {
+						this.realDataTruthMeasurements[i] = originalMeasurements[i].clone();
+					}
+				}
+			}
+
 			int numMeasurements = 0;
-			for(int i = 0; i < measurements.measurements.Length; i++) {
-				if(measurements.measurements[i] != null) {
+			for(int i = 0; i < this.measurements.measurements.Length; i++) {
+				if(this.measurements.measurements[i] != null) {
 					numMeasurements++;
 				}
 			}
@@ -1025,7 +1079,7 @@ public class Shell : MonoBehaviour {
 
 			double measurementsSquaredError = this.getSquaredMeasurementsError(this.vertexPositions);
 			double reconstructionDistance = this.getReconstructionDistance(this.vertexPositions);
-			double averageReconstructionDistance = reconstructionDistance / this.vertexPositions.Length;
+			double averageReconstructionDistance = this.getAverageReconstructionDistance(this.vertexPositions);
 			double maxReconstructionDistance = this.getMaxReconstructionDistance(this.vertexPositions);
 
 			print("Step: " + this.stepCount + ", Squared measurements error: " + measurementsSquaredError
@@ -1611,14 +1665,68 @@ public class Shell : MonoBehaviour {
 	 */
 	private double getReconstructionDistance(Vec3D[] vertexPositions) {
 		double error = 0;
-		if(this.measurements != null) {
-			Vec3D[] correctPositions = this.measurements.vertexPositions;
+		if(this.realDataTruthMeasurements == null) {
+			if(this.measurements != null && this.measurements.vertexPositions != null) {
+				Vec3D[] correctPositions = this.measurements.vertexPositions;
+				for(int i = 0; i < vertexPositions.Length; i++) {
+					Vec3D diff = correctPositions[i] - vertexPositions[i];
+					error += diff.magnitude;
+				}
+			}
+		} else {
+			Vec3D[] correctPositions = this.realDataTruthMeasurements;
 			for(int i = 0; i < vertexPositions.Length; i++) {
-				Vec3D diff = correctPositions[i] - vertexPositions[i];
-				error += diff.magnitude;
+				if(correctPositions[i] != null) {
+					Vec3D diff = correctPositions[i] - vertexPositions[i];
+					error += diff.magnitude;
+				}
 			}
 		}
 		return error;
+	}
+
+	/*
+	 * Gets the average distance between the current vertex positions and the vertex positions at the time the measurements were taken.
+	 * Extrapolates the average distance to unknown vertex positions if vertex position truths are unknown.
+	 * Returns 0 if no measurement is set.
+	 */
+	private double getAverageReconstructionDistance(Vec3D[] vertexPositions) {
+		if(this.realDataTruthMeasurements == null) {
+			double error = 0;
+			if(this.measurements != null && this.measurements.vertexPositions != null) {
+				Vec3D[] correctPositions = this.measurements.vertexPositions;
+				for(int i = 0; i < vertexPositions.Length; i++) {
+					Vec3D diff = correctPositions[i] - vertexPositions[i];
+					error += diff.magnitude;
+				}
+			}
+			return error / vertexPositions.Length;
+		} else {
+			int numConstraints = 0;
+			int numConstrainedMeasurements = 0;
+			int numUnconstrainedMeasurements = 0;
+			double unconstrainedError = 0;
+			double constrainedError = 0;
+			Vec3D[] correctPositions = this.realDataTruthMeasurements;
+			for(int i = 0; i < vertexPositions.Length; i++) {
+				if(this.verticesMovementConstraints[i]) {
+					numConstraints++;
+				}
+				if(correctPositions[i] != null) {
+					double diffMag = (correctPositions[i] - vertexPositions[i]).magnitude;
+					if(this.verticesMovementConstraints[i]) {
+						constrainedError += diffMag;
+						numConstrainedMeasurements++;
+					} else {
+						unconstrainedError += diffMag;
+						numUnconstrainedMeasurements++;
+					}
+				}
+			}
+			double constrainedMeasurementFactor = (double) numConstrainedMeasurements / (double) numConstraints;
+			return (1d - constrainedMeasurementFactor) * unconstrainedError / numUnconstrainedMeasurements
+					+ constrainedMeasurementFactor * constrainedError / numConstrainedMeasurements;
+		}
 	}
 
 	/*
@@ -1626,19 +1734,34 @@ public class Shell : MonoBehaviour {
 	 * Returns 0 if no measurement is set.
 	 */
 	private double getMaxReconstructionDistance(Vec3D[] vertexPositions) {
-		if(this.measurements == null) {
-			return 0d;
-		}
-		double maxDiffMag = 0d;
-		Vec3D[] correctPositions = this.measurements.vertexPositions;
-		for(int i = 0; i < vertexPositions.Length; i++) {
-			Vec3D diff = correctPositions[i] - vertexPositions[i];
-			double diffMag = diff.magnitude;
-			if(diffMag > maxDiffMag) {
-				maxDiffMag = diffMag;
+		if(this.realDataTruthMeasurements == null) {
+			if(this.measurements == null || this.measurements.vertexPositions == null) {
+				return 0d;
 			}
+			double maxDiffMag = 0d;
+			Vec3D[] correctPositions = this.measurements.vertexPositions;
+			for(int i = 0; i < vertexPositions.Length; i++) {
+				Vec3D diff = correctPositions[i] - vertexPositions[i];
+				double diffMag = diff.magnitude;
+				if(diffMag > maxDiffMag) {
+					maxDiffMag = diffMag;
+				}
+			}
+			return maxDiffMag;
+		} else {
+			double maxDiffMag = 0d;
+			Vec3D[] correctPositions = this.realDataTruthMeasurements;
+			for(int i = 0; i < vertexPositions.Length; i++) {
+				if(correctPositions[i] != null) {
+					Vec3D diff = correctPositions[i] - vertexPositions[i];
+					double diffMag = diff.magnitude;
+					if(diffMag > maxDiffMag) {
+						maxDiffMag = diffMag;
+					}
+				}
+			}
+			return maxDiffMag;
 		}
-		return maxDiffMag;
 	}
 
 	/*
@@ -3284,12 +3407,36 @@ public class Shell : MonoBehaviour {
 	}
 
 	private void loadSailConfiguration(SailConfiguration sailConfiguration) {
+		this.loadSailConfiguration(sailConfiguration, 0);
+	}
+
+	private void loadSailConfiguration(SailConfiguration sailConfiguration, int numSubDivisions) {
 		Mesh mesh = new Mesh();
 		mesh.vertices = vecToVec(sailConfiguration.vertexPositions);
 		mesh.triangles = sailConfiguration.triangles;
+
+		// Perform additional mesh subdivisions.
+		if(numSubDivisions > 0) {
+			mesh.RecalculateNormals();
+			for(int i = 0; i < numSubDivisions; i++) {
+				MeshHelper.Subdivide(mesh);
+			}
+
+			// Mark the newly added vertices as not constrained.
+			this.verticesMovementConstraints = new bool[mesh.vertexCount];
+			for(int i = 0; i < sailConfiguration.vertexConstraints.Length; i++) {
+				this.verticesMovementConstraints[i] = sailConfiguration.vertexConstraints[i];
+			}
+			for(int i = sailConfiguration.vertexConstraints.Length; i < this.verticesMovementConstraints.Length; i++) {
+				this.verticesMovementConstraints[i] = false;
+			}
+		} else {
+			this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
+		}
+
+		// Load the mesh.
 		mesh.RecalculateNormals();
 		this.loadMesh(mesh, 1d);
-		this.verticesMovementConstraints = sailConfiguration.vertexConstraints;
 	}
 
 	public void onSaveSailMeasurementsButtonPress() {
