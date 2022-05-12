@@ -3499,7 +3499,8 @@ public class Shell : MonoBehaviour {
 				this.measurementsGenerateFactor = 1f;
 			}
 			int numMeasurements = (int) (this.vertexPositions.Length * this.measurementsGenerateFactor);
-			new SailMeasurements(this.vertexPositions, MeshUtils.generateMeasurements(this.vertexPositions, numMeasurements)).storeToFile(filePath);
+			new SailMeasurements(this.vertexPositions, MeshUtils.generateFarthestPointSamplingSailMeasurements(
+					this.vertexPositions, numMeasurements, this.verticesMovementConstraints)).storeToFile(filePath);
 		}
 	}
 
