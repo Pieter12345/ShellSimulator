@@ -1231,11 +1231,10 @@ public class Shell : MonoBehaviour {
 		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
-		VecD step = this.kGradientDescent * (vertexWindForce + gravityForce - vertexEnergyGradient);
+		VecD step = this.kGradientDescent * (new VecD(vertexWindForce).add(gravityForce).sub(vertexEnergyGradient));
 		for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
 			if(!this.verticesMovementConstraints[vertexInd]) {
-				VecD stepVec = new VecD(step[3 * vertexInd], step[3 * vertexInd + 1], step[3 * vertexInd + 2]);
-				double stepVecMag = stepVec.magnitude;
+				Vec3D stepVec = new Vec3D(step[3 * vertexInd], step[3 * vertexInd + 1], step[3 * vertexInd + 2]);
 
 				// Disallow NaN and infinite steps.
 				if(stepVec.containsNaN()) {
@@ -1248,14 +1247,13 @@ public class Shell : MonoBehaviour {
 				}
 
 				// Limit step size.
+				double stepVecMag = stepVec.magnitude;
 				if(stepVecMag > this.maxGradientDescentStep) {
-					stepVec = stepVec / stepVecMag * this.maxGradientDescentStep;
+					stepVec = stepVec.mul(this.maxGradientDescentStep / stepVecMag);
 				}
 
 				// Apply step.
-				for(int coord = 0; coord < 3; coord++) {
-					this.vertexPositions[vertexInd][coord] += stepVec[coord];
-				}
+				this.vertexPositions[vertexInd].add(stepVec);
 			}
 		}
 		this.updateMesh();
