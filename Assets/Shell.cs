@@ -159,6 +159,7 @@ public class Shell : MonoBehaviour {
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest4FarthestFirst());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest5FarthestFirst());
 			this.reconstructionSetups.AddRange(this.getReconstructionSetupsTest6FarthestFirst());
+			this.reconstructionSetups.AddRange(this.getReconstructionSetupsRealDataTest());
 			this.ReconstructionStage = ReconstructionStage.DONE;
 		}
 
@@ -667,6 +668,41 @@ public class Shell : MonoBehaviour {
 					numWindReconstructionSteps2 = this.NumWindReconstructionSteps2,
 					initialPositionNoiseMagnitude = 0.01,
 					initialPositionNoiseRandomSeed = randomSeed
+				});
+			}
+		}
+		return reconstructionSetups;
+	}
+
+	private List<ReconstructionSetup> getReconstructionSetupsRealDataTest() {
+		List<ReconstructionSetup> reconstructionSetups = new List<ReconstructionSetup>();
+		//foreach(int n in new int[] {10, 20, 30, 40, 50, 70, 90, 110, 130}) { // TODO - Restore (or pick useful measurements anyways).
+		foreach(int n in new int[] {30, 50, 80, 110}) {
+			//foreach(int n in new int[] {110}) {
+			foreach(int measurementsFileId in new int[] {1, 2, 3, 4}) { // Measurements 1, 2 and 4 best match the rest shape mesh (from measurements 2).
+			//for(int measurementsFileId = 1; measurementsFileId <= 6; measurementsFileId++) {
+				reconstructionSetups.Add(new ReconstructionSetup {
+					sailStartConfigurationRelPath = "realDataTest/restshape.sailshapedata",
+					sailMeasurementsRelPath = "realDataTest/markerConfig_" + measurementsFileId + ".measurements",
+					resultsStorageRelPath = "realDataTest/markerConfig_" + measurementsFileId + "/n=" + n + ".results",
+					kLength = 15621f,
+					kArea = 8125f,
+					kBend = 10f,
+					shellThickness = 0.00025f,
+					shellMaterialDensity = 920f,
+					useFlatUndeformedBendState = true,
+					numRestShapeSubdivisions = 1, // Slightly enlarge the rest shape mesh.
+					isRealWorldDataTest = true,
+					numRealWorldDataFarthestFirstMarkers = n,
+					initialWindPressureVec = new Vec3D(0, 0, 0),
+					initialWindPressure = 0d,
+					gravityConstant = 9.81d,
+					doStaticMinimization = true,
+					maxWindSpeed = this.maxWindSpeed,
+					maxDeltaWindSpeed = this.maxDeltaWindSpeed,
+					minNumNewtonIterations = this.MinNumNewtonIterations,
+					numWindReconstructionSteps1 = this.NumWindReconstructionSteps1,
+					numWindReconstructionSteps2 = this.NumWindReconstructionSteps2
 				});
 			}
 		}
