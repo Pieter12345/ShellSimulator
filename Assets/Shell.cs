@@ -48,7 +48,7 @@ public class Shell : MonoBehaviour {
 	public double maxGradientDescentStep;
 
 	// Explicit integration specific settings.
-	public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step. TODO - Replace with proper energy dissipation.
+	public float dampingFactor = 0.99f; // [F * s / m] = [kg / s] ? Factor applied to vertex velocity per time step.
 
 	// Optimization integrator specific settings.
 	public bool DoStaticMinimization = false; // When set to true, velocity preserving and damping terms will be ignored.
@@ -973,8 +973,8 @@ public class Shell : MonoBehaviour {
 				this.doGradientDescentStep();
 				break;
 			}
-			case TimeSteppingMethod.EXPLICIT_NEWMARK: {
-				this.doExplititIntegrationNewmarkStep(deltaTime);
+			case TimeSteppingMethod.EXPLICIT: {
+				this.doExplititIntegrationStep(deltaTime);
 				break;
 			}
 			case TimeSteppingMethod.OPTIMIZATION_INTEGRATOR: {
@@ -1120,21 +1120,26 @@ public class Shell : MonoBehaviour {
 		this.updateMesh();
 	}
 
-	private void doExplititIntegrationNewmarkStep(double deltaTime) {
+	private void doExplititIntegrationStep(double deltaTime) {
 		
-		// Calculate vertex energy gradient array and vertex wind force array.
+		// Calculate vertex forces.
 		int[] triangles = this.getMesh().triangles;
 		VecD vertexEnergyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
 		VecD vertexWindForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
 		VecD vertexCoordMasses = this.getVertexCoordinateMasses();
 		VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
 
-		// Perform Newmark Time Stepping (ODE integration).
-		double gamma = 0.5d;
-		double beta = 0.25d;
-		for(int i = 0; i < this.vertexPositions.Length; i++) {
+		// Calculate new vertex accelerations.
+		this.vertexAccelerations = new VecD(vertexWindForce).add(gravityForce).sub(vertexEnergyGradient).divideElementWise(vertexCoordMasses);
 
-			// Skip vertex if it is constrained.
+		// Update vertex velocities.
+		this.vertexVelocities.add(new VecD(this.vertexAccelerations).mul(deltaTime));
+
+		// Apply velocity-based damping (simple heuristic where we assume that a constant percentage of the velocity is lost due to friction).
+		this.vertexVelocities.mul(this.dampingFactor);
+
+		// Update vertex positions and apply movement constraints.
+		for(int i = 0; i < this.vertexPositions.Length; i++) {
 			if(this.verticesMovementConstraints[i]) {
 				this.vertexVelocities[3 * i] = 0;
 				this.vertexVelocities[3 * i + 1] = 0;
@@ -1144,38 +1149,12 @@ public class Shell : MonoBehaviour {
 				this.vertexAccelerations[3 * i + 2] = 0;
 				continue;
 			}
-
-			// Calculate lumped vertex mass (a third of the area of triangles that this vertex is part of).
-			double vertexArea = 0f;
-			foreach(int triangleId in this.sortedVertexTriangles[i]) {
-				vertexArea += this.triangleAreas[triangleId];
-			}
-			vertexArea /= 3d;
-			double mass = vertexArea * this.shellThickness * this.shellMaterialDensity;
-
-			// Calculate vertex acceleration.
-			Vec3D newAcceleration = new Vec3D();
-			for(int coord = 0; coord < 3; coord++) {
-				newAcceleration[coord] = (vertexWindForce[3 * i + coord] + gravityForce[3 * i + coord] - vertexEnergyGradient[3 * i + coord]) / mass;
-			}
-
-			// Update vertex position.
 			for(int coord = 0; coord < 3; coord++) {
 				this.vertexPositions[i][coord] += deltaTime * this.vertexVelocities[3 * i + coord]
-						+ deltaTime * deltaTime * ((1d / 2d - beta) * this.vertexAccelerations[3 * i + coord] + beta * newAcceleration[coord]);
-			}
-
-			// Update vertex velocity.
-			for(int coord = 0; coord < 3; coord++) {
-				this.vertexVelocities[3 * i + coord] += deltaTime * ((1d - gamma) * this.vertexAccelerations[3 * i + coord] + gamma * newAcceleration[coord]);
-				this.vertexVelocities[3 * i + coord] *= dampingFactor; // TODO - Replace this constant damping with something more realistic friction-based damping.
-			}
-
-			// Update vertex acceleration.
-			for(int coord = 0; coord < 3; coord++) {
-				this.vertexAccelerations[3 * i + coord] = newAcceleration[coord];
+						+ deltaTime * deltaTime * this.vertexAccelerations[3 * i + coord] / 2d;
 			}
 		}
+
 		this.updateMesh();
 	}
 

@@ -157,6 +157,14 @@ public class VecD {
 		return this;
 	}
 
+	public VecD divideElementWise(VecD v) {
+		ensureVectorsSameLength(this, v);
+		for(int i = 0; i < this.length; i++) {
+			this[i] /= v[i];
+		}
+		return this;
+	}
+
 	public double[] asDoubleArray() {
 		return (double[]) this.vector.Clone();
 	}
