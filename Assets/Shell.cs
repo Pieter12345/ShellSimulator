@@ -1168,6 +1168,57 @@ public class Shell : MonoBehaviour {
 			this.maxReconDistTextObj.text = this.maxReconDistTextObj.text.Split(':')[0] + ": -";
 		}
 
+		// Update visualizations.
+		switch(this.visualizationType) {
+			case VisualizationType.MEASUREMENTS: {
+				if(this.measurements != null) {
+					Vec3D[] measurements = this.measurements.measurements;
+					List<Vec3D> measurementPositions = new List<Vec3D>();
+					for(int i = 0; i < measurements.Length; i++) {
+						if(measurements[i] != null) {
+							measurementPositions.Add(measurements[i]);
+						}
+					}
+					this.visualizer.visualizePoints(measurementPositions.ToArray(), 0.1f);
+				}
+				break;
+			}
+			case VisualizationType.VERTEX_POSITIONS: {
+				this.visualizer.visualizePoints(this.vertexPositions, 0.1f);
+				break;
+			}
+			case VisualizationType.VERTEX_VELOCITIES: {
+				this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, 0.2f);
+				break;
+			}
+			case VisualizationType.VERTEX_MEASUREMENT_DIFF: {
+				if(this.measurements != null) {
+					Vec3D[] measurements = this.measurements.measurements;
+					VecD measurementsError = new VecD(this.vertexPositions.Length * 3);
+					for(int vertexInd = 0; vertexInd < this.vertexPositions.Length; vertexInd++) {
+						if(measurements[vertexInd] != null) {
+							for(int coord = 0; coord < 3; coord++) {
+								measurementsError[3 * vertexInd + coord] = measurements[vertexInd][coord] - this.vertexPositions[vertexInd][coord];
+							}
+						}
+					}
+					this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, 1f);
+				}
+				break;
+			}
+			case VisualizationType.WIND_FORCE: {
+				this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
+				VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
+				this.visualizer.visualizeVectors(this.vertexPositions, windForce);
+				break;
+			}
+			case VisualizationType.ENERGY_GRADIENT: {
+				VecD energyGradient = getSystemEnergyGradient(triangles, this.vertexPositions);
+				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient);
+				break;
+			}
+		}
+
 		// Update mesh recorder.
 		if(this.isRecording) {
 			this.meshRecorder.record(deltaTime, this.vertexPositions);
@@ -1584,45 +1635,9 @@ public class Shell : MonoBehaviour {
 		// Update mesh.
 		this.updateMesh();
 
-		// Visualize reconstruction error vectors.
-		if(this.visualizationType == VisualizationType.VERTEX_MEASUREMENT_DIFF && this.measurements != null) {
-			Vec3D[] measurements = this.measurements.measurements;
-			VecD measurementsError = new VecD(numVertices * 3);
-			for(int vertexInd = 0; vertexInd < numVertices; vertexInd++) {
-				if(measurements[vertexInd] != null) {
-					for(int coord = 0; coord < 3; coord++) {
-						measurementsError[3 * vertexInd + coord] = measurements[vertexInd][coord] - this.vertexPositions[vertexInd][coord];
-					}
-				}
-			}
-			this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, 1f);
-		}
-
-		// Visualize velocity vectors.
-		if(this.visualizationType == VisualizationType.VERTEX_VELOCITIES) {
-			this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, 0.2f);
-		}
-
 		// Visualize step.
 		if(this.visualizationType == VisualizationType.STEP) {
 			this.visualizer.visualizeVectors(this.vertexPositions, new VecD(newVertexPositions).sub(vertexPositionsFlat), 10f);
-		}
-		
-		// Visualize vertex positions.
-		if(this.visualizationType == VisualizationType.VERTEX_POSITIONS) {
-			this.visualizer.visualizePoints(newVertexPositions, 0.1f);
-		}
-
-		// Visualize measurements.
-		if(this.visualizationType == VisualizationType.MEASUREMENTS && this.measurements != null) {
-			Vec3D[] measurements = this.measurements.measurements;
-			List<Vec3D> measurementPositions = new List<Vec3D>();
-			for(int i = 0; i < measurements.Length; i++) {
-				if(measurements[i] != null) {
-					measurementPositions.Add(measurements[i]);
-				}
-			}
-			this.visualizer.visualizePoints(measurementPositions.ToArray(), 0.1f);
 		}
 	}
 
