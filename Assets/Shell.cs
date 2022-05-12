@@ -1231,6 +1231,39 @@ public class Shell : MonoBehaviour {
 				this.visualizer.visualizePoints(vertexConstraintPositions, this.visualizationObjectColor, this.visualizationObjectScale);
 				break;
 			}
+			case VisualizationType.RECON_CONSTR_MEAS_VERTEX_DESIRED_WIND_FORCE_AND_CAUSED_WIND_FORCE: {
+				this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
+				VecD energyGradient = this.getSystemEnergyGradient(triangles, this.vertexPositions);
+				VecD vertexCoordMasses = this.getVertexCoordinateMasses();
+				VecD gravityForce = this.getVertexGravityForce(vertexCoordMasses);
+
+				// Compute the force that should be put onto the sail by the wind in order to result in static force equilibrium.
+				VecD virtMeasurementsErrorForce = new VecD(energyGradient).sub(gravityForce);
+
+				// Compute the wind pressure vector that best represents the desired force.
+				Vec3D newWindPressureVec = this.getWindPressureVec(triangles, this.vertexPositions, virtMeasurementsErrorForce);
+
+				// Set virtual measurements error force to 0 for non-measurement vertices.
+				if(this.measurements != null && this.measurements.measurements != null) {
+					for(int i = 0; i < this.vertexPositions.Length; i++) {
+						if(this.measurements.measurements[i] == null) {
+							virtMeasurementsErrorForce[i * 3] = 0;
+							virtMeasurementsErrorForce[i * 3 + 1] = 0;
+							virtMeasurementsErrorForce[i * 3 + 2] = 0;
+						}
+					}
+				} else {
+					virtMeasurementsErrorForce = new VecD(this.vertexPositions.Length * 3);
+				}
+				
+				// Visualize virtual measurements error forces (excluding wind).
+				this.visualizer.visualizeVectors(this.vertexPositions, virtMeasurementsErrorForce, this.visualizationObjectColor, this.visualizationObjectScale);
+
+				// Visualize the undamped resulting wind force.
+				VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, newWindPressureVec, this.windPressure);
+				this.visualizer.visualizeVectors(this.vertexPositions, windForce, Color.yellow, this.visualizationObjectScale);
+				break;
+			}
 			case VisualizationType.ENERGY_GRADIENT: {
 				VecD energyGradient = getSystemEnergyGradient(triangles, this.vertexPositions);
 				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient, this.visualizationObjectColor, this.visualizationObjectScale);
