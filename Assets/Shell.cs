@@ -90,6 +90,7 @@ public class Shell : MonoBehaviour {
 	// Debugging.
 	private Visualizer visualizer;
 	public VisualizationType visualizationType = VisualizationType.NONE;
+	public float visualizationObjectScale = 1f;
 	private Text avgReconDistTextObj;
 	private Text maxReconDistTextObj;
 
@@ -1179,16 +1180,16 @@ public class Shell : MonoBehaviour {
 							measurementPositions.Add(measurements[i]);
 						}
 					}
-					this.visualizer.visualizePoints(measurementPositions.ToArray(), 0.1f);
+					this.visualizer.visualizePoints(measurementPositions.ToArray(), this.visualizationObjectScale);
 				}
 				break;
 			}
 			case VisualizationType.VERTEX_POSITIONS: {
-				this.visualizer.visualizePoints(this.vertexPositions, 0.1f);
+				this.visualizer.visualizePoints(this.vertexPositions, this.visualizationObjectScale);
 				break;
 			}
 			case VisualizationType.VERTEX_VELOCITIES: {
-				this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, 0.2f);
+				this.visualizer.visualizeVectors(this.vertexPositions, this.vertexVelocities, this.visualizationObjectScale);
 				break;
 			}
 			case VisualizationType.VERTEX_MEASUREMENT_DIFF: {
@@ -1202,19 +1203,19 @@ public class Shell : MonoBehaviour {
 							}
 						}
 					}
-					this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, 1f);
+					this.visualizer.visualizeVectors(this.vertexPositions, measurementsError, this.visualizationObjectScale);
 				}
 				break;
 			}
 			case VisualizationType.WIND_FORCE: {
 				this.recalcTriangleNormalsAndAreas(triangles, this.vertexPositions);
 				VecD windForce = this.getVertexWindForce(triangles, this.vertexPositions, new Vec3D(this.windPressureVec), this.windPressure);
-				this.visualizer.visualizeVectors(this.vertexPositions, windForce);
+				this.visualizer.visualizeVectors(this.vertexPositions, windForce, this.visualizationObjectScale);
 				break;
 			}
 			case VisualizationType.ENERGY_GRADIENT: {
 				VecD energyGradient = getSystemEnergyGradient(triangles, this.vertexPositions);
-				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient);
+				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient, this.visualizationObjectScale);
 				break;
 			}
 		}
