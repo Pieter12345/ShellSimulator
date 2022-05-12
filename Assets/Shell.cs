@@ -1214,6 +1214,23 @@ public class Shell : MonoBehaviour {
 				this.visualizer.visualizeVectors(this.vertexPositions, windForce, this.visualizationObjectColor, this.visualizationObjectScale);
 				break;
 			}
+			case VisualizationType.VERTEX_CONSTRAINTS: {
+				int numConstraints = 0;
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					if(this.verticesMovementConstraints[i]) {
+						numConstraints++;
+					}
+				}
+				Vec3D[] vertexConstraintPositions = new Vec3D[numConstraints];
+				int constraintInd = 0;
+				for(int i = 0; i < this.vertexPositions.Length; i++) {
+					if(this.verticesMovementConstraints[i]) {
+						vertexConstraintPositions[constraintInd++] = this.vertexPositions[i];
+					}
+				}
+				this.visualizer.visualizePoints(vertexConstraintPositions, this.visualizationObjectColor, this.visualizationObjectScale);
+				break;
+			}
 			case VisualizationType.ENERGY_GRADIENT: {
 				VecD energyGradient = getSystemEnergyGradient(triangles, this.vertexPositions);
 				this.visualizer.visualizeVectors(this.vertexPositions, energyGradient, this.visualizationObjectColor, this.visualizationObjectScale);
