@@ -71,7 +71,7 @@ public class MeshRecorder {
 		UnityEngine.Object.Destroy(this.gameObject);
 	}
 
-	public void update() {
+	public void update(double deltaTime) {
 		if(this.replayIndex < 0) {
 			return;
 		}
@@ -87,7 +87,7 @@ public class MeshRecorder {
 			this.lastUpdateTime += tuple.Item1;
 			this.replayIndex++;
 		}
-		this.replayTime += Time.deltaTime;
+		this.replayTime += deltaTime;
 	}
 
 	public void storeToFile(string filePath) {

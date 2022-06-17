@@ -886,7 +886,7 @@ public class Shell : MonoBehaviour {
 
 		// Update recording.
 		if(this.meshRecorder != null) {
-			this.meshRecorder.update();
+			this.meshRecorder.update(Time.deltaTime * this.timeScale);
 		}
 	}
 
