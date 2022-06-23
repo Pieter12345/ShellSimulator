@@ -970,7 +970,7 @@ public class Shell : MonoBehaviour {
 				// Visualize vertex constraints.
 				for(int i = 0; i < this.vertexPositions.Length; i++) {
 					if(this.verticesMovementConstraints[i]) {
-						this.visualizer.visualizePoints(this.vertexPositions[i], this.visualizationObjectColor);
+						this.visualizer.visualizePoints(this.vertexPositions[i], this.visualizationObjectColor, this.visualizationObjectScale);
 					}
 				}
 
